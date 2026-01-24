@@ -1,14 +1,14 @@
 {
     "Group": "Example",
-    "Name": "ExamplePlugin",
+    "Name": "RealmRulerPlugin",
     "Version": "0.0.2",
-    "Description": "An example plugin for HyTale!",
+    "Description": "A plugin for a 'capture the flag'-like game in HyTale!",
     "Authors": [
         {
-            "Name": "It's you!"
+            "Name": "Chris__"
         }
     ],
-    "Website": "example.org",
+    "Website": "",
     "ServerVersion": "*",
     "Dependencies": {
         
@@ -17,6 +17,6 @@
         
     },
     "DisabledByDefault": false,
-    "Main": "org.example.plugin.ExamplePlugin",
+    "Main": "com.Chris__.Realm_Ruler.Realm_Ruler",
     "IncludesAssetPack": true
 }
