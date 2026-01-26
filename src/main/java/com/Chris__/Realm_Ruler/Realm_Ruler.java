@@ -12,6 +12,9 @@ import com.hypixel.hytale.server.core.plugin.JavaPlugin;
 import com.hypixel.hytale.server.core.plugin.JavaPluginInit;
 
 import javax.annotation.Nonnull;
+import java.lang.reflect.Method;
+import java.util.Locale;
+import java.util.function.Consumer;
 
 public class Realm_Ruler extends JavaPlugin {
 
@@ -24,20 +27,18 @@ public class Realm_Ruler extends JavaPlugin {
     private static final String STAND_WHITE  = "Flag_Stand_White";
     private static final String STAND_YELLOW = "Flag_Stand_Yellow";
 
-    // Weapon flag IDs
+    // Weapon flag IDs (your duplicated swords-as-flags)
     private static final String FLAG_RED    = "Realm_Ruler_Flag_Red";
     private static final String FLAG_BLUE   = "Realm_Ruler_Flag_Blue";
     private static final String FLAG_WHITE  = "Realm_Ruler_Flag_White";
     private static final String FLAG_YELLOW = "Realm_Ruler_Flag_Yellow";
 
-    private static final Message MSG_EMPTY_HAND_REQUIRED =
-            Message.raw("You need an empty hand to take the flag out of the stand.");
-
     private static final Message MSG_DEBUG_HIT =
             Message.raw("[RealmRuler] Flag stand interaction detected.");
 
-    private static final Message MSG_SWAP_NOT_IMPLEMENTED =
-            Message.raw("[RealmRuler] Block swap not wired yet (need set-block API).");
+    // Spam limits so logs don't turn into soup 🍲
+    private static int USEBLOCK_DEBUG_LIMIT = 30;
+    private static int ICCE_DEBUG_LIMIT = 200;
 
     public Realm_Ruler(@Nonnull JavaPluginInit init) {
         super(init);
@@ -53,16 +54,22 @@ public class Realm_Ruler extends JavaPlugin {
                 new ExampleCommand(this.getName(), this.getManifest().getVersion().toString())
         );
 
-        // Flag stand logic
+        // We keep this, but we won't rely on it (since your interaction is F-open UI)
         this.getEventRegistry().register(UseBlockEvent.Pre.class, this::onUseBlock);
+        LOGGER.atInfo().log("Registered UseBlockEvent.Pre listener.");
 
-        LOGGER.atInfo().log("Registered UseBlockEvent.Pre listener for flag stands.");
+        // This is the important part for the chest-style stand:
+        registerItemContainerChangeEvent();
     }
 
+    /**
+     * Your current "F opens UI" behavior likely won't fire UseBlockEvent.Pre.
+     * But keeping this listener helps us confirm what DOES fire, if anything.
+     */
     private void onUseBlock(UseBlockEvent.Pre event) {
         InteractionType type = event.getInteractionType();
 
-        // Keep broad for now (Primary/Secondary/Use)
+        // Keep broad for now
         if (type != InteractionType.Primary && type != InteractionType.Secondary && type != InteractionType.Use) {
             return;
         }
@@ -70,79 +77,187 @@ public class Realm_Ruler extends JavaPlugin {
         BlockType blockType = event.getBlockType();
         String clickedId = safeBlockTypeId(blockType);
 
-        boolean isEmptyStand = STAND_EMPTY.equals(clickedId);
-        boolean isColoredStand =
-                STAND_RED.equals(clickedId) ||
+        InteractionContext ctx = event.getContext();
+        ItemStack held = ctx.getHeldItem();
+        String heldId = (held == null) ? "<empty>" : safeItemId(held);
+
+        if (USEBLOCK_DEBUG_LIMIT-- > 0) {
+            LOGGER.atInfo().log("[RR-USEBLOCK] type=%s clickedId=%s heldId=%s", type, clickedId, heldId);
+            sendPlayerMessage(ctx, Message.raw("[RR-USEBLOCK] clickedId=" + clickedId + " heldId=" + heldId));
+        }
+
+        // If this ever fires on a stand, you'll see it.
+        boolean isStand =
+                STAND_EMPTY.equals(clickedId) ||
+                        STAND_RED.equals(clickedId) ||
                         STAND_BLUE.equals(clickedId) ||
                         STAND_WHITE.equals(clickedId) ||
                         STAND_YELLOW.equals(clickedId);
 
-        if (!isEmptyStand && !isColoredStand) return;
+        if (isStand) {
+            sendPlayerMessage(ctx, MSG_DEBUG_HIT);
+        }
+    }
 
-        InteractionContext ctx = event.getContext();
+    /**
+     * Registers ItemContainer$ItemContainerChangeEvent via reflection so you avoid
+     * "cannot resolve symbol" issues if your SDK jar differs or IDE indexing is weird.
+     */
+    @SuppressWarnings({"rawtypes", "unchecked"})
+    private void registerItemContainerChangeEvent() {
+        try {
+            Class<?> evtClass = Class.forName(
+                    "com.hypixel.hytale.server.core.inventory.container.ItemContainer$ItemContainerChangeEvent"
+            );
 
-        // Prove the handler fires
-        LOGGER.atInfo().log("Flag stand click: type=%s blockId=%s target=%s",
-                type, clickedId, String.valueOf(ctx.getTargetBlock()));
+            java.util.function.Consumer handler =
+                    (java.util.function.Consumer) (Object e) -> onItemContainerChangeEvent(e);
 
-        // Optional: spam message to player so you SEE it live
-        sendPlayerMessage(ctx, MSG_DEBUG_HIT);
+            this.getEventRegistry().register((Class) evtClass, handler);
 
-        // IMPORTANT: cancel default interaction so Open_Container stops.
-        // If you still see the container open after this, the event isn't firing.
-        event.setCancelled(true);
-
-        ItemStack held = ctx.getHeldItem(); // null = empty hand
-        boolean handEmpty = (held == null);
-
-        // =========================
-        // REMOVE (colored stand): requires empty hand, puts a fresh flag into hand
-        // =========================
-        if (isColoredStand) {
-            if (!handEmpty) {
-                sendPlayerMessage(ctx, MSG_EMPTY_HAND_REQUIRED);
-                return; // already cancelled
-            }
-
-            String flagId =
-                    STAND_RED.equals(clickedId) ? FLAG_RED :
-                            STAND_BLUE.equals(clickedId) ? FLAG_BLUE :
-                                    STAND_WHITE.equals(clickedId) ? FLAG_WHITE :
-                                            FLAG_YELLOW;
-
-            // Create item stack using your SDK's constructor
-            ItemStack freshFlag = new ItemStack(flagId, 1);
-
-            // Force it to be held
-            ctx.setHeldItem(freshFlag);
-
-            // TODO: swap block in world to STAND_EMPTY
-            sendPlayerMessage(ctx, MSG_SWAP_NOT_IMPLEMENTED);
-            return;
+            LOGGER.atInfo().log("[RR-ICCE] Registered ItemContainerChangeEvent listener: %s", evtClass.getName());
+        } catch (ClassNotFoundException cnf) {
+            LOGGER.atWarning().withCause(cnf).log(
+                    "[RR-ICCE] Could not find ItemContainer$ItemContainerChangeEvent at runtime. Class name/path may differ."
+            );
+        } catch (Throwable t) {
+            LOGGER.atSevere().withCause(t).log(
+                    "[RR-ICCE] Failed to register ItemContainerChangeEvent."
+            );
         }
 
-        // =========================
-        // INSERT (empty stand): must be holding a flag, consumes held item
-        // =========================
-        if (isEmptyStand) {
-            if (handEmpty) return;
+    }
 
-            String heldId = held.getItemId();
 
-            String newStandId =
-                    FLAG_RED.equals(heldId) ? STAND_RED :
-                            FLAG_BLUE.equals(heldId) ? STAND_BLUE :
-                                    FLAG_WHITE.equals(heldId) ? STAND_WHITE :
-                                            FLAG_YELLOW.equals(heldId) ? STAND_YELLOW :
-                                                    null;
+    /**
+     * First goal: PROVE this fires when you move items in the stand UI.
+     * Second goal: learn what getters exist so we can locate the stand block position.
+     */
+    private void onItemContainerChangeEvent(Object event) {
+        try {
+            if (ICCE_DEBUG_LIMIT-- <= 0) return;
 
-            if (newStandId == null) return; // not one of our flags
+            Class<?> c = event.getClass();
+            LOGGER.atInfo().log("[RR-ICCE] Fired: %s", c.getName());
 
-            // Consume the flag (stack size 1 rule)
-            ctx.setHeldItem(null);
+            // NEW: try very hard to extract slot / changed slot info first
+            logSlotSummary(event);
 
-            // TODO: swap block in world to newStandId
-            sendPlayerMessage(ctx, MSG_SWAP_NOT_IMPLEMENTED);
+            // Keep your existing method-dump too (it helps discover getters)
+            dumpInterestingNoArgMethods(event);
+
+        } catch (Throwable t) {
+            LOGGER.atSevere().withCause(t).log("[RR-ICCE] Handler crashed while processing event.");
+        }
+    }
+
+    private void logSlotSummary(Object event) {
+        // Common-ish getter names we want to probe first
+        String[] candidates = new String[] {
+                "getSlot", "getSlotIndex", "getChangedSlot", "getChangedSlotIndex",
+                "getSlots", "getChangedSlots", "getModifiedSlots", "getDirtySlots",
+                "slot", "slotIndex", "changedSlots"
+        };
+
+        for (String name : candidates) {
+            try {
+                Method m = event.getClass().getMethod(name);
+                if (m.getParameterCount() != 0) continue;
+
+                Object val = m.invoke(event);
+                String rendered = renderValue(val);
+
+                LOGGER.atInfo().log("[RR-ICCE]  SLOT-CANDIDATE %s() -> %s", name, rendered);
+            } catch (Throwable ignored) {
+                // ignore missing methods
+            }
+        }
+    }
+
+    private String renderValue(Object val) {
+        if (val == null) return "<null>";
+
+        // Arrays
+        Class<?> cls = val.getClass();
+        if (cls.isArray()) {
+            int len = java.lang.reflect.Array.getLength(val);
+            StringBuilder sb = new StringBuilder();
+            sb.append("[");
+            for (int i = 0; i < len; i++) {
+                Object item = java.lang.reflect.Array.get(val, i);
+                if (i > 0) sb.append(", ");
+                sb.append(String.valueOf(item));
+            }
+            sb.append("]");
+            return sb.toString();
+        }
+
+        // Iterables (List/Set/etc)
+        if (val instanceof Iterable<?> it) {
+            StringBuilder sb = new StringBuilder();
+            sb.append("[");
+            boolean first = true;
+            for (Object item : it) {
+                if (!first) sb.append(", ");
+                first = false;
+                sb.append(String.valueOf(item));
+            }
+            sb.append("]");
+            return sb.toString();
+        }
+
+        return String.valueOf(val);
+    }
+
+
+
+    private void dumpInterestingNoArgMethods(Object obj) {
+        Method[] methods = obj.getClass().getMethods();
+
+        for (Method m : methods) {
+            try {
+                if (m.getParameterCount() != 0) continue;
+
+                String name = m.getName();
+                String low = name.toLowerCase(Locale.ROOT);
+
+                // Filter to likely-useful info without dumping 200 irrelevant methods.
+                boolean interesting =
+                        low.contains("container") ||
+                                low.contains("slot") ||
+                                low.contains("item") ||
+                                low.contains("stack") ||
+                                low.contains("old") ||
+                                low.contains("new") ||
+                                low.contains("owner") ||
+                                low.contains("entity") ||
+                                low.contains("player") ||
+                                low.contains("block") ||
+                                low.contains("pos") ||
+                                low.contains("world") ||
+                                low.contains("location") ||
+                                low.contains("source");
+
+                if (!interesting) continue;
+
+                Object val = m.invoke(obj);
+
+                // Try to extract itemId if the return is an ItemStack-like object
+                String rendered = String.valueOf(val);
+                if (val != null) {
+                    // If it looks like an ItemStack, try getItemId()
+                    try {
+                        Method getItemId = val.getClass().getMethod("getItemId");
+                        Object itemId = getItemId.invoke(val);
+                        rendered = rendered + " (itemId=" + String.valueOf(itemId) + ")";
+                    } catch (Throwable ignored) {}
+                }
+
+                LOGGER.atInfo().log("[RR-ICCE]  %s() -> %s", name, rendered);
+
+            } catch (Throwable ignored) {
+                // never let debug dumping crash your plugin
+            }
         }
     }
 
@@ -152,6 +267,14 @@ public class Realm_Ruler extends JavaPlugin {
             return String.valueOf(v);
         } catch (Exception e) {
             return blockType.toString();
+        }
+    }
+
+    private String safeItemId(ItemStack stack) {
+        try {
+            return String.valueOf(stack.getItemId());
+        } catch (Throwable t) {
+            return stack.toString();
         }
     }
 
