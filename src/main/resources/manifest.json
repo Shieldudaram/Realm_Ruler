@@ -11,7 +11,7 @@
     "Website": "",
     "ServerVersion": "*",
     "Dependencies": {
-        
+        "Hytale:PlayerInteractLib": "*"
     },
     "OptionalDependencies": {
         
