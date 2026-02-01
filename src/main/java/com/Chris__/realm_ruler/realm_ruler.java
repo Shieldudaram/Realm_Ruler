@@ -140,6 +140,8 @@ public class Realm_Ruler extends JavaPlugin {
     // Asset IDs (strings must match your JSON block/item IDs exactly)
     // -------------------------------------------------------------------------
 
+
+
     /** Stand block IDs (placed in the world). */
     private static final String STAND_EMPTY  = "Flag_Stand";
     private static final String STAND_RED    = "Flag_Stand_Red";
@@ -218,6 +220,8 @@ public class Realm_Ruler extends JavaPlugin {
         setupModes();
         LOGGER.atInfo().log("Hello from %s version %s", this.getName(), this.getManifest().getVersion().toString());
     }
+
+
 
 
 
@@ -537,7 +541,7 @@ public class Realm_Ruler extends JavaPlugin {
      * Phase 1: ignore item-in-hand and simply toggle Empty <-> Blue on any stand interaction.
      * Phase 2+: set this false and use itemInHand to choose stand color based on flags.
      */
-    private static final boolean PHASE1_TOGGLE_BLUE_ONLY = true;
+    private static final boolean PHASE1_TOGGLE_BLUE_ONLY = false;
 
     /**
      * PlayerInteractLib event handler.
