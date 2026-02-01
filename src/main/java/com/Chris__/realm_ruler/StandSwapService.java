@@ -8,10 +8,46 @@ import com.hypixel.hytale.server.core.universe.world.chunk.WorldChunk;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 
+
+
 /**
  * WORLD: Centralized stand swapping logic (asset validation + chunk loaded + block write).
  * Keep world writes here so monthly Hytale changes are localized.
  */
+
+/**
+ * StandSwapService (WORLD)
+ *
+ * Purpose:
+ * - Perform the actual "swap placed stand block variant" world edit in one centralized place.
+ * - This service is the ONLY code path that should write stand blocks (chunk.setBlock) so that
+ *   future safety fixes and API changes are localized to a single file.
+ *
+ * What it does:
+ * 1) Validates the target stand asset key exists in the BlockType asset map.
+ * 2) Ensures the containing chunk is loaded before attempting to write.
+ * 3) Writes the new block ID into the world at (x,y,z).
+ * 4) Uses warn-once guards to prevent log spam for missing assets/chunks.
+ *
+ * Why centralize world writes:
+ * - PlayerInteractLib events may arrive off the main tick thread (async).
+ * - World writes are sensitive and can cause race conditions or crashes if done unsafely.
+ * - Centralizing writes makes it straightforward to later enforce tick-thread execution.
+ *
+ * Current threading behavior:
+ * - Writes are performed inline (call-site thread) but behind one entry point.
+ *
+ * Planned upgrade:
+ * - Add a tick-thread executor/queue and route ALL world writes through it:
+ *     worldWriteQueue.enqueue(() -> standSwapService.swap(...))
+ *
+ * Tags:
+ * - WORLD   = world read/write (must be tick-thread safe)
+ * - COMPAT  = may change as Hytale world/chunk APIs evolve
+ */
+// NOTE: This service should remain the only place that calls chunk.setBlock for stand swaps.
+
+
 public final class StandSwapService {
 
     private final HytaleLogger logger;
