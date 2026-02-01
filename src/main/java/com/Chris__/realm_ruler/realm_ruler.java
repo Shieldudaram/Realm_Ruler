@@ -115,6 +115,8 @@ public class Realm_Ruler extends JavaPlugin {
 
 
     private ModeManager modeManager;
+    private final StandSwapService standSwapService = new StandSwapService(LOGGER);
+
 
     private void setupModes() {
         modeManager = new ModeManager();
@@ -1117,43 +1119,7 @@ public class Realm_Ruler extends JavaPlugin {
 
     // WORLD: single entry point for stand swaps (wrapper for now; extracted later)
     private void swapStandAt(BlockLocation loc, String desiredStand) {
-        setStandBlock(loc, desiredStand);
-    }
-
-    private void setStandBlock(BlockLocation loc, String standKey) {
-        if (loc == null || loc.world == null) return;
-
-        // Convert the block asset ID string to the internal numeric ID used by the engine.
-        int newBlockId = BlockType.getAssetMap().getIndex(standKey);
-
-        // getIndex returns Integer.MIN_VALUE when the key is not in the AssetMap.
-        // We warn once per missing key so logs don't flood.
-        if (newBlockId == Integer.MIN_VALUE) {
-            if (warnedMissingStandKeys.add(standKey)) {
-                LOGGER.atWarning().log("[RR] stand asset id not found for %s", standKey);
-            }
-            return;
-        }
-
-        // Worlds are chunked. We must load the chunk containing this block before editing.
-        long chunkIndex = ChunkUtil.indexChunkFromBlock(loc.x, loc.z);
-        WorldChunk chunk = loc.world.getChunk(chunkIndex);
-
-        // If chunk isn't loaded, we skip the swap. This avoids null pointer errors.
-        if (chunk == null) {
-            if (warnedMissingChunkIndices.add(chunkIndex)) {
-                LOGGER.atWarning().log("[RR] chunk not loaded for swap at %d,%d,%d (chunkIndex=%d)",
-                        loc.x, loc.y, loc.z, chunkIndex);
-            }
-            return;
-        }
-
-        // The final write: place the new block ID at the location.
-        // The final parameter (0) is currently an "options/flags" value.
-        // If later you need neighbor updates or physics triggers, this flag may matter.
-        chunk.setBlock(loc.x, loc.y, loc.z, newBlockId, 0);
-
-        LOGGER.atInfo().log("[RR] Swapped stand @ %d,%d,%d -> %s", loc.x, loc.y, loc.z, standKey);
+        standSwapService.swap(loc, desiredStand);
     }
 
 
@@ -1622,7 +1588,7 @@ public class Realm_Ruler extends JavaPlugin {
 // - a fully resolved location (world + x,y,z)
 // - OR coordinates alone when world isn't known yet (world=null)
 
-    private static final class BlockLocation {
+    public static final class BlockLocation {
         final World world; // can be null if we only have coords
         final int x, y, z;
 
