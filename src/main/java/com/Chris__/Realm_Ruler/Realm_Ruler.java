@@ -78,6 +78,12 @@ import java.util.concurrent.Flow;
  *   even if PlayerInteractLib is not on the build classpath.
  * - At runtime, if PlayerInteractLib is present, we hook into it; if not, the plugin still loads,
  *   just with reduced functionality (fallback events only).
+ *
+ * // Comment tags legend:(right now not all things use these but they should be added over time when possible)
+ * // COMPAT  = compatibility shim for different server/plugin API shapes
+ * // DEV     = debug/introspection helper (useful while reverse engineering)
+ * // OPTIONAL= fallback path; may not run in current build but kept for resilience
+ * // ROADMAP = planned future work (Phase 2+)
  */
 public class Realm_Ruler extends JavaPlugin {
 
@@ -578,7 +584,7 @@ public class Realm_Ruler extends JavaPlugin {
         }
 
         // (The remainder of your method continues here: doing the swap / dry-run using desiredStand)
-    
+
 
 
 
@@ -591,132 +597,257 @@ public class Realm_Ruler extends JavaPlugin {
         setStandBlock(loc, desiredStand);
     }
 
+    // -----------------------------------------------------------------------------
+// Defensive getters for PlayerInteractLib events
+// -----------------------------------------------------------------------------
+//
+// These "safeXxx" methods are intentionally repetitive and over-defensive.
+//
+// Why so defensive?
+// - We are integrating with an external plugin (PlayerInteractLib) via reflection.
+// - Different server/plugin builds may expose fields as:
+//      record accessors: e.uuid(), e.itemInHandId(), ...
+//      getters:          e.getUuid(), e.getItemInHandId(), ...
+//      or different naming entirely.
+// - We want the plugin to keep running even if one method name changes.
+//
+// Pattern used:
+//  1) Try the "ideal" direct accessor (fast path)
+//  2) Try reflection-based access with a couple known method names
+//  3) Fall back to a safe default
+//
+// This keeps the mod resilient to version drift.
+
     private InteractionType safeInteractionType(PlayerInteractionEvent e) {
+        // Fast path: record accessor (most likely)
         try { return e.interactionType(); } catch (Throwable ignored) {}
+
+        // Compatibility path: getter/alt accessor
         try {
             Object v = safeCall(e, "getInteractionType", "interactionType");
             if (v instanceof InteractionType it) return it;
+
+            // Sometimes libraries return an enum-like value that prints the same name
+            // as our InteractionType. We try to map by name.
             if (v != null) return InteractionType.valueOf(String.valueOf(v));
         } catch (Throwable ignored) {}
+
+        // Null means "unknown interaction type"
         return null;
     }
 
     private String safeUuid(PlayerInteractionEvent e) {
+        // Fast path: record accessor
         try { return e.uuid(); } catch (Throwable ignored) {}
+
+        // Compatibility path
         try {
             Object v = safeCall(e, "getUuid", "uuid");
             return v == null ? "<null>" : String.valueOf(v);
         } catch (Throwable ignored) {}
+
         return "<null>";
     }
 
     private String safeItemInHandId(PlayerInteractionEvent e) {
+        // Fast path: record accessor
         try { return e.itemInHandId(); } catch (Throwable ignored) {}
+
+        // Compatibility path
         try {
             Object v = safeCall(e, "getItemInHandId", "itemInHandId");
             return v == null ? "<empty>" : String.valueOf(v);
         } catch (Throwable ignored) {}
+
         return "<empty>";
     }
 
     private Object safeInteractionChain(PlayerInteractionEvent e) {
+        // Fast path: record accessor
         try { return e.interaction(); } catch (Throwable ignored) {}
+
+        // Compatibility path
         try { return safeCall(e, "getInteraction", "interaction"); } catch (Throwable ignored) {}
+
         return null;
     }
 
 
 
+// -----------------------------------------------------------------------------
+// Look tracker helpers (EyeSpy approach)
+// -----------------------------------------------------------------------------
+//
+// The look tracker runs every tick and stores "what block is this player looking at?".
+// We only want to use that data if it's *fresh*, otherwise we might swap the wrong block
+// if the player moved their aim.
+//
+// Freshness check concept:
+// - we accept a look target only if it was recorded in the last LOOK_FRESH_NANOS (250ms).
+// - 250ms is short enough to match the moment of interaction, but long enough to handle
+//   slight timing differences between tick updates and interaction events.
+
     private LookTarget getFreshLookTarget(String uuid) {
+        // Guard against garbage keys (uuid sometimes becomes "<null>" from safeUuid)
         if (uuid == null || uuid.isEmpty() || "<null>".equals(uuid)) return null;
+
         LookTarget t = lookByUuid.get(uuid);
         if (t == null) return null;
+
         long age = System.nanoTime() - t.nanoTime;
         if (age > LOOK_FRESH_NANOS) return null;
+
         return t;
     }
 
+    /**
+     * Convenience: take a UUID and return a BlockLocation directly from the look tracker.
+     *
+     * NOTE: This is currently a helper used as a fallback inside tryExtractBlockLocation.
+     * If you later restructure tryExtractBlockLocation, this helper might become unused.
+     */
     private BlockLocation tryLocationFromLook(String uuid) {
         if (uuid == null || uuid.isEmpty() || "<null>".equals(uuid)) return null;
+
         LookTarget t = getFreshLookTarget(uuid);
         if (t == null) return null;
 
         if (t.world == null || t.basePos == null) return null;
+
         return new BlockLocation(t.world, t.basePos.x, t.basePos.y, t.basePos.z);
     }
+
+
+// -----------------------------------------------------------------------------
+// Location extraction: turning "player interacted" into "world + x,y,z"
+// -----------------------------------------------------------------------------
+//
+// This is one of the most important parts of the mod.
+//
+// Inputs:
+// - uuid: identifies the player (used for look-tracker map lookup)
+// - event: the PlayerInteractLib event
+// - chain: "SyncInteractionChain" (or similar) which sometimes contains hit/target info
+//
+// Output:
+// - BlockLocation containing world + x,y,z (or null if we cannot determine target)
+//
+// Extraction strategy:
+//  1) Try to pull World directly off event (if exposed by build)
+//  2) Recursively search inside "chain" for objects that contain x/y/z
+//  3) Fallback to look tracker (uuid -> looked-at block)
+//  4) Fallback to remembered UseBlockEvent location (rare but sometimes helpful)
+//
+// This is deliberately layered: each fallback is less "direct" than the previous.
 
     private BlockLocation tryExtractBlockLocation(String uuid, PlayerInteractionEvent event, Object chain) {
         World world = null;
 
-        // Some builds may expose the World directly on the event
+        // Some builds may expose the World directly on the event.
+        // If we can find it, it makes any extracted x/y/z more reliable.
         try {
             Object w = safeCall(event, "getWorld", "world");
             if (w instanceof World ww) world = ww;
         } catch (Throwable ignored) {}
 
-        // Drill into the SyncInteractionChain / hit result to find x,y,z
+        // 1) Attempt to drill into the interaction chain.
+        // The chain may contain nested objects such as hit results / target data.
         BlockLocation found = extractPosRecursive(chain, world, 0, "chain");
         if (found != null) return found;
 
-        // Fallback: look-tracker (EyeSpy raycast) keyed by UUID.
+        // 2) Fallback: looked-at block from EyeSpy raycast (fresh within 250ms).
         BlockLocation lookLoc = tryLocationFromLook(uuid);
         if (lookLoc != null) return lookLoc;
 
-        // Fallback: if the legacy UseBlock hook ever remembered a location, use it.
+        // 3) Fallback: if legacy UseBlock ever captured a target location, use it.
+        // This is a "best effort" and may be stale, so we keep it last.
         if (pendingStandLocation != null) {
+            // If pendingStandLocation includes a world, prefer it.
             if (pendingStandLocation.world != null) return pendingStandLocation;
+
+            // If it doesn't, but we found a world from the event, combine them.
             if (world != null) return new BlockLocation(world, pendingStandLocation.x, pendingStandLocation.y, pendingStandLocation.z);
         }
+
         return null;
     }
 
+
+// -----------------------------------------------------------------------------
+// Recursive reflection search for position data
+// -----------------------------------------------------------------------------
+//
+// This is the "spelunker": it explores nested objects looking for something that looks like
+// a coordinate triplet (x,y,z) or (blockX,blockY,blockZ), and optionally a World.
+//
+// How it works:
+// - First, it tries tryReadXYZ(obj) to see if obj itself exposes coordinates.
+// - If not, it optionally dumps method/field names one time per class (debug discovery).
+// - Then it scans methods and fields whose NAMES contain hints like "hit", "target", "pos", etc.
+// - It recurses into those children until it finds coordinates or exceeds depth.
+//
+// Why limit depth?
+// - Prevents runaway recursion on huge graphs.
+// - Makes the search predictable and safer for runtime.
+
     private BlockLocation extractPosRecursive(Object obj, World world, int depth, String path) {
         if (obj == null) return null;
+
+        // Depth limit is a safety rail.
+        // If you later discover position is nested deeper, you can increase this to 5 or 6,
+        // but keep a limit to avoid exploring entire object graphs.
         if (depth > 4) return null;
 
-        // Direct "vector" shape?
+        // Step 1: Does this object directly expose x/y/z?
         BlockLocation direct = tryReadXYZ(obj, world);
         if (direct != null) {
             LOGGER.atInfo().log("[RR-PI] FOUND pos via %s (%s)", path, obj.getClass().getName());
             return direct;
         }
 
-        // One-time hint dump for this class so we can see what to target next
+        // Step 2: One-time "what does this object contain?" dump.
+        // This is development-time introspection. Great while reverse engineering.
+        // You can gate it behind a DEBUG flag later if desired.
         Class<?> cls = obj.getClass();
         if (dumpedInteractionClasses.add(cls)) {
             dumpInteractionSurface(obj);
         }
 
-        // Prefer methods/fields that smell like hit/target/pos
+        // Names that often appear in hit/target/position structures.
+        // We only recurse into members with these keywords to keep search focused.
         String[] keys = new String[] { "hit", "target", "block", "pos", "position", "location", "coord", "world", "chunk" };
 
-        // Methods first
+        // Step 3: Scan methods first (public getters are often more stable than fields).
         for (Method m : cls.getMethods()) {
             try {
                 if (m.getParameterCount() != 0) continue;
                 if (m.getReturnType() == Void.TYPE) continue;
+
                 String name = m.getName().toLowerCase(Locale.ROOT);
                 if (!containsAny(name, keys)) continue;
 
                 Object child = m.invoke(obj);
                 if (child == null) continue;
+
+                // Skip "leafy" values that are not useful for recursion
                 if (child instanceof String) continue;
                 if (child.getClass().isPrimitive()) continue;
                 if (child instanceof Number) continue;
 
-                // If this child is the world, capture it
+                // If this child is a World, capture it for downstream coordinate reads.
                 if (world == null && child instanceof World ww) world = ww;
 
-                BlockLocation loc = extractPosRecursive(child, world, depth + 1, path + "." + m.getName() + "()" );
+                BlockLocation loc = extractPosRecursive(child, world, depth + 1, path + "." + m.getName() + "()");
                 if (loc != null) return loc;
             } catch (Throwable ignored) {}
         }
 
-        // Then fields
+        // Step 4: If methods didn't work, scan declared fields (less stable, but sometimes necessary).
         for (var f : cls.getDeclaredFields()) {
             try {
                 String name = f.getName().toLowerCase(Locale.ROOT);
                 if (!containsAny(name, keys)) continue;
+
                 f.setAccessible(true);
                 Object child = f.get(obj);
                 if (child == null) continue;
@@ -731,24 +862,45 @@ public class Realm_Ruler extends JavaPlugin {
         return null;
     }
 
+
+// -----------------------------------------------------------------------------
+// Coordinate reading helpers
+// -----------------------------------------------------------------------------
+//
+// tryReadXYZ attempts common coordinate “shapes” seen across libraries.
+// If the object exposes x/y/z, we build a BlockLocation.
+
     private BlockLocation tryReadXYZ(Object obj, World world) {
         try {
-            // Common getter shapes: getX()/getY()/getZ() or x()/y()/z()
+            // Common getter shapes: getX()/getY()/getZ() OR x()/y()/z()
             Integer x = tryGetInt(obj, "getX", "x");
             Integer y = tryGetInt(obj, "getY", "y");
             Integer z = tryGetInt(obj, "getZ", "z");
             if (x != null && y != null && z != null) return new BlockLocation(world, x, y, z);
 
-            // Alternative shapes: blockX/blockY/blockZ
+            // Alternative shapes: getBlockX()/blockX() or field blockX, etc.
             x = tryGetInt(obj, "getBlockX", "blockX");
             y = tryGetInt(obj, "getBlockY", "blockY");
             z = tryGetInt(obj, "getBlockZ", "blockZ");
             if (x != null && y != null && z != null) return new BlockLocation(world, x, y, z);
         } catch (Throwable ignored) {}
+
         return null;
     }
 
+    /**
+     * Reads an integer property from an object by trying:
+     * - a named getter method (getX)
+     * - a named no-arg method (x)
+     * - a public field (x)
+     * - a private/protected field (x)
+     *
+     * Why so many attempts?
+     * - Different internal classes follow different conventions.
+     * - Reflection lets us survive API shape differences.
+     */
     private Integer tryGetInt(Object obj, String getterName, String fieldName) {
+        // Getter method: getX()
         try {
             Method m = obj.getClass().getMethod(getterName);
             if (m.getParameterCount() == 0) {
@@ -756,6 +908,8 @@ public class Realm_Ruler extends JavaPlugin {
                 if (v instanceof Number n) return n.intValue();
             }
         } catch (Throwable ignored) {}
+
+        // No-arg method: x()
         try {
             Method m = obj.getClass().getMethod(fieldName);
             if (m.getParameterCount() == 0) {
@@ -763,20 +917,29 @@ public class Realm_Ruler extends JavaPlugin {
                 if (v instanceof Number n) return n.intValue();
             }
         } catch (Throwable ignored) {}
+
+        // Public field: obj.x
         try {
             var f = obj.getClass().getField(fieldName);
             Object v = f.get(obj);
             if (v instanceof Number n) return n.intValue();
         } catch (Throwable ignored) {}
+
+        // Declared field: private/protected x
         try {
             var f = obj.getClass().getDeclaredField(fieldName);
             f.setAccessible(true);
             Object v = f.get(obj);
             if (v instanceof Number n) return n.intValue();
         } catch (Throwable ignored) {}
+
         return null;
     }
 
+    /**
+     * Simple keyword filter used by extractPosRecursive.
+     * We pass the method/field name already lowercased to avoid repeated allocations.
+     */
     private boolean containsAny(String haystackLower, String[] needlesLower) {
         for (String n : needlesLower) {
             if (haystackLower.contains(n)) return true;
@@ -784,6 +947,20 @@ public class Realm_Ruler extends JavaPlugin {
         return false;
     }
 
+    /**
+     * Reflection-based “surface dump” used during reverse engineering.
+     *
+     * What it does:
+     * - Logs method names and field names that look relevant to positions and hits.
+     * - Only runs once per class (guarded by dumpedInteractionClasses).
+     *
+     * Why keep it:
+     * - When Hytale/PlayerInteractLib internals change, you can quickly rediscover the new
+     *   path to the coordinates by inspecting what members exist.
+     *
+     * If you want less log noise:
+     * - add a DEBUG_REFLECTION_DUMPS flag and wrap this call.
+     */
     private void dumpInteractionSurface(Object obj) {
         try {
             Class<?> cls = obj.getClass();
@@ -810,7 +987,14 @@ public class Realm_Ruler extends JavaPlugin {
         } catch (Throwable ignored) {}
     }
 
+
+// -----------------------------------------------------------------------------
+// Domain checks: is this block one of our stand variants?
+// -----------------------------------------------------------------------------
+
     private boolean isStandId(String id) {
+        // Using direct equality keeps it obvious and fast.
+        // If this list grows, we can convert it into a Set<String>.
         return STAND_EMPTY.equals(id) ||
                 STAND_RED.equals(id) ||
                 STAND_BLUE.equals(id) ||
@@ -818,35 +1002,60 @@ public class Realm_Ruler extends JavaPlugin {
                 STAND_YELLOW.equals(id);
     }
 
+
+// -----------------------------------------------------------------------------
+// World read helper: ask the World what block is at (x,y,z)
+// -----------------------------------------------------------------------------
+//
+// Why reflection here?
+// - Different server builds may expose "getBlockType" vs "getBlock" or other variants.
+// - We attempt common shapes to remain compatible.
+//
+// If this method returns null:
+// - we couldn't find a compatible getter OR the invocation failed.
+
     private String tryGetBlockIdAt(World world, int x, int y, int z) {
         try {
-            // Possible method shapes:
-            // - getBlockType(int,int,int) -> BlockType
-            // - getBlock(int,int,int) -> BlockType
-            // - getBlockType(Vector3i) ...
             Method m = null;
+
+            // Try common signature: getBlockType(int,int,int)
             try { m = world.getClass().getMethod("getBlockType", int.class, int.class, int.class); } catch (Throwable ignored) {}
+
+            // Fallback common signature: getBlock(int,int,int)
             if (m == null) {
                 try { m = world.getClass().getMethod("getBlock", int.class, int.class, int.class); } catch (Throwable ignored) {}
             }
+
             if (m == null) return null;
 
             Object bt = m.invoke(world, x, y, z);
             if (bt instanceof BlockType blockType) {
                 return safeBlockTypeId(blockType);
             }
+
+            // If bt isn't a BlockType, we still return a string representation for debugging.
             return String.valueOf(bt);
         } catch (Throwable ignored) {
             return null;
         }
     }
 
-    // ---------- Block placement ----------
+
+// ---------- Block placement ----------
+//
+// This is the "write" side: it performs the actual world edit.
+// WARNING (gameplay/design note):
+// - If this block has an attached inventory (block entity), swapping block IDs may reset it.
+// - You're okay with that in early phases, but keep it in mind when you later implement deposit logic.
 
     private void setStandBlock(BlockLocation loc, String standKey) {
         if (loc == null || loc.world == null) return;
 
+        // Convert the block asset ID string to the internal numeric ID used by the engine.
         int newBlockId = BlockType.getAssetMap().getIndex(standKey);
+
+        // getIndex returns Integer.MIN_VALUE when the key is not in the AssetMap.
+        // We warn once per missing key so logs don't flood.
         if (newBlockId == Integer.MIN_VALUE) {
             if (warnedMissingStandKeys.add(standKey)) {
                 LOGGER.atWarning().log("[RR] stand asset id not found for %s", standKey);
@@ -854,31 +1063,45 @@ public class Realm_Ruler extends JavaPlugin {
             return;
         }
 
+        // Worlds are chunked. We must load the chunk containing this block before editing.
         long chunkIndex = ChunkUtil.indexChunkFromBlock(loc.x, loc.z);
         WorldChunk chunk = loc.world.getChunk(chunkIndex);
+
+        // If chunk isn't loaded, we skip the swap. This avoids null pointer errors.
         if (chunk == null) {
             if (warnedMissingChunkIndices.add(chunkIndex)) {
-                LOGGER.atWarning().log("[RR] chunk not loaded for swap at %d,%d,%d (chunkIndex=%d)", loc.x, loc.y, loc.z, chunkIndex);
+                LOGGER.atWarning().log("[RR] chunk not loaded for swap at %d,%d,%d (chunkIndex=%d)",
+                        loc.x, loc.y, loc.z, chunkIndex);
             }
             return;
         }
 
+        // The final write: place the new block ID at the location.
+        // The final parameter (0) is currently an "options/flags" value.
+        // If later you need neighbor updates or physics triggers, this flag may matter.
         chunk.setBlock(loc.x, loc.y, loc.z, newBlockId, 0);
+
         LOGGER.atInfo().log("[RR] Swapped stand @ %d,%d,%d -> %s", loc.x, loc.y, loc.z, standKey);
     }
 
-    // ---------- Helpers ----------
+
+// ---------- Helpers ----------
+//
+// UseBlockEvent-based fallback position capture.
+// Useful when UseBlockEvent actually fires for stands or when debugging target resolution.
 
     private void rememberStandLocationFromUseBlock(UseBlockEvent.Pre event, InteractionContext ctx) {
         try {
             World world = null;
 
+            // Try to get world from event first
             try {
                 Method m = event.getClass().getMethod("getWorld");
                 Object w = m.invoke(event);
                 if (w instanceof World ww) world = ww;
             } catch (Throwable ignored) {}
 
+            // Fallback: try to get world from context
             if (world == null) {
                 try {
                     Method m = ctx.getClass().getMethod("getWorld");
@@ -889,9 +1112,11 @@ public class Realm_Ruler extends JavaPlugin {
 
             if (world == null) return;
 
+            // Try to get position object (naming can vary by build)
             Object pos = safeCall(event, "getTargetBlock", "targetBlock");
             if (pos == null) return;
 
+            // Read x/y/z out of that position object using reflection-based helpers
             int x = readVecInt(pos, "getX", "x");
             int y = readVecInt(pos, "getY", "y");
             int z = readVecInt(pos, "getZ", "z");
@@ -900,6 +1125,10 @@ public class Realm_Ruler extends JavaPlugin {
         } catch (Throwable ignored) {}
     }
 
+    /**
+     * Safe "try these method names" helper used throughout the reflection-based compatibility code.
+     * NOTE: This is heavily used, do not remove.
+     */
     private Object safeCall(Object obj, String... methodNames) {
         for (String n : methodNames) {
             try {
@@ -911,9 +1140,17 @@ public class Realm_Ruler extends JavaPlugin {
         return null;
     }
 
+    /**
+     * NOTE: Currently appears unused in the shown snippet (you mostly use safeInteractionType now).
+     * Keep it if it is used elsewhere; otherwise it can be removed later.
+     *
+     * Purpose:
+     * - Converts a reflected value into our InteractionType enum by name.
+     */
     private InteractionType safeEnum(Object obj, String... methodNames) {
         Object v = safeCall(obj, methodNames);
         if (v instanceof InteractionType it) return it;
+
         try {
             // Some implementations return an enum with same name; try to map
             if (v != null) {
@@ -921,10 +1158,27 @@ public class Realm_Ruler extends JavaPlugin {
                 return InteractionType.valueOf(s);
             }
         } catch (Throwable ignored) {}
+
         return null;
     }
 
+
+    // -----------------------------------------------------------------------------
+// Small reflection utilities (vector/item/block id extraction + messaging)
+// -----------------------------------------------------------------------------
+//
+// These helpers exist because the Hytale server/plugin APIs vary across builds.
+// Some objects expose properties via getters, others via fields, and some only via toString().
+// We use "best effort" extraction to prevent crashes and keep the mod robust.
+
+    // Reads an integer component from a "vector-like" object.
+// Example: a position object that might have getX() or a public field x.
+//
+// NOTE: This returns 0 if no value is found.
+// - That is safe for "best effort" fallbacks, but be aware it can hide failures.
+// - If you ever debug "why are positions sometimes 0,0,0", this method is a suspect.
     private int readVecInt(Object vec, String getterName, String fieldName) {
+        // Attempt 1: getter method, e.g. getX()
         try {
             Method m = vec.getClass().getMethod(getterName);
             Object v = m.invoke(vec);
@@ -932,6 +1186,7 @@ public class Realm_Ruler extends JavaPlugin {
             if (v instanceof Number n) return n.intValue();
         } catch (Throwable ignored) {}
 
+        // Attempt 2: public field, e.g. x
         try {
             var f = vec.getClass().getField(fieldName);
             Object v = f.get(vec);
@@ -939,39 +1194,75 @@ public class Realm_Ruler extends JavaPlugin {
             if (v instanceof Number n) return n.intValue();
         } catch (Throwable ignored) {}
 
+        // Fallback: unable to read the value
         return 0;
     }
 
+    /**
+     * Reads an Item ID from an unknown object that might represent an item stack.
+     *
+     * Why this exists:
+     * - In some events/contexts we receive ItemStack
+     * - In others we might receive a different "item-like" wrapper with getItemId() or itemId()
+     * - This keeps our logging and decision logic consistent across those shapes.
+     *
+     * Returns:
+     * - "<empty>" if null
+     * - otherwise best-effort string ID
+     *
+     * NOTE: Used mainly for logging/inspection; your main logic uses safeItemId(ItemStack) when possible.
+     */
     private String safeItemIdFromUnknown(Object maybeItemStack) {
         if (maybeItemStack == null) return "<empty>";
+
+        // If this is already an ItemStack, use the canonical extraction helper
         try {
             if (maybeItemStack instanceof ItemStack is) return safeItemId(is);
         } catch (Throwable ignored) {}
 
+        // Try common method name: getItemId()
         try {
             Method m = maybeItemStack.getClass().getMethod("getItemId");
             Object v = m.invoke(maybeItemStack);
             return String.valueOf(v);
         } catch (Throwable ignored) {}
 
+        // Try alternate method name: itemId()
         try {
             Method m = maybeItemStack.getClass().getMethod("itemId");
             Object v = m.invoke(maybeItemStack);
             return String.valueOf(v);
         } catch (Throwable ignored) {}
 
+        // Last resort: string representation (useful for debugging even if not stable)
         return String.valueOf(maybeItemStack);
     }
 
+    /**
+     * Extract a stable string ID from a BlockType.
+     *
+     * We try:
+     * - getId() via reflection (most stable)
+     * - fallback to toString()
+     *
+     * NOTE: This is used both for logging and for verifying that the block at (x,y,z) is a stand.
+     */
     private String safeBlockTypeId(BlockType blockType) {
         try {
             Object v = blockType.getClass().getMethod("getId").invoke(blockType);
             return String.valueOf(v);
         } catch (Exception e) {
+            // Some builds might not expose getId(); toString() is a fallback.
             return blockType.toString();
         }
     }
 
+    /**
+     * Extract the item ID string from an ItemStack.
+     *
+     * This is the canonical way we want to identify an item in hand.
+     * If this fails (rare), toString() provides a debugging fallback.
+     */
     private String safeItemId(ItemStack stack) {
         try {
             return String.valueOf(stack.getItemId());
@@ -980,24 +1271,61 @@ public class Realm_Ruler extends JavaPlugin {
         }
     }
 
+    /**
+     * Sends an in-game message to the player associated with an InteractionContext.
+     *
+     * Why this helper exists:
+     * - A fast sanity check while testing (without tailing logs).
+     * - It safely navigates the ECS-style component system.
+     *
+     * NOTE: This is best-effort and intentionally silent on failure.
+     * If you ever need to debug messaging, we can add log output behind a debug flag.
+     */
     private void sendPlayerMessage(InteractionContext ctx, Message msg) {
         try {
+            // CommandBuffer is used to access components for the interaction entity.
             if (ctx.getCommandBuffer() == null) return;
+
+            // Ensure entity is valid before reading components from it.
             if (ctx.getEntity() == null || !ctx.getEntity().isValid()) return;
 
+            // Pull the Player component off the ECS entity and send message.
             Player player = (Player) ctx.getCommandBuffer().getComponent(ctx.getEntity(), Player.getComponentType());
             if (player != null) player.sendMessage(msg);
         } catch (Exception ignored) {}
     }
 
 
-    // ---------- Look target tracking (EyeSpy technique) ----------
+// -----------------------------------------------------------------------------
+// Look target tracking (EyeSpy technique)
+// -----------------------------------------------------------------------------
+//
+// This is the "sensor" system that runs every tick.
+// It answers: "What block is each player currently aiming at?"
+//
+// We store it keyed by UUID so we can join with PlayerInteractLib interaction events.
+//
+// Why we store both targetPos and basePos:
+// - targetPos is the raw raycast hit
+// - basePos resolves "filler blocks" (multi-block structures) to the true base block
+//   so that swapping the stand will affect the correct placed block.
 
+    /**
+     * Immutable data snapshot of what a player is looking at at a moment in time.
+     */
     private static final class LookTarget {
         final World world;
-        final Vector3i targetPos; // raw hit
-        final Vector3i basePos;   // resolved (handles filler blocks)
-        final String blockId;     // best-effort string ID of block type
+
+        /** Raw raycast hit position (can be a filler part of a larger block structure). */
+        final Vector3i targetPos;
+
+        /** Resolved position (adjusted for filler blocks so we target the base block). */
+        final Vector3i basePos;
+
+        /** Best-effort string ID for the block type at basePos (used for debugging and safety checks). */
+        final String blockId;
+
+        /** Timestamp used to enforce freshness (we only trust recent aim data). */
         final long nanoTime;
 
         LookTarget(World world, Vector3i targetPos, Vector3i basePos, String blockId, long nanoTime) {
@@ -1009,19 +1337,49 @@ public class Realm_Ruler extends JavaPlugin {
         }
     }
 
+    /**
+     * EntityTickingSystem that updates lookByUuid every tick.
+     *
+     * Runs for every entity matching the query (players).
+     * IMPORTANT: This tick method runs extremely frequently, so:
+     * - it must be fast
+     * - it should avoid heavy logging
+     * - it should swallow errors (or gate logs behind a debug flag)
+     */
     private final class LookTargetTrackerSystem extends EntityTickingSystem<EntityStore> {
 
+        /**
+         * Query determines which ECS entities this system runs for.
+         * We require both Player and PlayerRef components, because:
+         * - Player gives us identity/connection info
+         * - PlayerRef tends to contain UUID and is a stable reference
+         */
         private final Query<EntityStore> query;
 
         LookTargetTrackerSystem() {
             this.query = Query.and(Player.getComponentType(), PlayerRef.getComponentType());
         }
 
+        /**
+         * Engine callback: the system must declare what it wants to tick.
+         * This method is required even if it feels "unused" because the ECS framework calls it.
+         */
         @Override
         public Query<EntityStore> getQuery() {
             return query;
         }
 
+        /**
+         * Per-tick update for each player entity.
+         *
+         * Steps:
+         *  1) Resolve Player + PlayerRef components
+         *  2) Extract player's UUID (string)
+         *  3) Raycast to find the targeted block within LOOK_RAYCAST_RANGE
+         *  4) Resolve filler/base block position
+         *  5) Read block type at that base position
+         *  6) Store in lookByUuid map for later use by interaction handler
+         */
         @Override
         public void tick(float dt,
                          int entityId,
@@ -1043,6 +1401,7 @@ public class Realm_Ruler extends JavaPlugin {
                 Vector3i hit = TargetUtil.getTargetBlock(chunk.getReferenceTo(entityId), LOOK_RAYCAST_RANGE, store);
                 if (hit == null) return;
 
+                // ExternalData contains world info for this store (engine-specific wiring).
                 EntityStore es = (EntityStore) store.getExternalData();
                 if (es == null) return;
 
@@ -1054,9 +1413,11 @@ public class Realm_Ruler extends JavaPlugin {
                 WorldChunk hitChunk = world.getChunkIfLoaded(hitChunkIndex);
                 if (hitChunk == null) return;
 
+                // Convert hit position to base block position (handles filler blocks).
                 Vector3i base = resolveBaseBlock(hitChunk, hit.x, hit.y, hit.z);
                 if (base == null) return;
 
+                // Base block might be in a different chunk.
                 long baseChunkIndex = ChunkUtil.indexChunkFromBlock(base.x, base.z);
                 WorldChunk baseChunk = (baseChunkIndex == hitChunkIndex)
                         ? hitChunk
@@ -1064,17 +1425,32 @@ public class Realm_Ruler extends JavaPlugin {
 
                 if (baseChunk == null) return;
 
+                // Read block type at base position
                 BlockType bt = baseChunk.getBlockType(base.x, base.y, base.z);
                 String blockId = (bt == null) ? null : safeBlockTypeId(bt);
 
+                // Store a fresh snapshot keyed by UUID.
+                // Note: we store world as well so interaction handler can directly act on it.
                 lookByUuid.put(uuid, new LookTarget(world, hit, base, blockId, System.nanoTime()));
 
             } catch (Throwable ignored) {
-                // Keep silent; this ticks a lot.
+                // Intentionally silent: this runs every tick.
+                // If you ever debug issues here, add a DEBUG flag and log occasionally.
             }
         }
     }
 
+    /**
+     * Convert a potentially "filler block" hit into the true base block position.
+     *
+     * Background:
+     * - Some complex blocks are represented as a base block + filler parts.
+     * - The engine stores filler offsets packed into an int via FillerBlockUtil.
+     * - To modify the real block, we must subtract those offsets.
+     *
+     * NOTE: chunk.getFiller(...) is deprecated in your build, but still works.
+     * When it is removed in the future, we will need the new API equivalent.
+     */
     private static Vector3i resolveBaseBlock(WorldChunk chunk, int x, int y, int z) {
         int filler = chunk.getFiller(x, y, z);
         if (filler == 0) return new Vector3i(x, y, z);
@@ -1086,6 +1462,14 @@ public class Realm_Ruler extends JavaPlugin {
         );
     }
 
+
+// -----------------------------------------------------------------------------
+// UUID extraction helpers (PlayerRef / Player / regex fallback)
+// -----------------------------------------------------------------------------
+//
+// UUID extraction is surprisingly annoying across versions, so we use best-effort methods.
+// This is only used to key our lookByUuid map.
+
     private String safeUuidFromPlayer(PlayerRef ref, Player player) {
         // Prefer PlayerRef methods (most stable), then Player methods, then toString() fallback.
         String u = safeUuidFromObject(ref);
@@ -1094,6 +1478,8 @@ public class Realm_Ruler extends JavaPlugin {
         u = safeUuidFromObject(player);
         if (u != null) return u;
 
+        // Last resort: regex search UUID inside toString() output.
+        // This is not ideal but can save you if method names change.
         try {
             String s = String.valueOf(ref);
             java.util.regex.Matcher m = java.util.regex.Pattern
@@ -1105,8 +1491,16 @@ public class Realm_Ruler extends JavaPlugin {
         return null;
     }
 
+    /**
+     * Best-effort UUID/ID extraction from an arbitrary object via common method names.
+     *
+     * NOTE:
+     * - We treat any returned string length >= 32 as "probably an ID/UUID".
+     * - If you want stricter behavior later, we can regex validate a UUID pattern here.
+     */
     private String safeUuidFromObject(Object obj) {
         if (obj == null) return null;
+
         String[] methods = new String[]{
                 "getUuid", "uuid",
                 "getPlayerUuid", "playerUuid",
@@ -1121,14 +1515,24 @@ public class Realm_Ruler extends JavaPlugin {
                 Object v = m.invoke(obj);
                 if (v == null) continue;
                 String s = String.valueOf(v);
+
+                // Heuristic: UUIDs and unique IDs are generally long strings.
                 if (s.length() >= 32) return s;
             } catch (Throwable ignored) {}
         }
+
         return null;
     }
 
 
-    // ---------- Option A: BlockLocation with coords-only constructor ----------
+// -----------------------------------------------------------------------------
+// BlockLocation: small internal struct used by swap logic
+// -----------------------------------------------------------------------------
+//
+// This is intentionally minimal.
+// It allows us to represent:
+// - a fully resolved location (world + x,y,z)
+// - OR coordinates alone when world isn't known yet (world=null)
 
     private static final class BlockLocation {
         final World world; // can be null if we only have coords
@@ -1148,4 +1552,5 @@ public class Realm_Ruler extends JavaPlugin {
             this.z = z;
         }
     }
+
 }
