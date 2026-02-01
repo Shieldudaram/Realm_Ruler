@@ -1,6 +1,10 @@
 
 package com.Chris__.Realm_Ruler;
 
+import com.Chris__.Realm_Ruler.core.ModeManager;
+import com.Chris__.Realm_Ruler.modes.CtfMode;
+
+
 import com.hypixel.hytale.logger.HytaleLogger;
 import com.hypixel.hytale.protocol.InteractionType;
 import com.hypixel.hytale.server.core.Message;
@@ -86,6 +90,17 @@ import java.util.concurrent.Flow;
  * // ROADMAP = planned future work (Phase 2+)
  */
 public class Realm_Ruler extends JavaPlugin {
+
+    private ModeManager modeManager;
+
+    private void setupModes() {
+        modeManager = new ModeManager();
+        modeManager.register(new CtfMode());
+        modeManager.setActive("ctf");
+    }
+
+
+
 
     /** Logger provided by the Hytale server runtime. */
     private static final HytaleLogger LOGGER = HytaleLogger.forEnclosingClass();
@@ -176,8 +191,12 @@ public class Realm_Ruler extends JavaPlugin {
 
     public Realm_Ruler(@Nonnull JavaPluginInit init) {
         super(init);
+        setupModes();
         LOGGER.atInfo().log("Hello from %s version %s", this.getName(), this.getManifest().getVersion().toString());
     }
+
+
+
 
 
     @Override
@@ -293,6 +312,10 @@ public class Realm_Ruler extends JavaPlugin {
      * Important: This is not the primary interaction pipeline. PlayerInteractLib is.
      */
     private void onUseBlock(UseBlockEvent.Pre event) {
+        if (modeManager != null) {
+            modeManager.dispatchPlayerAction(event);
+        }
+
         // The server describes interaction as Primary/Secondary/Use/etc.
         // We ignore types outside these common "block use" buckets to reduce noise.
         InteractionType type = event.getInteractionType();
@@ -506,6 +529,10 @@ public class Realm_Ruler extends JavaPlugin {
      * - PlayerInteractLib does not always provide a direct block position, which is why we use the look tracker.
      */
     private void onPlayerInteraction(PlayerInteractionEvent event) {
+        if (modeManager != null) {
+            modeManager.dispatchPlayerAction(event);
+        }
+
         // Log-limiter for "chatty" per-event debug logging.
         // IMPORTANT: This should NEVER stop functionality, only reduce logs.
         boolean shouldLog = (PI_DEBUG_LIMIT-- > 0);
