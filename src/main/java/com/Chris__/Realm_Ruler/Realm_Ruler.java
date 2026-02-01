@@ -84,6 +84,13 @@ public class Realm_Ruler extends JavaPlugin {
     /** Logger provided by the Hytale server runtime. */
     private static final HytaleLogger LOGGER = HytaleLogger.forEnclosingClass();
 
+    // These toggles exist to help isolate bugs and reduce noise while testing.
+    // They should NOT change core gameplay logic, only enable/disable optional telemetry/fallbacks.
+    private static final boolean ENABLE_USEBLOCK_FALLBACK = true;
+    private static final boolean ENABLE_LOOK_TRACKER = true;
+
+
+
     // -------------------------------------------------------------------------
     // Asset IDs (strings must match your JSON block/item IDs exactly)
     // -------------------------------------------------------------------------
@@ -169,22 +176,97 @@ public class Realm_Ruler extends JavaPlugin {
 
     @Override
     protected void setup() {
-        LOGGER.atInfo().log("Setting up Realm Ruler " + this.getName());
+        // ---------------------------------------------------------------------
+        // setup() is the plugin "boot sequence".
+        //
+        // Think of it as: "wire up inputs, then wire up background sensors, then
+        // enable the main interaction stream".
+        //
+        // The order here matters conceptually:
+        //  1) Register commands (manual testing hooks)
+        //  2) Register fallback events (if they fire, they can help us debug)
+        //  3) Register tick systems (our passive 'sensors' that run constantly)
+        //  4) Register external libraries (PlayerInteractLib stream)
+        //
+        // If something breaks, we can comment out sections in this method to
+        // isolate the failure quickly.
+        // ---------------------------------------------------------------------
 
-        // Keep your test command for debugging
+        LOGGER.atInfo().log("Setting up Realm Ruler %s", this.getName());
+
+        // ---------------------------------------------------------------------
+        // 1) Command registration (debug/testing convenience)
+        //
+        // This registers your /test command (ExampleCommand).
+        // Keeping a tiny command in a mod is useful because it gives you a
+        // reliable, manual way to confirm:
+        //  - the plugin loaded
+        //  - command registry works
+        //  - permissions / chat output behave as expected
+        // ---------------------------------------------------------------------
         this.getCommandRegistry().registerCommand(
                 new ExampleCommand(this.getName(), this.getManifest().getVersion().toString())
         );
 
-        // Legacy: may not fire for the stand, but useful signal if it does.
-        this.getEventRegistry().register(UseBlockEvent.Pre.class, this::onUseBlock);
-        LOGGER.atInfo().log("Registered UseBlockEvent.Pre listener.");
+        // ---------------------------------------------------------------------
+        // 2) Fallback event registration (UseBlockEvent.Pre)
+        //
+        // In your current server build, pressing "F" to open/close stand UI does
+        // NOT reliably trigger UseBlockEvent.Pre. Still, we keep this listener
+        // because:
+        //  - it sometimes fires for other block interactions (useful signal)
+        //  - it gives us a second path to learn "what block was targeted"
+        //  - if future server builds change behavior, we automatically benefit
+        //
+        // The onUseBlock() handler is treated as "bonus telemetry", not required
+        // for the main mechanic to work.
+        // ---------------------------------------------------------------------
+        if (ENABLE_USEBLOCK_FALLBACK) {
+            this.getEventRegistry().register(UseBlockEvent.Pre.class, this::onUseBlock);
+            LOGGER.atInfo().log("Registered UseBlockEvent.Pre listener (fallback telemetry).");
+        } else {
+            LOGGER.atInfo().log("UseBlockEvent.Pre fallback is disabled (ENABLE_USEBLOCK_FALLBACK=false).");
+        }
 
-        // EyeSpy-style per-tick raycast tracker (what block each player is looking at)
-        this.getEntityStoreRegistry().registerSystem(new LookTargetTrackerSystem());
-        LOGGER.atInfo().log("Registered LookTargetTrackerSystem (raycast per tick).");
 
-        // Primary: PlayerInteractLib hookup (reflection so compilation doesn't require its jar)
+        // ---------------------------------------------------------------------
+        // 3) Tick system registration: LookTargetTrackerSystem (EyeSpy approach)
+        //
+        // PlayerInteractLib reliably tells us "player UUID + interaction type",
+        // but it does not always give us an exact block position.
+        //
+        // This system runs every tick and raycasts from each player to find the
+        // block they are currently looking at. We store:
+        //   uuid -> (world + x,y,z + blockId + timestamp)
+        //
+        // Later, when PlayerInteractLib says "UUID interacted", we can look up
+        // the most recent raycast for that UUID and infer the target block.
+        //
+        // This is the core "bridge" that turns:
+        //   WHO interacted  ->  WHERE they interacted (most likely).
+        // ---------------------------------------------------------------------
+        if (ENABLE_LOOK_TRACKER) {
+            this.getEntityStoreRegistry().registerSystem(new LookTargetTrackerSystem());
+            LOGGER.atInfo().log("Registered LookTargetTrackerSystem (raycast per tick).");
+        } else {
+            LOGGER.atInfo().log("LookTargetTrackerSystem is disabled (ENABLE_LOOK_TRACKER=false).");
+        }
+
+
+        // ---------------------------------------------------------------------
+        // 4) Primary interaction stream: PlayerInteractLib subscription
+        //
+        // This is our main driver for the stand toggle mechanic.
+        //
+        // We use reflection in tryRegisterPlayerInteractLib() so this plugin can
+        // still compile (and even load) without the PlayerInteractLib jar on the
+        // build classpath. At runtime, if PlayerInteractLib is installed, we
+        // subscribe and start receiving PlayerInteractionEvent callbacks.
+        //
+        // If PlayerInteractLib is missing:
+        //  - tryRegisterPlayerInteractLib() should log a warning
+        //  - the plugin still loads, but stand detection will be less reliable
+        // ---------------------------------------------------------------------
         tryRegisterPlayerInteractLib();
     }
 
