@@ -52,70 +52,86 @@ import java.util.concurrent.Flow;
 /**
  * Realm Ruler (Hytale minigame framework starting with Capture-the-Flag)
  *
- * Status: WORKING + CORE SEAMS INSTALLED
- * - Phase 1 gameplay behavior still works (press "F/use" on a Flag Stand to swap variants).
- * - A lightweight "mode spine" exists (ModeManager + GameMode + CtfMode) to support scaling.
- * - Two critical refactor seams are now in place to contain future changes:
- *     1) TARGETING seam: TargetingService resolves WHERE an interaction happened (world + x,y,z)
- *     2) WORLD seam: StandSwapService performs the actual block swap safely in one place
+ * Status: WORKING + MODE MIGRATION IN PROGRESS
  *
- * Current gameplay behavior (Phase 1):
+ * What works today:
+ * - Capture-the-Flag Phase 1 behavior is working using PlayerInteractLib "F/use" (InteractionType.Use).
+ * - Stand interactions support:
+ *     - visual stand swapping (empty/colored variants)
+ *     - deposit + withdraw of custom flag items (stored per-stand, returned to player)
+ * - Core seams are in place to keep monthly Hytale API drift contained:
+ *     1) TARGETING seam: TargetingService resolves WHERE an interaction happened (world + x,y,z)
+ *     2) WORLD seam: StandSwapService performs stand block swaps safely in one place
+ *
+ * Current architecture (how the code is organized now):
+ * - Realm_Ruler.java:
+ *     - plugin entry point + wiring (init, event subscriptions, mode setup)
+ *     - owns shared services and compatibility glue (TargetingService, player resolution, etc.)
+ *     - exposes a small "bridge surface" (rr* helper methods) used by modes during refactor
+ * - modes/CtfMode.java:
+ *     - active mode implementation for CTF
+ *     - receives PlayerInteractLib PlayerInteractionEvent actions via ModeManager dispatch
+ *     - coordinates targeting resolution + tick-thread scheduling + stand swaps
+ * - modes/ctf/CtfRules.java:
+ *     - pure rules and IDs (stand IDs, flag IDs, empty-hand detection, desired stand selection)
+ * - modes/ctf/CtfState.java:
+ *     - CTF state container (which flag ItemStack is stored in which stand key)
+ *     - cleared on mode end (onDisable) so state does not leak across modes
+ * - world/StandSwapService.java:
+ *     - validates block asset IDs, checks chunk loaded, and performs the world write
+ *
+ * Current gameplay behavior (Phase 1, as implemented now):
  * - Listen for PlayerInteractLib PlayerInteractionEvent.
- * - Filter to the "F/use" interaction (InteractionType.Use) to avoid accidental triggers.
- * - Resolve a target block location, verify it is one of our stand variants, and swap to the
- *   desired stand variant (Phase 1: empty ↔ blue).
+ * - Filter to InteractionType.Use ("F/use") to avoid accidental triggers.
+ * - Resolve target block location via TargetingService.
+ * - If clicked block is a stand variant:
+ *     - Deposit: empty stand + player holds valid flag -> remove 1 flag from active hotbar slot,
+ *       store ItemStack in CtfState, swap stand to the correct colored variant, sendInventory().
+ *     - Withdraw: stand has stored flag + player hand empty -> restore stored ItemStack to active hotbar slot,
+ *       clear CtfState entry, swap stand to empty, sendInventory().
+ *     - Otherwise: swap stand to the "desired" visual variant per CtfRules (preserves prior behavior).
  *
  * Why PlayerInteractLib:
- * - In the current Hytale build, opening/closing the stand UI via "F" does NOT reliably fire
- *   UseBlockEvent.Pre, and we don't have a dependable ItemContainerChange-style event.
- * - PlayerInteractLib provides a higher-level interaction stream that DOES fire for "F/use".
+ * - In the current Hytale build, opening/closing the stand UI via "F" does not reliably fire UseBlockEvent.Pre.
+ * - PlayerInteractLib provides a higher-level interaction stream that does fire for "F/use".
  *
  * Key technical challenge (WHERE):
  * - PlayerInteractLib reliably gives WHO + WHAT, but not always WHERE.
  * - TargetingService bridges that gap using a layered strategy:
  *     (A) Try extracting a hit position from the interaction chain (when present)
- *     (B) Fallback to per-tick look tracking ("EyeSpy") joined by uuid
- * - This keeps the targeting logic isolated so monthly API changes are localized.
+ *     (B) Fallback to per-tick look tracking joined by uuid
+ * - Targeting logic is isolated so monthly API changes are localized.
  *
  * Threading note (important for future edits):
  * - PlayerInteractLib events may arrive off the main tick thread (async).
- * - World/block writes should happen on the server tick thread to avoid race conditions.
- * - Today: writes are centralized in StandSwapService (still executed inline).
- * - Next: add a tick-thread executor/queue and route all world writes through it.
- *
- * Project navigation (how to read the code today):
- * - Realm_Ruler.java:
- *     - plugin entry + wiring (hooks, init, registration)
- *     - current Phase 1 CTF handler still lives here as a bridge during refactor
- * - TargetingService.java:
- *     - resolves interaction targets (world + x,y,z), including look-tracker fallback
- * - StandSwapService.java:
- *     - validates stand asset IDs, ensures chunk loaded, performs block swap
- * - ModeManager / GameMode / CtfMode:
- *     - mode routing spine (CTF mode currently a bridge while logic migrates out of Realm_Ruler)
+ * - Inventory mutations and world writes should happen on the server tick thread.
+ * - The project uses a tick-thread scheduling helper (runOnTick / rrRunOnTick) to queue sensitive work.
+ * - TODO: ensure ALL world swaps are routed consistently through the tick-thread scheduler if any remain inline.
  *
  * Scaling roadmap:
- * - Phase 2: Stand variant depends on flag item held (rule-based variant selection).
+ * - Phase 2: Stand variant depends on held flag item (already represented in CtfRules; extend as needed).
  * - Phase 3: Full CTF match state (teams, captures, scoring, lifecycle).
- * - Multi-arena: Support multiple arenas running different modes simultaneously.
- *   Plan: route actions by resolved target location → ArenaSession → mode instance.
+ * - Multi-arena: multiple arenas running different modes simultaneously.
+ *   Plan: resolved target location -> ArenaSession -> mode instance.
  *
- * Refactor roadmap (to keep monthly Hytale API changes contained):
- * 1) Keep Realm_Ruler as wiring only (hooks, init, registration).
- * 2) Move gameplay rules/state into mode-specific classes (ctf rules/state).
+ * Refactor roadmap:
+ * 1) Keep Realm_Ruler as wiring only (hooks, init, mode registration, shared services).
+ * 2) Keep gameplay rules/state in mode-specific code (ctf rules/state + future match/session logic).
  * 3) Keep brittle API glue in a compat/adapter layer (reflection + shims).
- * 4) Enforce tick-thread world writes via a centralized executor/queue.
+ * 4) Enforce tick-thread-only inventory and world writes via centralized scheduling.
  *
  * Comment tags legend:
  * - COMPAT   = compatibility shim / reflection / version-sensitive API glue
  * - MODE     = mode routing / mode boundary code
  * - TARGET   = target resolution / look tracking / interaction chain parsing
  * - RULES    = gameplay rules (safe to change often)
+ * - STATE    = gameplay state containers (owned by a mode/session)
  * - WORLD    = world read/write (must be tick-thread safe)
  * - DEV      = debug/introspection helper
  * - OPTIONAL = fallback path for resilience
  * - ROADMAP  = planned future work
  */
+
 
 
 public class Realm_Ruler extends JavaPlugin {
