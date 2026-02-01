@@ -657,7 +657,10 @@ public class Realm_Ruler extends JavaPlugin {
             return;
         }
 
-        setStandBlock(loc, desiredStand);
+
+
+
+        swapStandAt(loc, desiredStand);
     }
 
 
@@ -1111,6 +1114,11 @@ public class Realm_Ruler extends JavaPlugin {
 // WARNING (gameplay/design note):
 // - If this block has an attached inventory (block entity), swapping block IDs may reset it.
 // - You're okay with that in early phases, but keep it in mind when you later implement deposit logic.
+
+    // WORLD: single entry point for stand swaps (wrapper for now; extracted later)
+    private void swapStandAt(BlockLocation loc, String desiredStand) {
+        setStandBlock(loc, desiredStand);
+    }
 
     private void setStandBlock(BlockLocation loc, String standKey) {
         if (loc == null || loc.world == null) return;
