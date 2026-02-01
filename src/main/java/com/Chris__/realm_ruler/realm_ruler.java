@@ -49,66 +49,71 @@ import java.util.concurrent.Flow;
 /**
  * Realm Ruler (Hytale minigame framework starting with Capture-the-Flag)
  *
- * Status: WORKING + "MODE SPINE" INSTALLED
- * - The original Phase 1 behavior still works exactly as before.
- * - We have added a lightweight game-mode routing layer (ModeManager + GameMode + CtfMode).
- * - Realm_Ruler currently still contains the bulk of the CTF/stand logic, but events are now also
- *   dispatched into the active mode so we can move logic out incrementally without breaking behavior.
+ * Status: WORKING + CORE SEAMS INSTALLED
+ * - Phase 1 gameplay behavior still works (press "F/use" on a Flag Stand to swap variants).
+ * - A lightweight "mode spine" exists (ModeManager + GameMode + CtfMode) to support scaling.
+ * - Two critical refactor seams are now in place to contain future changes:
+ *     1) TARGETING seam: TargetingService resolves WHERE an interaction happened (world + x,y,z)
+ *     2) WORLD seam: StandSwapService performs the actual block swap safely in one place
  *
  * Current gameplay behavior (Phase 1):
- * - Detect when a player interacts with a placed Flag Stand block.
- * - On interaction, swap the *placed block* between stand variants (e.g., empty ↔ blue).
+ * - Listen for PlayerInteractLib PlayerInteractionEvent.
+ * - Filter to the "F/use" interaction (InteractionType.Use) to avoid accidental triggers.
+ * - Resolve a target block location, verify it is one of our stand variants, and swap to the
+ *   desired stand variant (Phase 1: empty ↔ blue).
  *
- * Why we use PlayerInteractLib instead of vanilla UseBlockEvent:
+ * Why PlayerInteractLib:
  * - In the current Hytale build, opening/closing the stand UI via "F" does NOT reliably fire
- *   UseBlockEvent.Pre (and we don't have a dependable ItemContainerChange-style event).
- * - PlayerInteractLib provides a higher-level PlayerInteractionEvent stream that DOES fire for "F"
- *   interactions, including the player UUID and InteractionType.
+ *   UseBlockEvent.Pre, and we don't have a dependable ItemContainerChange-style event.
+ * - PlayerInteractLib provides a higher-level interaction stream that DOES fire for "F/use".
  *
- * Key technical challenge:
- * - PlayerInteractLib tells us WHO interacted and WHAT type of interaction occurred,
- *   but it does NOT always tell us WHERE (the target block position).
- * - To bridge that, we run a lightweight raycast each tick ("EyeSpy") and remember what block each
- *   player is looking at. We then "join":
- *
- *     (uuid + interaction event)  +  (uuid -> looked-at block position)  =>  (world + x,y,z)
+ * Key technical challenge (WHERE):
+ * - PlayerInteractLib reliably gives WHO + WHAT, but not always WHERE.
+ * - TargetingService bridges that gap using a layered strategy:
+ *     (A) Try extracting a hit position from the interaction chain (when present)
+ *     (B) Fallback to per-tick look tracking ("EyeSpy") joined by uuid
+ * - This keeps the targeting logic isolated so monthly API changes are localized.
  *
  * Threading note (important for future edits):
  * - PlayerInteractLib events may arrive off the main tick thread (async).
  * - World/block writes should happen on the server tick thread to avoid race conditions.
- * - Current code is defensive; as we scale, we will centralize writes into a tick-queued executor.
+ * - Today: writes are centralized in StandSwapService (still executed inline).
+ * - Next: add a tick-thread executor/queue and route all world writes through it.
  *
  * Project navigation (how to read the code today):
- * - Realm_Ruler: plugin entry + current interaction hooks + current Phase 1 stand logic (legacy core).
- * - ModeManager/GameMode/CtfMode: the new "mode spine" used to route player actions to an active mode.
- *   Note: CtfMode is currently a placeholder/bridge while logic is migrated out of Realm_Ruler.
+ * - Realm_Ruler.java:
+ *     - plugin entry + wiring (hooks, init, registration)
+ *     - current Phase 1 CTF handler still lives here as a bridge during refactor
+ * - TargetingService.java:
+ *     - resolves interaction targets (world + x,y,z), including look-tracker fallback
+ * - StandSwapService.java:
+ *     - validates stand asset IDs, ensures chunk loaded, performs block swap
+ * - ModeManager / GameMode / CtfMode:
+ *     - mode routing spine (CTF mode currently a bridge while logic migrates out of Realm_Ruler)
  *
- * Scaling plan (high-level roadmap):
- * - Phase 2: Stand color depends on the flag item in hand (rule-based variant selection).
- * - Phase 3: Full CTF state (teams, scoring, capture rules, match lifecycle).
- * - Multi-mode: Add additional minigames (TDM, KOTH, etc.) as separate GameMode implementations.
+ * Scaling roadmap:
+ * - Phase 2: Stand variant depends on flag item held (rule-based variant selection).
+ * - Phase 3: Full CTF match state (teams, captures, scoring, lifecycle).
+ * - Multi-arena: Support multiple arenas running different modes simultaneously.
+ *   Plan: route actions by resolved target location → ArenaSession → mode instance.
  *
- * Refactor plan (to keep monthly Hytale API changes contained):
- * 1) Keep this file as "wiring" only (hooks, init, registration).
- * 2) Move gameplay rules/state into modes (e.g., CtfMode + ctf rules/state classes).
- * 3) Move brittle / version-sensitive code into an adapter layer (compat shims + reflection).
- * 4) Centralize world edits into one service with tick-thread execution + safety checks.
+ * Refactor roadmap (to keep monthly Hytale API changes contained):
+ * 1) Keep Realm_Ruler as wiring only (hooks, init, registration).
+ * 2) Move gameplay rules/state into mode-specific classes (ctf rules/state).
+ * 3) Keep brittle API glue in a compat/adapter layer (reflection + shims).
+ * 4) Enforce tick-thread world writes via a centralized executor/queue.
  *
- * Reflection note (why it exists here):
- * - We intentionally use reflection for PlayerInteractLib integration so this plugin can compile
- *   even if PlayerInteractLib is not on the build classpath.
- * - At runtime, if PlayerInteractLib is present, we hook into it; if not, the plugin still loads,
- *   just with reduced functionality (fallback events only).
- *
- * Comment tags legend (add over time for faster LLM + human navigation):
- * - COMPAT   = compatibility shim for different server/plugin API shapes (expected to change monthly)
- * - MODE     = game mode routing / mode boundary code
+ * Comment tags legend:
+ * - COMPAT   = compatibility shim / reflection / version-sensitive API glue
+ * - MODE     = mode routing / mode boundary code
+ * - TARGET   = target resolution / look tracking / interaction chain parsing
  * - RULES    = gameplay rules (safe to change often)
  * - WORLD    = world read/write (must be tick-thread safe)
- * - DEV      = debug/introspection helper (useful while reverse engineering)
- * - OPTIONAL = fallback path; may not run in current build but kept for resilience
- * - ROADMAP  = planned future work (Phase 2+)
+ * - DEV      = debug/introspection helper
+ * - OPTIONAL = fallback path for resilience
+ * - ROADMAP  = planned future work
  */
+
 
 public class Realm_Ruler extends JavaPlugin {
 
