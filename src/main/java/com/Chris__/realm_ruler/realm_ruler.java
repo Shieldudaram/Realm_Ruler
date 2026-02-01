@@ -601,6 +601,11 @@ public class Realm_Ruler extends JavaPlugin {
 // This avoids changing functionality while we relocate code out of Realm_Ruler.
 // -----------------------------------------------------------------------------
 
+    public com.Chris__.Realm_Ruler.platform.PlayerInteractAdapter rrPi() {
+        return pi;
+    }
+
+
     public TargetingService rrTargetingService() {
         return targetingService;
     }
@@ -616,27 +621,6 @@ public class Realm_Ruler extends JavaPlugin {
     public boolean rrPhase1ToggleBlueOnly() {
         return PHASE1_TOGGLE_BLUE_ONLY;
     }
-
-    public boolean rrConsumePiDebugBudget() {
-        return pi.consumeDebugBudget();
-    }
-
-    public InteractionType rrSafeInteractionType(PlayerInteractionEvent e) {
-        return pi.safeInteractionType(e);
-    }
-
-    public String rrSafeUuid(PlayerInteractionEvent e) {
-        return pi.safeUuid(e);
-    }
-
-    public String rrSafeItemInHandId(PlayerInteractionEvent e) {
-        return pi.safeItemInHandId(e);
-    }
-
-    public Object rrSafeInteractionChain(PlayerInteractionEvent e) {
-        return pi.safeInteractionChain(e);
-    }
-
 
     public String rrTryGetBlockIdAt(World world, int x, int y, int z) {
         return tryGetBlockIdAt(world, x, y, z);
@@ -665,7 +649,7 @@ public class Realm_Ruler extends JavaPlugin {
         // If we ever reach here, modes haven't been initialized yet.
         // Intentionally no-op to avoid changing behavior in unexpected init states.
     }
-    
+
 // -----------------------------------------------------------------------------
 // Look tracker helpers (EyeSpy approach)
 // -----------------------------------------------------------------------------

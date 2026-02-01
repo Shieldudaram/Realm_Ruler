@@ -60,12 +60,13 @@ public class CtfMode implements RealmMode {
         if (!(action instanceof PlayerInteractionEvent event)) return;
 
         // Keep logging behavior identical by consuming the shared PI debug budget.
-        boolean shouldLog = plugin.rrConsumePiDebugBudget();
+        boolean shouldLog = plugin.rrPi().consumeDebugBudget();
 
-        InteractionType type = plugin.rrSafeInteractionType(event);
-        String uuid = plugin.rrSafeUuid(event);
-        String itemInHand = plugin.rrSafeItemInHandId(event);
-        Object chain = plugin.rrSafeInteractionChain(event);
+        InteractionType type = plugin.rrPi().safeInteractionType(event);
+        String uuid = plugin.rrPi().safeUuid(event);
+        String itemInHand = plugin.rrPi().safeItemInHandId(event);
+        Object chain = plugin.rrPi().safeInteractionChain(event);
+
 
         // Only react to "F/use"
         if (type != InteractionType.Use) return;
