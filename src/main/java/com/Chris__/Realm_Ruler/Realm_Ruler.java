@@ -43,63 +43,129 @@ import java.util.Set;
 import java.util.concurrent.Flow;
 
 /**
- * Realm Ruler (PlayerInteractLib wired)
+ * Realm Ruler (Capture-the-Flag building block)
  *
- * Goal: detect "press F" interactions on the Flag Stand using PlayerInteractLib,
- * then swap the placed stand block to a colored variant based on what the player is holding
- * (for now), because the stand UI does not emit UseBlockEvent.Pre or ItemContainerChange events
- * in your current server build.
+ * What this plugin currently does (Phase 1):
+ * - Detects when a player interacts with a placed Flag Stand block.
+ * - On interaction, swaps the *placed block* between stand variants (e.g., empty ↔ blue).
  *
- * IMPORTANT: This file intentionally uses reflection for PlayerInteractLib integration so you
- * don't need it on your compile classpath; it only needs to be present at runtime on the server.
+ * Why we use PlayerInteractLib instead of vanilla UseBlockEvent:
+ * - In your current Hytale server build, opening/closing the stand UI via "F" does NOT reliably
+ *   fire UseBlockEvent.Pre, and we don't have a dependable ItemContainerChange-style event either.
+ * - PlayerInteractLib provides a higher-level, plugin-friendly "PlayerInteractionEvent" stream that
+ *   DOES fire for your "F" interactions, including the player UUID and InteractionType.
+ *
+ * Key challenge this file solves:
+ * - PlayerInteractLib tells us WHO interacted and WHAT kind of interaction occurred,
+ *   but it does NOT always tell us WHERE (the target block position).
+ * - To bridge that gap, we run a lightweight raycast each tick ("EyeSpy" approach) and remember
+ *   what block each player is currently looking at. We then "join":
+ *
+ *     (uuid + interaction event)  +  (uuid -> looked-at block position)  =>  (world + x,y,z)
+ *
+ * Threading note (important for future edits):
+ * - PlayerInteractLib events may arrive off the main tick thread (asynchronous).
+ * - World/block writes should happen on the server tick thread to avoid race conditions.
+ *   (Right now our swap path is written to be safe / defensively coded; if you later see
+ *   weirdness, we can move all writes into a tick-queued task system.)
+ *
+ * Design goals for readability:
+ * - Keep the "event detection" logic separate from the "world edit" logic.
+ * - Keep debug/introspection bounded so logs don't become unusable.
+ *
+ * Reflection note (why it exists here):
+ * - We intentionally use reflection for PlayerInteractLib integration so this plugin can compile
+ *   even if PlayerInteractLib is not on the build classpath.
+ * - At runtime, if PlayerInteractLib is present, we hook into it; if not, the plugin still loads,
+ *   just with reduced functionality (fallback events only).
  */
 public class Realm_Ruler extends JavaPlugin {
 
+    /** Logger provided by the Hytale server runtime. */
     private static final HytaleLogger LOGGER = HytaleLogger.forEnclosingClass();
 
-    // Stand block IDs
+    // -------------------------------------------------------------------------
+    // Asset IDs (strings must match your JSON block/item IDs exactly)
+    // -------------------------------------------------------------------------
+
+    /** Stand block IDs (placed in the world). */
     private static final String STAND_EMPTY  = "Flag_Stand";
     private static final String STAND_RED    = "Flag_Stand_Red";
     private static final String STAND_BLUE   = "Flag_Stand_Blue";
     private static final String STAND_WHITE  = "Flag_Stand_White";
     private static final String STAND_YELLOW = "Flag_Stand_Yellow";
 
-    // Flag item IDs (your duplicated swords-as-flags)
+    /** Flag item IDs (items in player inventory / hand). */
     private static final String FLAG_RED    = "Realm_Ruler_Flag_Red";
     private static final String FLAG_BLUE   = "Realm_Ruler_Flag_Blue";
     private static final String FLAG_WHITE  = "Realm_Ruler_Flag_White";
     private static final String FLAG_YELLOW = "Realm_Ruler_Flag_Yellow";
 
+    /** Small in-game message used for quick sanity testing. */
     private static final Message MSG_DEBUG_HIT =
             Message.raw("[RealmRuler] Flag stand interaction detected.");
 
-    // spam limit (Phase 2/3 introspection is chatty; keep bounded)
+    // -------------------------------------------------------------------------
+    // Debug / log safety rails
+    // -------------------------------------------------------------------------
+
+    /**
+     * Limits how many detailed PlayerInteractLib debug logs we print on startup/testing.
+     * IMPORTANT: This should NEVER disable core logic; it should only reduce log spam.
+     */
     private static int PI_DEBUG_LIMIT = 400;
+
+    /**
+     * Limits how many UseBlock fallback logs we print (UseBlockEvent can be noisy when enabled).
+     */
     private static int USEBLOCK_DEBUG_LIMIT = 30;
 
-    // Keep one-time dumps from spamming every interaction
+    /**
+     * We do reflection-based "surface dumps" to discover what data exists inside interaction chains.
+     * This set prevents dumping the same class repeatedly.
+     */
     private final Set<Class<?>> dumpedInteractionClasses = ConcurrentHashMap.newKeySet();
 
-    // We keep this as a fallback if UseBlock ever fires (rare with your "F" flow)
+    /**
+     * Fallback: sometimes UseBlockEvent provides a target position when PlayerInteractLib doesn't.
+     * We store the last known stand target as a "best effort" fallback.
+     *
+     * volatile because it may be written and read from different callbacks (thread safety).
+     */
     private volatile BlockLocation pendingStandLocation = null;
 
-    // One-time warnings to avoid log spam
+    /**
+     * These sets are just "warn-once" guards so the log doesn't become a firehose.
+     * - warnedMissingStandKeys: we attempted to swap to a stand ID that wasn't found in AssetMap.
+     * - warnedMissingChunkIndices: chunk wasn't loaded when we tried to read/write at that position.
+     */
     private final Set<String> warnedMissingStandKeys = ConcurrentHashMap.newKeySet();
     private final Set<Long> warnedMissingChunkIndices = ConcurrentHashMap.newKeySet();
 
-    // ----- EyeSpy-style "what block is the player looking at?" tracker -----
-    // We raycast every tick and remember each player's current looked-at block, keyed by UUID string.
-    // This lets us "join" PlayerInteractLib (uuid + Use) with a reliable target block position.
+    // -------------------------------------------------------------------------
+    // EyeSpy-style looked-at block tracker (UUID -> what block they are aiming at)
+    // -------------------------------------------------------------------------
+
+    /** How far the raycast should check for a targeted block. */
     private static final double LOOK_RAYCAST_RANGE = 5.0d;
+
+    /**
+     * Freshness window: we only trust looked-at results captured very recently.
+     * This prevents "stale aim" where a player looked somewhere else 2 seconds ago.
+     */
     private static final long LOOK_FRESH_NANOS = 250_000_000L; // 250ms window
 
+    /**
+     * Latest looked-at block info per player UUID (string form).
+     * Used to "join" PlayerInteractLib events to a concrete (world + x,y,z).
+     */
     private final Map<String, LookTarget> lookByUuid = new ConcurrentHashMap<>();
-
 
     public Realm_Ruler(@Nonnull JavaPluginInit init) {
         super(init);
-        LOGGER.atInfo().log("Hello from " + this.getName() + " version " + this.getManifest().getVersion().toString());
+        LOGGER.atInfo().log("Hello from %s version %s", this.getName(), this.getManifest().getVersion().toString());
     }
+
 
     @Override
     protected void setup() {
