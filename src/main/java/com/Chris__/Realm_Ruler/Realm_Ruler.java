@@ -254,7 +254,12 @@ public class Realm_Ruler extends JavaPlugin {
     }
 
     // Toggle stand swapping once we have reliable (world,x,y,z) extraction
-    private static final boolean ENABLE_STAND_SWAP = false;
+    private static final boolean ENABLE_STAND_SWAP = true;
+
+    // Phase 1: ignore item-in-hand and simply toggle Empty <-> Blue on any stand interaction
+    private static final boolean PHASE1_TOGGLE_BLUE_ONLY = true;
+
+
 
     /**
      * PlayerInteractLib event handler (Phase 3):
@@ -309,11 +314,21 @@ public class Realm_Ruler extends JavaPlugin {
 
         if (!isStandId(clickedId)) return;
 
-        String desiredStand = STAND_EMPTY;
-        if (FLAG_RED.equals(itemInHand)) desiredStand = STAND_RED;
-        else if (FLAG_BLUE.equals(itemInHand)) desiredStand = STAND_BLUE;
-        else if (FLAG_WHITE.equals(itemInHand)) desiredStand = STAND_WHITE;
-        else if (FLAG_YELLOW.equals(itemInHand)) desiredStand = STAND_YELLOW;
+        String desiredStand;
+        if (PHASE1_TOGGLE_BLUE_ONLY) {
+            // Phase 1: any interaction with any stand toggles Empty <-> Blue.
+            // Later we'll swap to "based on item in hand" once the signal is reliable.
+            desiredStand = STAND_BLUE.equals(clickedId) ? STAND_EMPTY : STAND_BLUE;
+        } else {
+            // Future: choose variant based on the flag item in-hand.
+            desiredStand = STAND_EMPTY;
+            if (FLAG_RED.equals(itemInHand)) desiredStand = STAND_RED;
+            else if (FLAG_BLUE.equals(itemInHand)) desiredStand = STAND_BLUE;
+            else if (FLAG_WHITE.equals(itemInHand)) desiredStand = STAND_WHITE;
+            else if (FLAG_YELLOW.equals(itemInHand)) desiredStand = STAND_YELLOW;
+        }
+
+
 
         if (!ENABLE_STAND_SWAP) {
             LOGGER.atInfo().log("[RR] (dry-run) would swap stand @ %d,%d,%d from %s -> %s",
