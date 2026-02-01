@@ -78,10 +78,14 @@ public class Realm_Ruler extends JavaPlugin {
     private static int USEBLOCK_DEBUG_LIMIT = 30;
 
     // Keep one-time dumps from spamming every interaction
-    private final Set<Class<?>> dumpedInteractionClasses = new HashSet<>();
+    private final Set<Class<?>> dumpedInteractionClasses = ConcurrentHashMap.newKeySet();
 
     // We keep this as a fallback if UseBlock ever fires (rare with your "F" flow)
-    private BlockLocation pendingStandLocation = null;
+    private volatile BlockLocation pendingStandLocation = null;
+
+    // One-time warnings to avoid log spam
+    private final Set<String> warnedMissingStandKeys = ConcurrentHashMap.newKeySet();
+    private final Set<Long> warnedMissingChunkIndices = ConcurrentHashMap.newKeySet();
 
     // ----- EyeSpy-style "what block is the player looking at?" tracker -----
     // We raycast every tick and remember each player's current looked-at block, keyed by UUID string.
@@ -268,8 +272,7 @@ public class Realm_Ruler extends JavaPlugin {
      * - (optionally) swap the stand variant based on the flag in hand
      */
     private void onPlayerInteraction(PlayerInteractionEvent event) {
-        if (PI_DEBUG_LIMIT-- <= 0) return;
-
+        boolean shouldLog = (PI_DEBUG_LIMIT-- > 0);
         InteractionType type = safeInteractionType(event);
         String uuid = safeUuid(event);
         String itemInHand = safeItemInHandId(event);
@@ -292,14 +295,14 @@ public class Realm_Ruler extends JavaPlugin {
         // If we used the look-tracker fallback, log it (once per interaction, not per tick).
         if (look != null && look.basePos != null) {
             long ageMs = (System.nanoTime() - look.nanoTime) / 1_000_000L;
-            LOGGER.atInfo().log("[RR-LOOK] uuid=%s lookBlock=%s pos=%d,%d,%d ageMs=%d",
+            if (shouldLog) LOGGER.atInfo().log("[RR-LOOK] uuid=%s lookBlock=%s pos=%d,%d,%d ageMs=%d",
                     uuid,
                     String.valueOf(look.blockId),
                     look.basePos.x, look.basePos.y, look.basePos.z,
                     ageMs);
         }
 
-        LOGGER.atInfo().log("[RR-PI] uuid=%s type=%s item=%s chain=%s pos=%s",
+        if (shouldLog) LOGGER.atInfo().log("[RR-PI] uuid=%s type=%s item=%s chain=%s pos=%s",
                 uuid,
                 String.valueOf(type),
                 itemInHand,
@@ -595,11 +598,21 @@ public class Realm_Ruler extends JavaPlugin {
         if (loc == null || loc.world == null) return;
 
         int newBlockId = BlockType.getAssetMap().getIndex(standKey);
-        if (newBlockId == Integer.MIN_VALUE) return;
+        if (newBlockId == Integer.MIN_VALUE) {
+            if (warnedMissingStandKeys.add(standKey)) {
+                LOGGER.atWarning().log("[RR] stand asset id not found for %s", standKey);
+            }
+            return;
+        }
 
         long chunkIndex = ChunkUtil.indexChunkFromBlock(loc.x, loc.z);
         WorldChunk chunk = loc.world.getChunk(chunkIndex);
-        if (chunk == null) return;
+        if (chunk == null) {
+            if (warnedMissingChunkIndices.add(chunkIndex)) {
+                LOGGER.atWarning().log("[RR] chunk not loaded for swap at %d,%d,%d (chunkIndex=%d)", loc.x, loc.y, loc.z, chunkIndex);
+            }
+            return;
+        }
 
         chunk.setBlock(loc.x, loc.y, loc.z, newBlockId, 0);
         LOGGER.atInfo().log("[RR] Swapped stand @ %d,%d,%d -> %s", loc.x, loc.y, loc.z, standKey);
