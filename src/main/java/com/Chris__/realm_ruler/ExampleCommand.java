@@ -24,6 +24,6 @@ public class ExampleCommand extends CommandBase {
 
     @Override
     protected void executeSync(@Nonnull CommandContext ctx) {
-        ctx.sendMessage(Message.raw("Hello from the " + pluginName + " v" + pluginVersion + " plugin!V0.0.4"));
+        ctx.sendMessage(Message.raw("Hello from the " + pluginName + " v" + pluginVersion + " plugin!V0.0.5"));
     }
 }

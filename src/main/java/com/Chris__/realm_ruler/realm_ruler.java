@@ -230,7 +230,11 @@ public class Realm_Ruler extends JavaPlugin {
         super(init);
         setupModes();
         LOGGER.atInfo().log("Hello from %s version %s", this.getName(), this.getManifest().getVersion().toString());
+
+        // Debug: dump Player API methods once at startup (remove after we learn inventory APIs)
+        dumpPlayerMethods();
     }
+
 
 
 
@@ -333,6 +337,7 @@ public class Realm_Ruler extends JavaPlugin {
         //  - the plugin still loads, but stand detection will be less reliable
         // ---------------------------------------------------------------------
         tryRegisterPlayerInteractLib();
+
     }
 
     /**
@@ -1126,6 +1131,34 @@ public class Realm_Ruler extends JavaPlugin {
 
 
 // ---------- Helpers ----------
+
+    private static void dumpPlayerMethods() {
+        try {
+            Class<?> c = com.hypixel.hytale.server.core.entity.entities.Player.class;
+
+            LOGGER.atInfo().log("[RR-DUMP] Player public methods containing: hand|held|inventory|item|container|slot|give|set");
+
+            for (java.lang.reflect.Method m : c.getMethods()) { // public methods incl inherited
+                String name = m.getName().toLowerCase(java.util.Locale.ROOT);
+
+                if (name.contains("hand")
+                        || name.contains("held")
+                        || name.contains("inventory")
+                        || name.contains("item")
+                        || name.contains("container")
+                        || name.contains("slot")
+                        || name.contains("give")
+                        || name.contains("set")) {
+
+                    LOGGER.atInfo().log("[RR-DUMP] %s", m.toString());
+                }
+            }
+        } catch (Throwable t) {
+            // Your logger supports withCause(t); use atWarning as "error-level"
+            LOGGER.atWarning().withCause(t).log("[RR-DUMP] Failed to dump Player methods");
+        }
+    }
+
 
     /** RULES: Decide which stand variant we want given the current state. */
     private String selectDesiredStand(String clickedStandId, String itemInHandId) {
