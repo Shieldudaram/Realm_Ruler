@@ -116,6 +116,8 @@ public class Realm_Ruler extends JavaPlugin {
 
     private ModeManager modeManager;
     private final StandSwapService standSwapService = new StandSwapService(LOGGER);
+    private final TargetingService targetingService = new TargetingService(LOGGER, this);
+
 
 
     private void setupModes() {
@@ -567,10 +569,6 @@ public class Realm_Ruler extends JavaPlugin {
         handleCtfAction(event); // fallback
     }
 
-
-
-
-
     public void handleCtfAction(Object action) {
         if (!(action instanceof PlayerInteractionEvent event)) return;
 
@@ -594,24 +592,14 @@ public class Realm_Ruler extends JavaPlugin {
         // Step 1: resolve (world,x,y,z) of the interacted block.
         // Prefer extracting from the interaction chain (if it contains a hit result).
         // If that fails, use our per-tick look tracker (fresh aim data).
-        BlockLocation loc = null;
-        LookTarget look = null;
+        TargetingResult tr = targetingService.resolveTarget(uuid, event, chain);
 
-        try {
-            loc = tryExtractBlockLocation(uuid, event, chain);
+        if (tr == null || tr.loc == null || tr.loc.world == null) return;
 
-            // Fallback: if the chain doesn't provide a usable position, use "what the player was looking at".
-            if (loc == null) {
-                look = getFreshLookTarget(uuid);
-                if (look != null && look.world != null && look.basePos != null) {
-                    loc = new BlockLocation(look.world, look.basePos.x, look.basePos.y, look.basePos.z);
-                }
-            }
-        } catch (Throwable t) {
-            LOGGER.atWarning().withCause(t).log("[RR-PI] Failed while extracting block location");
-        }
+        BlockLocation loc = tr.loc;
+        LookTarget look = tr.look;
 
-        // If we used look-tracker fallback, log it once per interaction (not per tick).
+// If we used look-tracker fallback, log it once per interaction (not per tick).
         if (look != null && look.basePos != null) {
             long ageMs = (System.nanoTime() - look.nanoTime) / 1_000_000L;
             if (shouldLog) {
@@ -622,19 +610,6 @@ public class Realm_Ruler extends JavaPlugin {
                         ageMs);
             }
         }
-
-        // Log the interaction summary (bounded by shouldLog).
-        if (shouldLog) {
-            LOGGER.atInfo().log("[RR-PI] uuid=%s type=%s item=%s chain=%s pos=%s",
-                    uuid,
-                    String.valueOf(type),
-                    itemInHand,
-                    (chain == null ? "<null>" : chain.getClass().getName()),
-                    (loc == null ? "<none>" : (loc.x + "," + loc.y + "," + loc.z)));
-        }
-
-        // If we can't determine a valid location, we can't safely change the world.
-        if (loc == null || loc.world == null) return;
 
         // Step 2: confirm what block is actually at that position.
         // We intentionally read the block ID from the world so we don't swap the wrong thing.
@@ -650,17 +625,11 @@ public class Realm_Ruler extends JavaPlugin {
 
         // (The remainder of your method continues here: doing the swap / dry-run using desiredStand)
 
-
-
-
         if (!ENABLE_STAND_SWAP) {
             LOGGER.atInfo().log("[RR] (dry-run) would swap stand @ %d,%d,%d from %s -> %s",
                     loc.x, loc.y, loc.z, clickedId, desiredStand);
             return;
         }
-
-
-
 
         swapStandAt(loc, desiredStand);
     }
@@ -756,7 +725,7 @@ public class Realm_Ruler extends JavaPlugin {
 // - 250ms is short enough to match the moment of interaction, but long enough to handle
 //   slight timing differences between tick updates and interaction events.
 
-    private LookTarget getFreshLookTarget(String uuid) {
+    LookTarget getFreshLookTarget(String uuid) {
         // Guard against garbage keys (uuid sometimes becomes "<null>" from safeUuid)
         if (uuid == null || uuid.isEmpty() || "<null>".equals(uuid)) return null;
 
@@ -775,7 +744,7 @@ public class Realm_Ruler extends JavaPlugin {
      * NOTE: This is currently a helper used as a fallback inside tryExtractBlockLocation.
      * If you later restructure tryExtractBlockLocation, this helper might become unused.
      */
-    private BlockLocation tryLocationFromLook(String uuid) {
+    public BlockLocation tryLocationFromLook(String uuid) {
         if (uuid == null || uuid.isEmpty() || "<null>".equals(uuid)) return null;
 
         LookTarget t = getFreshLookTarget(uuid);
@@ -785,6 +754,31 @@ public class Realm_Ruler extends JavaPlugin {
 
         return new BlockLocation(t.world, t.basePos.x, t.basePos.y, t.basePos.z);
     }
+
+    // TARGETING: one place that turns (uuid + event + chain) into a BlockLocation
+    public TargetingResult resolveTarget(String uuid, PlayerInteractionEvent event, Object chain) {
+        BlockLocation loc = null;
+        LookTarget look = null;
+
+        try {
+            // Your primary layered extractor (chain → look → remembered UseBlock)
+            loc = tryExtractBlockLocation(uuid, event, chain);
+
+            // Keep your current behavior: if still null, try look fallback explicitly
+            // (This matches what handleCtfAction does today.)
+            if (loc == null) {
+                look = getFreshLookTarget(uuid);
+                if (look != null && look.world != null && look.basePos != null) {
+                    loc = new BlockLocation(look.world, look.basePos.x, look.basePos.y, look.basePos.z);
+                }
+            }
+        } catch (Throwable t) {
+            LOGGER.atWarning().withCause(t).log("[RR-PI] Failed while extracting block location");
+        }
+
+        return (loc == null) ? null : new TargetingResult(loc, look);
+    }
+
 
 
 // -----------------------------------------------------------------------------
@@ -809,7 +803,7 @@ public class Realm_Ruler extends JavaPlugin {
 //
 // This is deliberately layered: each fallback is less "direct" than the previous.
 
-    private BlockLocation tryExtractBlockLocation(String uuid, PlayerInteractionEvent event, Object chain) {
+     BlockLocation tryExtractBlockLocation(String uuid, PlayerInteractionEvent event, Object chain) {
         World world = null;
 
         // Some builds may expose the World directly on the event.
@@ -1367,7 +1361,7 @@ public class Realm_Ruler extends JavaPlugin {
     /**
      * Immutable data snapshot of what a player is looking at at a moment in time.
      */
-    private static final class LookTarget {
+    static final class LookTarget {
         final World world;
 
         /** Raw raycast hit position (can be a filler part of a larger block structure). */
@@ -1390,6 +1384,18 @@ public class Realm_Ruler extends JavaPlugin {
             this.nanoTime = nanoTime;
         }
     }
+
+    // TARGETING: carries both the final location and (optionally) the look-tracker data used.
+    static final class TargetingResult {
+        final BlockLocation loc;
+        final LookTarget look; // non-null only if look fallback was used
+
+        TargetingResult(BlockLocation loc, LookTarget look) {
+            this.loc = loc;
+            this.look = look;
+        }
+    }
+
 
     /**
      * EntityTickingSystem that updates lookByUuid every tick.
@@ -1588,7 +1594,7 @@ public class Realm_Ruler extends JavaPlugin {
 // - a fully resolved location (world + x,y,z)
 // - OR coordinates alone when world isn't known yet (world=null)
 
-    public static final class BlockLocation {
+    static final class BlockLocation {
         final World world; // can be null if we only have coords
         final int x, y, z;
 
