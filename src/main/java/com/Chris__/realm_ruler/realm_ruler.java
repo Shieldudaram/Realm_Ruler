@@ -4,6 +4,10 @@ package com.Chris__.Realm_Ruler;
 import com.Chris__.Realm_Ruler.core.ModeManager;
 import com.Chris__.Realm_Ruler.modes.CtfMode;
 import com.Chris__.Realm_Ruler.world.StandSwapService;
+import com.hypixel.hytale.server.core.inventory.Inventory;
+import com.hypixel.hytale.server.core.inventory.container.ItemContainer;
+import java.util.concurrent.ConcurrentLinkedQueue;
+
 
 
 
@@ -121,6 +125,8 @@ public class Realm_Ruler extends JavaPlugin {
 
 
 
+
+
     private ModeManager modeManager;
     private final StandSwapService standSwapService = new StandSwapService(LOGGER);
     private final TargetingService targetingService = new TargetingService(LOGGER, this);
@@ -144,6 +150,18 @@ public class Realm_Ruler extends JavaPlugin {
     // They should NOT change core gameplay logic, only enable/disable optional telemetry/fallbacks.
     private static final boolean ENABLE_USEBLOCK_FALLBACK = true;
     private static final boolean ENABLE_LOOK_TRACKER = true;
+
+    // TICK-SAFE EXECUTOR: queue work from async callbacks to run on tick thread.
+    private final ConcurrentLinkedQueue<Runnable> tickQueue = new ConcurrentLinkedQueue<>();
+
+    // PLAYER RESOLUTION: uuid -> Player (refreshed every tick by LookTargetTrackerSystem)
+    private final Map<String, Player> playerByUuid = new ConcurrentHashMap<>();
+
+    // STAND STATE: which flag item is currently "mounted" on each stand
+    private final Map<String, ItemStack> flagByStandKey = new ConcurrentHashMap<>();
+
+
+
 
 
 
@@ -226,6 +244,8 @@ public class Realm_Ruler extends JavaPlugin {
      */
     private final Map<String, LookTarget> lookByUuid = new ConcurrentHashMap<>();
 
+
+
     public Realm_Ruler(@Nonnull JavaPluginInit init) {
         super(init);
         setupModes();
@@ -233,6 +253,8 @@ public class Realm_Ruler extends JavaPlugin {
 
         // Debug: dump Player API methods once at startup (remove after we learn inventory APIs)
         dumpPlayerMethods();
+        dumpInventoryApis();
+
     }
 
 
@@ -584,6 +606,8 @@ public class Realm_Ruler extends JavaPlugin {
     public void handleCtfAction(Object action) {
         if (!(action instanceof PlayerInteractionEvent event)) return;
 
+
+
         // Log-limiter for "chatty" per-event debug logging.
         // IMPORTANT: This should NEVER stop functionality, only reduce logs.
         boolean shouldLog = (PI_DEBUG_LIMIT-- > 0);
@@ -593,6 +617,9 @@ public class Realm_Ruler extends JavaPlugin {
         String uuid = safeUuid(event);
         String itemInHand = safeItemInHandId(event);
         Object chain = safeInteractionChain(event);
+
+        LOGGER.atInfo().log("[RR] DEBUG empty-check itemInHandId='%s'", itemInHand);
+
 
         // Only react to the "F/use" interaction.
         // (On your build, F tends to come through as InteractionType.Use.)
@@ -642,6 +669,92 @@ public class Realm_Ruler extends JavaPlugin {
                     loc.x, loc.y, loc.z, clickedId, desiredStand);
             return;
         }
+
+        final String clicked = clickedId;
+        final String heldId = itemInHand;
+        final String key = standKey(loc.world, loc.x, loc.y, loc.z);
+
+// We want: deposit if stand empty + holding a custom flag.
+// We want: withdraw if stand has a stored flag + empty hand.
+// Otherwise: keep your existing "color selection" behavior (or deny).
+
+        boolean standHasStoredFlag = flagByStandKey.containsKey(key);
+        boolean heldIsFlag = isCustomFlagId(heldId);
+        boolean heldIsEmpty = isEmptyHandId(heldId);
+
+// Deposit
+        if (!standHasStoredFlag && STAND_EMPTY.equals(clicked) && heldIsFlag) {
+            runOnTick(() -> {
+                Player p = playerByUuid.get(uuid);
+                if (p == null) return;
+
+                Inventory inv = p.getInventory();
+                if (inv == null) return;
+
+                ItemContainer hotbar = inv.getHotbar();
+                if (hotbar == null) return;
+
+                short slot = (short) (inv.getActiveHotbarSlot() & 0xFF);
+                ItemStack inSlot = hotbar.getItemStack(slot);
+
+                if (inSlot == null) return;
+                // Extra safety: ensure it's actually the flag id you expect
+                if (!heldId.equals(inSlot.getItemId())) return;
+
+                // Store the exact ItemStack (avoids needing to "create" later)
+                flagByStandKey.put(key, inSlot);
+
+                // Remove from player
+                hotbar.removeItemStackFromSlot(slot, 1);
+
+                // Visual swap
+                String standVariant = selectDesiredStand(STAND_EMPTY, heldId);
+                swapStandAt(loc, standVariant);
+
+                // Sync (exists on Player per your dump)
+                p.sendInventory();
+
+                // TODO fun: particles/sound here once we identify the API
+            });
+
+            return; // prevent falling through to default swap
+        }
+
+        // Withdraw
+        if (standHasStoredFlag && heldIsEmpty) {
+            runOnTick(() -> {
+                Player p = playerByUuid.get(uuid);
+                if (p == null) return;
+
+                Inventory inv = p.getInventory();
+                if (inv == null) return;
+
+                ItemContainer hotbar = inv.getHotbar();
+                if (hotbar == null) return;
+
+                short slot = (short) (inv.getActiveHotbarSlot() & 0xFF);
+
+                // Disallow if their hand slot isn't empty
+                ItemStack current = hotbar.getItemStack(slot);
+                if (current != null && current.getQuantity() > 0) return;
+
+                ItemStack stored = flagByStandKey.remove(key);
+                if (stored == null) return;
+
+                // Put it into their hand slot
+                hotbar.setItemStackForSlot(slot, stored);
+
+                // Visual swap back to empty
+                swapStandAt(loc, STAND_EMPTY);
+
+                p.sendInventory();
+
+                // TODO fun: particles/sound here once we identify the API
+            });
+
+            return;
+        }
+
 
         swapStandAt(loc, desiredStand);
     }
@@ -1158,6 +1271,37 @@ public class Realm_Ruler extends JavaPlugin {
             LOGGER.atWarning().withCause(t).log("[RR-DUMP] Failed to dump Player methods");
         }
     }
+    private static void dumpMethods(Class<?> c, String label) {
+        try {
+            LOGGER.atInfo().log("[RR-DUMP] ---- %s (%s) ----", label, c.getName());
+            for (java.lang.reflect.Method m : c.getMethods()) {
+                String name = m.getName().toLowerCase(java.util.Locale.ROOT);
+                if (name.contains("hand")
+                        || name.contains("held")
+                        || name.contains("inventory")
+                        || name.contains("item")
+                        || name.contains("container")
+                        || name.contains("slot")
+                        || name.contains("hotbar")
+                        || name.contains("equip")
+                        || name.contains("add")
+                        || name.contains("remove")
+                        || name.contains("set")
+                        || name.contains("get")) {
+                    LOGGER.atInfo().log("[RR-DUMP] %s", m.toString());
+                }
+            }
+        } catch (Throwable t) {
+            LOGGER.atWarning().withCause(t).log("[RR-DUMP] Failed dumping %s", label);
+        }
+    }
+
+    private static void dumpInventoryApis() {
+        dumpMethods(com.hypixel.hytale.server.core.inventory.Inventory.class, "Inventory");
+        dumpMethods(com.hypixel.hytale.server.core.inventory.ItemStack.class, "ItemStack");
+        dumpMethods(com.hypixel.hytale.server.core.inventory.container.ItemContainer.class, "ItemContainer");
+    }
+
 
 
     /** RULES: Decide which stand variant we want given the current state. */
@@ -1384,6 +1528,31 @@ public class Realm_Ruler extends JavaPlugin {
         } catch (Exception ignored) {}
     }
 
+    private void runOnTick(Runnable r) {
+        if (r != null) tickQueue.add(r);
+    }
+
+    private static String standKey(World world, int x, int y, int z) {
+        // World identity: toString() is a pragmatic start.
+        // If you later find a stable world id getter, swap it in here.
+        return String.valueOf(world) + "|" + x + "|" + y + "|" + z;
+    }
+
+    private static boolean isCustomFlagId(String itemId) {
+        if (itemId == null) return false;
+        return itemId.equals(FLAG_RED)
+                || itemId.equals(FLAG_BLUE)
+                || itemId.equals(FLAG_WHITE)
+                || itemId.equals(FLAG_YELLOW);
+    }
+
+    private static boolean isEmptyHandId(String itemId) {
+        if (itemId == null) return true;
+        String s = itemId.trim().toLowerCase(Locale.ROOT);
+        return s.isEmpty() || s.equals("<empty>") || s.equals("air") || s.endsWith(":air");
+    }
+
+
 
 // -----------------------------------------------------------------------------
 // Look target tracking (EyeSpy technique)
@@ -1498,6 +1667,8 @@ public class Realm_Ruler extends JavaPlugin {
                 String uuid = safeUuidFromPlayer(playerRef, player);
                 if (uuid == null || uuid.isEmpty()) return;
 
+                playerByUuid.put(uuid, player);
+
                 // Raycast for target block (same call EyeSpy uses)
                 Vector3i hit = TargetUtil.getTargetBlock(chunk.getReferenceTo(entityId), LOOK_RAYCAST_RANGE, store);
                 if (hit == null) return;
@@ -1533,6 +1704,17 @@ public class Realm_Ruler extends JavaPlugin {
                 // Store a fresh snapshot keyed by UUID.
                 // Note: we store world as well so interaction handler can directly act on it.
                 lookByUuid.put(uuid, new LookTarget(world, hit, base, blockId, System.nanoTime()));
+
+                // ✅ DRAIN QUEUED TASKS ON TICK THREAD
+                Runnable r;
+                while ((r = tickQueue.poll()) != null) {
+                    try {
+                        r.run();
+                    } catch (Throwable t) {
+                        LOGGER.atWarning().withCause(t).log("[RR] tickQueue task failed");
+                    }
+                }
+
 
             } catch (Throwable ignored) {
                 // Intentionally silent: this runs every tick.
