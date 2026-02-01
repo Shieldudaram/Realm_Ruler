@@ -56,7 +56,7 @@ public final class TargetingService {
 
     // TARGETING: one place that turns (uuid + event + chain) into a BlockLocation (+ optional look info)
     // NOTE: package-private on purpose so we don't expose Realm_Ruler's internal types publicly.
-    Realm_Ruler.TargetingResult resolveTarget(String uuid, PlayerInteractionEvent event, Object chain) {
+    public Realm_Ruler.TargetingResult resolveTarget(String uuid, PlayerInteractionEvent event, Object chain) {
         Realm_Ruler.BlockLocation loc = null;
         Realm_Ruler.LookTarget look = null;
 

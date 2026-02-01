@@ -8,9 +8,6 @@ import com.hypixel.hytale.server.core.inventory.Inventory;
 import com.hypixel.hytale.server.core.inventory.container.ItemContainer;
 import java.util.concurrent.ConcurrentLinkedQueue;
 
-
-
-
 import com.hypixel.hytale.logger.HytaleLogger;
 import com.hypixel.hytale.protocol.InteractionType;
 import com.hypixel.hytale.server.core.Message;
@@ -128,20 +125,20 @@ public class Realm_Ruler extends JavaPlugin {
 
 
     private ModeManager modeManager;
+    private CtfMode ctfMode;
     private final StandSwapService standSwapService = new StandSwapService(LOGGER);
-    private final TargetingService targetingService = new TargetingService(LOGGER, this);
+    public final TargetingService targetingService = new TargetingService(LOGGER, this);
 
 
 
     private void setupModes() {
         modeManager = new ModeManager();
-        modeManager.register(new CtfMode(this));
+
+        ctfMode = new CtfMode(this);
+        modeManager.register(ctfMode);
+
         modeManager.setActive("ctf");
     }
-
-
-
-
 
     /** Logger provided by the Hytale server runtime. */
     private static final HytaleLogger LOGGER = HytaleLogger.forEnclosingClass();
@@ -155,21 +152,11 @@ public class Realm_Ruler extends JavaPlugin {
     private final ConcurrentLinkedQueue<Runnable> tickQueue = new ConcurrentLinkedQueue<>();
 
     // PLAYER RESOLUTION: uuid -> Player (refreshed every tick by LookTargetTrackerSystem)
-    private final Map<String, Player> playerByUuid = new ConcurrentHashMap<>();
-
-    // STAND STATE: which flag item is currently "mounted" on each stand
-    private final Map<String, ItemStack> flagByStandKey = new ConcurrentHashMap<>();
-
-
-
-
-
+    public final Map<String, Player> playerByUuid = new ConcurrentHashMap<>();
 
     // -------------------------------------------------------------------------
     // Asset IDs (strings must match your JSON block/item IDs exactly)
     // -------------------------------------------------------------------------
-
-
 
     /** Stand block IDs (placed in the world). */
     private static final String STAND_EMPTY  = "Flag_Stand";
@@ -244,9 +231,6 @@ public class Realm_Ruler extends JavaPlugin {
      */
     private final Map<String, LookTarget> lookByUuid = new ConcurrentHashMap<>();
 
-
-
-
     public Realm_Ruler(@Nonnull JavaPluginInit init) {
         super(init);
         setupModes();
@@ -257,13 +241,6 @@ public class Realm_Ruler extends JavaPlugin {
         dumpInventoryApis();
 
     }
-
-
-
-
-
-
-
 
 
     @Override
@@ -604,152 +581,76 @@ public class Realm_Ruler extends JavaPlugin {
         handleCtfAction(event); // fallback
     }
 
-    public void handleCtfAction(Object action) {
-        if (!(action instanceof PlayerInteractionEvent event)) return;
+    // -----------------------------------------------------------------------------
+// MODE BRIDGE: temporary accessors so CtfMode can migrate logic safely.
+// This avoids changing functionality while we relocate code out of Realm_Ruler.
+// -----------------------------------------------------------------------------
 
-        // Log-limiter for "chatty" per-event debug logging.
-        boolean shouldLog = (PI_DEBUG_LIMIT-- > 0);
+    public TargetingService rrTargetingService() {
+        return targetingService;
+    }
 
-        // Defensive extraction
-        InteractionType type = safeInteractionType(event);
-        String uuid = safeUuid(event);
-        String itemInHand = safeItemInHandId(event);
-        Object chain = safeInteractionChain(event);
+    public HytaleLogger rrLogger() {
+        return LOGGER;
+    }
 
-        // Only react to "F/use"
-        if (type != InteractionType.Use) return;
+    public boolean rrStandSwapEnabled() {
+        return ENABLE_STAND_SWAP;
+    }
 
-        // Resolve (world,x,y,z) of interacted block
-        TargetingResult tr = targetingService.resolveTarget(uuid, event, chain);
-        if (tr == null || tr.loc == null || tr.loc.world == null) return;
+    public boolean rrPhase1ToggleBlueOnly() {
+        return PHASE1_TOGGLE_BLUE_ONLY;
+    }
 
-        BlockLocation loc = tr.loc;
-        LookTarget look = tr.look;
+    /** Shares the same PI debug budget so logging behavior stays identical. */
+    public boolean rrConsumePiDebugBudget() {
+        return (PI_DEBUG_LIMIT-- > 0);
+    }
 
-        if (look != null && look.basePos != null) {
-            long ageMs = (System.nanoTime() - look.nanoTime) / 1_000_000L;
-            if (shouldLog) {
-                LOGGER.atInfo().log("[RR-LOOK] uuid=%s lookBlock=%s pos=%d,%d,%d ageMs=%d",
-                        uuid,
-                        String.valueOf(look.blockId),
-                        look.basePos.x, look.basePos.y, look.basePos.z,
-                        ageMs);
-            }
-        }
+    public InteractionType rrSafeInteractionType(PlayerInteractionEvent e) {
+        return safeInteractionType(e);
+    }
 
-        // Confirm block at position
-        String clickedId = tryGetBlockIdAt(loc.world, loc.x, loc.y, loc.z);
-        if (clickedId == null) return;
+    public String rrSafeUuid(PlayerInteractionEvent e) {
+        return safeUuid(e);
+    }
 
-        // Only continue if this is one of our stand variants
-        if (!isStandId(clickedId)) return;
+    public String rrSafeItemInHandId(PlayerInteractionEvent e) {
+        return safeItemInHandId(e);
+    }
 
-        // Choose desired variant using your existing logic
-        String desiredStand = selectDesiredStand(clickedId, itemInHand);
+    public Object rrSafeInteractionChain(PlayerInteractionEvent e) {
+        return safeInteractionChain(e);
+    }
 
-        if (!ENABLE_STAND_SWAP) {
-            LOGGER.atInfo().log("[RR] (dry-run) would swap stand @ %d,%d,%d from %s -> %s",
-                    loc.x, loc.y, loc.z, clickedId, desiredStand);
-            return;
-        }
+    public String rrTryGetBlockIdAt(World world, int x, int y, int z) {
+        return tryGetBlockIdAt(world, x, y, z);
+    }
 
-        final String clicked = clickedId;
-        final String heldId = itemInHand;
-
-        // IMPORTANT: Use a stable key. (Coordinates only for now.)
-        // This fixes the "stand empties but doesn't give item" issue when world identity differs.
-        final String key = loc.x + "|" + loc.y + "|" + loc.z;
-
-        boolean standHasStoredFlag = flagByStandKey.containsKey(key);
-        boolean heldIsFlag = isCustomFlagId(heldId);
-        boolean heldIsEmpty = isEmptyHandId(heldId);
-
-        // ------------- RULES -------------
-        // Deposit: empty stand + holding custom flag + no stored flag yet
-        if (!standHasStoredFlag && STAND_EMPTY.equals(clicked) && heldIsFlag) {
-            runOnTick(() -> {
-                Player p = playerByUuid.get(uuid);
-                if (p == null) return;
-
-                Inventory inv = p.getInventory();
-                if (inv == null) return;
-
-                ItemContainer hotbar = inv.getHotbar();
-                if (hotbar == null) return;
-
-                short slot = (short) (inv.getActiveHotbarSlot() & 0xFF);
-                ItemStack inSlot = hotbar.getItemStack(slot);
-
-                if (inSlot == null) return;
-
-                // Ensure it's actually the flag we think it is
-                if (!heldId.equals(inSlot.getItemId())) return;
-
-                // Store exact ItemStack so we can give it back later
-                flagByStandKey.put(key, inSlot);
-
-                // Remove from hand (flags don't stack, so remove 1)
-                hotbar.removeItemStackFromSlot(slot, 1);
-
-                // Visual swap -> colored
-                String standVariant = selectDesiredStand(STAND_EMPTY, heldId);
-                swapStandAt(loc, standVariant);
-
-                // Sync
-                p.sendInventory();
-            });
-            return;
-        }
-
-        // Disallow:
-
-
-        // Withdraw
-        if (standHasStoredFlag && heldIsEmpty) {
-            runOnTick(() -> {
-                Player p = playerByUuid.get(uuid);
-                if (p == null) return;
-
-                Inventory inv = p.getInventory();
-                if (inv == null) return;
-
-                ItemContainer hotbar = inv.getHotbar();
-                if (hotbar == null) return;
-
-                short slot = (short) (inv.getActiveHotbarSlot() & 0xFF);
-
-                // Disallow if their hand slot isn't empty
-                ItemStack current = hotbar.getItemStack(slot);
-                if (current != null && current.getQuantity() > 0) return;
-
-                ItemStack stored = flagByStandKey.remove(key);
-                if (stored == null) return;
-
-                // Put it into their hand slot
-                hotbar.setItemStackForSlot(slot, stored);
-
-                // Visual swap back to empty
-                swapStandAt(loc, STAND_EMPTY);
-
-                p.sendInventory();
-
-                // TODO fun: particles/sound here once we identify the API
-            });
-
-
-
-            return;
-        }
-
-
-
-
-
-
-
-
+    public void rrSwapStandAt(BlockLocation loc, String desiredStand) {
         swapStandAt(loc, desiredStand);
     }
+
+    public void rrRunOnTick(Runnable r) {
+        runOnTick(r);
+    }
+
+    public Player rrResolvePlayer(String uuid) {
+        return playerByUuid.get(uuid);
+    }
+
+
+    public void handleCtfAction(Object action) {
+        // Legacy bridge: allow direct calls (or fallback paths) to reuse the migrated mode logic.
+        if (ctfMode != null) {
+            ctfMode.onPlayerAction(action);
+            return;
+        }
+
+        // If we ever reach here, modes haven't been initialized yet.
+        // Intentionally no-op to avoid changing behavior in unexpected init states.
+    }
+
 
 
     // -----------------------------------------------------------------------------
@@ -861,7 +762,7 @@ public class Realm_Ruler extends JavaPlugin {
      * NOTE: This is currently a helper used as a fallback inside tryExtractBlockLocation.
      * If you later restructure tryExtractBlockLocation, this helper might become unused.
      */
-    public BlockLocation tryLocationFromLook(String uuid) {
+    private BlockLocation tryLocationFromLook(String uuid) {
         if (uuid == null || uuid.isEmpty() || "<null>".equals(uuid)) return null;
 
         LookTarget t = getFreshLookTarget(uuid);
@@ -970,7 +871,7 @@ public class Realm_Ruler extends JavaPlugin {
 // - Prevents runaway recursion on huge graphs.
 // - Makes the search predictable and safer for runtime.
 
-    private BlockLocation extractPosRecursive(Object obj, World world, int depth, String path) {
+    public BlockLocation extractPosRecursive(Object obj, World world, int depth, String path) {
         if (obj == null) return null;
 
         // Depth limit is a safety rail.
@@ -1194,7 +1095,7 @@ public class Realm_Ruler extends JavaPlugin {
 // If this method returns null:
 // - we couldn't find a compatible getter OR the invocation failed.
 
-    private String tryGetBlockIdAt(World world, int x, int y, int z) {
+    public String tryGetBlockIdAt(World world, int x, int y, int z) {
         try {
             Method m = null;
 
@@ -1229,7 +1130,7 @@ public class Realm_Ruler extends JavaPlugin {
 // - You're okay with that in early phases, but keep it in mind when you later implement deposit logic.
 
     // WORLD: single entry point for stand swaps (wrapper for now; extracted later)
-    private void swapStandAt(BlockLocation loc, String desiredStand) {
+    public void swapStandAt(BlockLocation loc, String desiredStand) {
         standSwapService.swapStand(loc.world, loc.x, loc.y, loc.z, desiredStand);
 
     }
@@ -1599,7 +1500,7 @@ public class Realm_Ruler extends JavaPlugin {
         } catch (Exception ignored) {}
     }
 
-    private void runOnTick(Runnable r) {
+    public void runOnTick(Runnable r) {
         if (r != null) tickQueue.add(r);
     }
 
@@ -1641,20 +1542,20 @@ public class Realm_Ruler extends JavaPlugin {
     /**
      * Immutable data snapshot of what a player is looking at at a moment in time.
      */
-    static final class LookTarget {
+    public static final class LookTarget {
         final World world;
 
         /** Raw raycast hit position (can be a filler part of a larger block structure). */
         final Vector3i targetPos;
 
         /** Resolved position (adjusted for filler blocks so we target the base block). */
-        final Vector3i basePos;
+        public final Vector3i basePos;
 
         /** Best-effort string ID for the block type at basePos (used for debugging and safety checks). */
-        final String blockId;
+        public final String blockId;
 
         /** Timestamp used to enforce freshness (we only trust recent aim data). */
-        final long nanoTime;
+        public final long nanoTime;
 
         LookTarget(World world, Vector3i targetPos, Vector3i basePos, String blockId, long nanoTime) {
             this.world = world;
@@ -1666,9 +1567,9 @@ public class Realm_Ruler extends JavaPlugin {
     }
 
     // TARGETING: carries both the final location and (optionally) the look-tracker data used.
-    static final class TargetingResult {
-        final BlockLocation loc;
-        final LookTarget look; // non-null only if look fallback was used
+    public static final class TargetingResult {
+        public final BlockLocation loc;
+        public final LookTarget look; // non-null only if look fallback was used
 
         TargetingResult(BlockLocation loc, LookTarget look) {
             this.loc = loc;
@@ -1686,7 +1587,7 @@ public class Realm_Ruler extends JavaPlugin {
      * - it should avoid heavy logging
      * - it should swallow errors (or gate logs behind a debug flag)
      */
-    private final class LookTargetTrackerSystem extends EntityTickingSystem<EntityStore> {
+    public final class LookTargetTrackerSystem extends EntityTickingSystem<EntityStore> {
 
         /**
          * Query determines which ECS entities this system runs for.
@@ -1887,9 +1788,11 @@ public class Realm_Ruler extends JavaPlugin {
 // - a fully resolved location (world + x,y,z)
 // - OR coordinates alone when world isn't known yet (world=null)
 
-    static final class BlockLocation {
-        final World world; // can be null if we only have coords
-        final int x, y, z;
+    public static final class BlockLocation {
+        public final World world; // can be null if we only have coords
+        public final int x;
+        public final int y;
+        public final int z;
 
         BlockLocation(World world, int x, int y, int z) {
             this.world = world;
