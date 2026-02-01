@@ -7,6 +7,8 @@ import com.Chris__.Realm_Ruler.world.StandSwapService;
 import com.hypixel.hytale.server.core.inventory.Inventory;
 import com.hypixel.hytale.server.core.inventory.container.ItemContainer;
 import java.util.concurrent.ConcurrentLinkedQueue;
+import com.Chris__.Realm_Ruler.platform.PlayerInteractAdapter;
+
 
 import com.hypixel.hytale.logger.HytaleLogger;
 import com.hypixel.hytale.protocol.InteractionType;
@@ -144,6 +146,9 @@ public class Realm_Ruler extends JavaPlugin {
     private CtfMode ctfMode;
     private final StandSwapService standSwapService = new StandSwapService(LOGGER);
     public final TargetingService targetingService = new TargetingService(LOGGER, this);
+    private final PlayerInteractAdapter pi = new PlayerInteractAdapter();
+
+
 
 
 
@@ -194,12 +199,6 @@ public class Realm_Ruler extends JavaPlugin {
     // -------------------------------------------------------------------------
     // Debug / log safety rails
     // -------------------------------------------------------------------------
-
-    /**
-     * Limits how many detailed PlayerInteractLib debug logs we print on startup/testing.
-     * IMPORTANT: This should NEVER disable core logic; it should only reduce log spam.
-     */
-    private static int PI_DEBUG_LIMIT = 400;
 
     /**
      * Limits how many UseBlock fallback logs we print (UseBlockEvent can be noisy when enabled).
@@ -618,26 +617,26 @@ public class Realm_Ruler extends JavaPlugin {
         return PHASE1_TOGGLE_BLUE_ONLY;
     }
 
-    /** Shares the same PI debug budget so logging behavior stays identical. */
     public boolean rrConsumePiDebugBudget() {
-        return (PI_DEBUG_LIMIT-- > 0);
+        return pi.consumeDebugBudget();
     }
 
     public InteractionType rrSafeInteractionType(PlayerInteractionEvent e) {
-        return safeInteractionType(e);
+        return pi.safeInteractionType(e);
     }
 
     public String rrSafeUuid(PlayerInteractionEvent e) {
-        return safeUuid(e);
+        return pi.safeUuid(e);
     }
 
     public String rrSafeItemInHandId(PlayerInteractionEvent e) {
-        return safeItemInHandId(e);
+        return pi.safeItemInHandId(e);
     }
 
     public Object rrSafeInteractionChain(PlayerInteractionEvent e) {
-        return safeInteractionChain(e);
+        return pi.safeInteractionChain(e);
     }
+
 
     public String rrTryGetBlockIdAt(World world, int x, int y, int z) {
         return tryGetBlockIdAt(world, x, y, z);
@@ -666,86 +665,7 @@ public class Realm_Ruler extends JavaPlugin {
         // If we ever reach here, modes haven't been initialized yet.
         // Intentionally no-op to avoid changing behavior in unexpected init states.
     }
-
-
-
-    // -----------------------------------------------------------------------------
-// Defensive getters for PlayerInteractLib events
-// -----------------------------------------------------------------------------
-//
-// These "safeXxx" methods are intentionally repetitive and over-defensive.
-//
-// Why so defensive?
-// - We are integrating with an external plugin (PlayerInteractLib) via reflection.
-// - Different server/plugin builds may expose fields as:
-//      record accessors: e.uuid(), e.itemInHandId(), ...
-//      getters:          e.getUuid(), e.getItemInHandId(), ...
-//      or different naming entirely.
-// - We want the plugin to keep running even if one method name changes.
-//
-// Pattern used:
-//  1) Try the "ideal" direct accessor (fast path)
-//  2) Try reflection-based access with a couple known method names
-//  3) Fall back to a safe default
-//
-// This keeps the mod resilient to version drift.
-
-    private InteractionType safeInteractionType(PlayerInteractionEvent e) {
-        // Fast path: record accessor (most likely)
-        try { return e.interactionType(); } catch (Throwable ignored) {}
-
-        // Compatibility path: getter/alt accessor
-        try {
-            Object v = safeCall(e, "getInteractionType", "interactionType");
-            if (v instanceof InteractionType it) return it;
-
-            // Sometimes libraries return an enum-like value that prints the same name
-            // as our InteractionType. We try to map by name.
-            if (v != null) return InteractionType.valueOf(String.valueOf(v));
-        } catch (Throwable ignored) {}
-
-        // Null means "unknown interaction type"
-        return null;
-    }
-
-    private String safeUuid(PlayerInteractionEvent e) {
-        // Fast path: record accessor
-        try { return e.uuid(); } catch (Throwable ignored) {}
-
-        // Compatibility path
-        try {
-            Object v = safeCall(e, "getUuid", "uuid");
-            return v == null ? "<null>" : String.valueOf(v);
-        } catch (Throwable ignored) {}
-
-        return "<null>";
-    }
-
-    private String safeItemInHandId(PlayerInteractionEvent e) {
-        // Fast path: record accessor
-        try { return e.itemInHandId(); } catch (Throwable ignored) {}
-
-        // Compatibility path
-        try {
-            Object v = safeCall(e, "getItemInHandId", "itemInHandId");
-            return v == null ? "<empty>" : String.valueOf(v);
-        } catch (Throwable ignored) {}
-
-        return "<empty>";
-    }
-
-    private Object safeInteractionChain(PlayerInteractionEvent e) {
-        // Fast path: record accessor
-        try { return e.interaction(); } catch (Throwable ignored) {}
-
-        // Compatibility path
-        try { return safeCall(e, "getInteraction", "interaction"); } catch (Throwable ignored) {}
-
-        return null;
-    }
-
-
-
+    
 // -----------------------------------------------------------------------------
 // Look tracker helpers (EyeSpy approach)
 // -----------------------------------------------------------------------------
