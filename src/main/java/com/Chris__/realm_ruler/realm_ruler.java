@@ -246,6 +246,7 @@ public class Realm_Ruler extends JavaPlugin {
 
 
 
+
     public Realm_Ruler(@Nonnull JavaPluginInit init) {
         super(init);
         setupModes();
@@ -606,39 +607,25 @@ public class Realm_Ruler extends JavaPlugin {
     public void handleCtfAction(Object action) {
         if (!(action instanceof PlayerInteractionEvent event)) return;
 
-
-
         // Log-limiter for "chatty" per-event debug logging.
-        // IMPORTANT: This should NEVER stop functionality, only reduce logs.
         boolean shouldLog = (PI_DEBUG_LIMIT-- > 0);
 
-        // Defensive extraction: these helpers avoid crashes if any field is missing/null.
+        // Defensive extraction
         InteractionType type = safeInteractionType(event);
         String uuid = safeUuid(event);
         String itemInHand = safeItemInHandId(event);
         Object chain = safeInteractionChain(event);
 
-        LOGGER.atInfo().log("[RR] DEBUG empty-check itemInHandId='%s'", itemInHand);
+        // Only react to "F/use"
+        if (type != InteractionType.Use) return;
 
-
-        // Only react to the "F/use" interaction.
-        // (On your build, F tends to come through as InteractionType.Use.)
-        if (type != InteractionType.Use) {
-            return;
-        }
-
-
-        // Step 1: resolve (world,x,y,z) of the interacted block.
-        // Prefer extracting from the interaction chain (if it contains a hit result).
-        // If that fails, use our per-tick look tracker (fresh aim data).
+        // Resolve (world,x,y,z) of interacted block
         TargetingResult tr = targetingService.resolveTarget(uuid, event, chain);
-
         if (tr == null || tr.loc == null || tr.loc.world == null) return;
 
         BlockLocation loc = tr.loc;
         LookTarget look = tr.look;
 
-// If we used look-tracker fallback, log it once per interaction (not per tick).
         if (look != null && look.basePos != null) {
             long ageMs = (System.nanoTime() - look.nanoTime) / 1_000_000L;
             if (shouldLog) {
@@ -650,19 +637,15 @@ public class Realm_Ruler extends JavaPlugin {
             }
         }
 
-        // Step 2: confirm what block is actually at that position.
-        // We intentionally read the block ID from the world so we don't swap the wrong thing.
+        // Confirm block at position
         String clickedId = tryGetBlockIdAt(loc.world, loc.x, loc.y, loc.z);
         if (clickedId == null) return;
 
-        // Only continue if this is one of our stand variants.
+        // Only continue if this is one of our stand variants
         if (!isStandId(clickedId)) return;
 
-        // Step 3: choose the desired stand variant.
+        // Choose desired variant using your existing logic
         String desiredStand = selectDesiredStand(clickedId, itemInHand);
-
-
-        // (The remainder of your method continues here: doing the swap / dry-run using desiredStand)
 
         if (!ENABLE_STAND_SWAP) {
             LOGGER.atInfo().log("[RR] (dry-run) would swap stand @ %d,%d,%d from %s -> %s",
@@ -672,17 +655,17 @@ public class Realm_Ruler extends JavaPlugin {
 
         final String clicked = clickedId;
         final String heldId = itemInHand;
-        final String key = standKey(loc.world, loc.x, loc.y, loc.z);
 
-// We want: deposit if stand empty + holding a custom flag.
-// We want: withdraw if stand has a stored flag + empty hand.
-// Otherwise: keep your existing "color selection" behavior (or deny).
+        // IMPORTANT: Use a stable key. (Coordinates only for now.)
+        // This fixes the "stand empties but doesn't give item" issue when world identity differs.
+        final String key = loc.x + "|" + loc.y + "|" + loc.z;
 
         boolean standHasStoredFlag = flagByStandKey.containsKey(key);
         boolean heldIsFlag = isCustomFlagId(heldId);
         boolean heldIsEmpty = isEmptyHandId(heldId);
 
-// Deposit
+        // ------------- RULES -------------
+        // Deposit: empty stand + holding custom flag + no stored flag yet
         if (!standHasStoredFlag && STAND_EMPTY.equals(clicked) && heldIsFlag) {
             runOnTick(() -> {
                 Player p = playerByUuid.get(uuid);
@@ -698,27 +681,28 @@ public class Realm_Ruler extends JavaPlugin {
                 ItemStack inSlot = hotbar.getItemStack(slot);
 
                 if (inSlot == null) return;
-                // Extra safety: ensure it's actually the flag id you expect
+
+                // Ensure it's actually the flag we think it is
                 if (!heldId.equals(inSlot.getItemId())) return;
 
-                // Store the exact ItemStack (avoids needing to "create" later)
+                // Store exact ItemStack so we can give it back later
                 flagByStandKey.put(key, inSlot);
 
-                // Remove from player
+                // Remove from hand (flags don't stack, so remove 1)
                 hotbar.removeItemStackFromSlot(slot, 1);
 
-                // Visual swap
+                // Visual swap -> colored
                 String standVariant = selectDesiredStand(STAND_EMPTY, heldId);
                 swapStandAt(loc, standVariant);
 
-                // Sync (exists on Player per your dump)
+                // Sync
                 p.sendInventory();
-
-                // TODO fun: particles/sound here once we identify the API
             });
-
-            return; // prevent falling through to default swap
+            return;
         }
+
+        // Disallow:
+
 
         // Withdraw
         if (standHasStoredFlag && heldIsEmpty) {
@@ -752,8 +736,16 @@ public class Realm_Ruler extends JavaPlugin {
                 // TODO fun: particles/sound here once we identify the API
             });
 
+
+
             return;
         }
+
+
+
+
+
+
 
 
         swapStandAt(loc, desiredStand);
@@ -1319,6 +1311,85 @@ public class Realm_Ruler extends JavaPlugin {
         return STAND_EMPTY;
     }
 
+    private ItemStack createItemStackById(String itemId, int amount) {
+        if (itemId == null) return null;
+
+        // Try common constructors first
+        try {
+            // (String, int)
+            try {
+                return ItemStack.class.getConstructor(String.class, int.class).newInstance(itemId, amount);
+            } catch (Throwable ignored) {}
+
+            // (String)
+            try {
+                ItemStack s = ItemStack.class.getConstructor(String.class).newInstance(itemId);
+                // try to set amount if method exists
+                try {
+                    var m = ItemStack.class.getMethod("setAmount", int.class);
+                    m.invoke(s, amount);
+                } catch (Throwable ignored2) {}
+                return s;
+            } catch (Throwable ignored) {}
+
+            // Try static factories: of/create/from (String,int)
+            for (String name : new String[]{"of", "create", "from"}) {
+                try {
+                    var m = ItemStack.class.getMethod(name, String.class, int.class);
+                    Object v = m.invoke(null, itemId, amount);
+                    if (v instanceof ItemStack is) return is;
+                } catch (Throwable ignored) {}
+            }
+
+            // Try numeric ID via Item asset map (reflection; avoids compile dependency)
+            Integer idx = tryGetItemAssetIndex(itemId);
+            if (idx != null) {
+                // (int, int)
+                try {
+                    return ItemStack.class.getConstructor(int.class, int.class).newInstance(idx, amount);
+                } catch (Throwable ignored) {}
+
+                // static factories: of/create/from (int,int)
+                for (String name : new String[]{"of", "create", "from"}) {
+                    try {
+                        var m = ItemStack.class.getMethod(name, int.class, int.class);
+                        Object v = m.invoke(null, idx, amount);
+                        if (v instanceof ItemStack is) return is;
+                    } catch (Throwable ignored) {}
+                }
+            }
+        } catch (Throwable ignored) {}
+
+        return null;
+    }
+
+    private Integer tryGetItemAssetIndex(String itemId) {
+        try {
+            Class<?> itemCls = Class.forName("com.hypixel.hytale.server.core.asset.type.item.config.Item");
+            Object assetMap = itemCls.getMethod("getAssetMap").invoke(null);
+            Object idx = assetMap.getClass().getMethod("getIndex", String.class).invoke(assetMap, itemId);
+            if (idx instanceof Integer i && i != Integer.MIN_VALUE) return i;
+        } catch (Throwable ignored) {}
+        return null;
+    }
+
+
+    private String flagItemForStand(String standId) {
+        if (STAND_RED.equals(standId)) return FLAG_RED;
+        if (STAND_BLUE.equals(standId)) return FLAG_BLUE;
+        if (STAND_WHITE.equals(standId)) return FLAG_WHITE;
+        if (STAND_YELLOW.equals(standId)) return FLAG_YELLOW;
+        return null; // empty or unknown
+    }
+
+    private boolean isEmptyHand(String itemInHandId) {
+        return itemInHandId == null
+                || itemInHandId.isEmpty()
+                || "<empty>".equals(itemInHandId)
+                || "<null>".equals(itemInHandId);
+    }
+
+
 //
 // UseBlockEvent-based fallback position capture.
 // Useful when UseBlockEvent actually fires for stands or when debugging target resolution.
@@ -1533,10 +1604,9 @@ public class Realm_Ruler extends JavaPlugin {
     }
 
     private static String standKey(World world, int x, int y, int z) {
-        // World identity: toString() is a pragmatic start.
-        // If you later find a stable world id getter, swap it in here.
-        return String.valueOf(world) + "|" + x + "|" + y + "|" + z;
+        return x + "|" + y + "|" + z;
     }
+
 
     private static boolean isCustomFlagId(String itemId) {
         if (itemId == null) return false;
