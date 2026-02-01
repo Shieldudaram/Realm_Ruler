@@ -112,13 +112,16 @@ import java.util.concurrent.Flow;
 
 public class Realm_Ruler extends JavaPlugin {
 
+
+
     private ModeManager modeManager;
 
     private void setupModes() {
         modeManager = new ModeManager();
-        modeManager.register(new CtfMode());
+        modeManager.register(new CtfMode(this));
         modeManager.setActive("ctf");
     }
+
 
 
 
@@ -215,6 +218,7 @@ public class Realm_Ruler extends JavaPlugin {
         setupModes();
         LOGGER.atInfo().log("Hello from %s version %s", this.getName(), this.getManifest().getVersion().toString());
     }
+
 
 
 
@@ -552,7 +556,17 @@ public class Realm_Ruler extends JavaPlugin {
     private void onPlayerInteraction(PlayerInteractionEvent event) {
         if (modeManager != null) {
             modeManager.dispatchPlayerAction(event);
+            return;
         }
+        handleCtfAction(event); // fallback
+    }
+
+
+
+
+
+    public void handleCtfAction(Object action) {
+        if (!(action instanceof PlayerInteractionEvent event)) return;
 
         // Log-limiter for "chatty" per-event debug logging.
         // IMPORTANT: This should NEVER stop functionality, only reduce logs.
@@ -618,18 +632,8 @@ public class Realm_Ruler extends JavaPlugin {
         if (!isStandId(clickedId)) return;
 
         // Step 3: choose the desired stand variant.
-        String desiredStand;
-        if (PHASE1_TOGGLE_BLUE_ONLY) {
-            // Phase 1 behavior: toggle between empty and blue.
-            desiredStand = STAND_BLUE.equals(clickedId) ? STAND_EMPTY : STAND_BLUE;
-        } else {
-            // Phase 2+ behavior: choose stand based on what flag item is currently in hand.
-            desiredStand = STAND_EMPTY;
-            if (FLAG_RED.equals(itemInHand)) desiredStand = STAND_RED;
-            else if (FLAG_BLUE.equals(itemInHand)) desiredStand = STAND_BLUE;
-            else if (FLAG_WHITE.equals(itemInHand)) desiredStand = STAND_WHITE;
-            else if (FLAG_YELLOW.equals(itemInHand)) desiredStand = STAND_YELLOW;
-        }
+        String desiredStand = selectDesiredStand(clickedId, itemInHand);
+
 
         // (The remainder of your method continues here: doing the swap / dry-run using desiredStand)
 
@@ -644,6 +648,7 @@ public class Realm_Ruler extends JavaPlugin {
 
         setStandBlock(loc, desiredStand);
     }
+
 
     // -----------------------------------------------------------------------------
 // Defensive getters for PlayerInteractLib events
@@ -1134,6 +1139,22 @@ public class Realm_Ruler extends JavaPlugin {
 
 
 // ---------- Helpers ----------
+
+    /** RULES: Decide which stand variant we want given the current state. */
+    private String selectDesiredStand(String clickedStandId, String itemInHandId) {
+        if (PHASE1_TOGGLE_BLUE_ONLY) {
+            return STAND_BLUE.equals(clickedStandId) ? STAND_EMPTY : STAND_BLUE;
+        }
+
+        // Phase 2+ behavior: stand depends on held flag item.
+        if (FLAG_RED.equals(itemInHandId)) return STAND_RED;
+        if (FLAG_BLUE.equals(itemInHandId)) return STAND_BLUE;
+        if (FLAG_WHITE.equals(itemInHandId)) return STAND_WHITE;
+        if (FLAG_YELLOW.equals(itemInHandId)) return STAND_YELLOW;
+
+        return STAND_EMPTY;
+    }
+
 //
 // UseBlockEvent-based fallback position capture.
 // Useful when UseBlockEvent actually fires for stands or when debugging target resolution.

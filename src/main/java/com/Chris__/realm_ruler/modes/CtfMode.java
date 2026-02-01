@@ -34,9 +34,21 @@
  */
 package com.Chris__.Realm_Ruler.modes;
 
+import com.Chris__.Realm_Ruler.Realm_Ruler;
 import com.Chris__.Realm_Ruler.core.GameMode;
 
 public class CtfMode implements GameMode {
+    private final Realm_Ruler plugin;
+
+    public CtfMode(Realm_Ruler plugin) {
+        this.plugin = plugin;
+    }
+
     @Override public String id() { return "ctf"; }
-    @Override public void onPlayerAction(Object action) { }
+
+    @Override
+    public void onPlayerAction(Object action) {
+        plugin.handleCtfAction(action);
+    }
 }
+
