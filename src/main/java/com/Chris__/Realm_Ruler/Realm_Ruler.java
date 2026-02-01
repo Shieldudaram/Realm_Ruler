@@ -270,29 +270,60 @@ public class Realm_Ruler extends JavaPlugin {
         tryRegisterPlayerInteractLib();
     }
 
+    /**
+     * Fallback block-interaction listener.
+     *
+     * Why this exists:
+     * - In your current build, the Flag Stand's "press F" UI flow does NOT reliably trigger this event.
+     * - However, UseBlockEvent.Pre *does* fire for many other interactions, and sometimes for stands,
+     *   depending on the block and interaction path.
+     *
+     * How we use it:
+     * - Primarily as "telemetry": it can tell us what the engine thinks the player clicked and what
+     *   they were holding.
+     * - Secondarily as a "position hint": if it fires on the stand, we record the stand's location as
+     *   a fallback, since PlayerInteractLib events may not include the target position.
+     *
+     * Important: This is not the primary interaction pipeline. PlayerInteractLib is.
+     */
     private void onUseBlock(UseBlockEvent.Pre event) {
+        // The server describes interaction as Primary/Secondary/Use/etc.
+        // We ignore types outside these common "block use" buckets to reduce noise.
         InteractionType type = event.getInteractionType();
 
         if (type != InteractionType.Primary && type != InteractionType.Secondary && type != InteractionType.Use) {
             return;
         }
 
+        // What block type was clicked?
         BlockType blockType = event.getBlockType();
         String clickedId = safeBlockTypeId(blockType);
 
+        // InteractionContext contains the player and the held item.
         InteractionContext ctx = event.getContext();
         ItemStack held = ctx.getHeldItem();
+
+        // We normalize the held item into a string ID (or "<empty>" if none).
+        // NOTE: safeItemId is defensive to avoid NPEs when held item metadata is missing.
         String heldId = (held == null) ? "<empty>" : safeItemId(held);
 
+        // Stand detection is purely string-match against known stand IDs.
         boolean isStand = isStandId(clickedId);
 
+        // Log a limited number of events to prevent log spam.
+        // If it *is* a stand, we always log it even if we exceeded the limit.
         if (USEBLOCK_DEBUG_LIMIT-- > 0 || isStand) {
             LOGGER.atInfo().log("[RR-USEBLOCK] type=%s clickedId=%s heldId=%s isStand=%s",
                     type, clickedId, heldId, isStand);
         }
 
         if (isStand) {
+            // Optional: in-game confirmation (lets you test without staring at server logs).
             sendPlayerMessage(ctx, MSG_DEBUG_HIT);
+
+            // IMPORTANT:
+            // We record the stand location from this event as a fallback.
+            // Later, if PlayerInteractLib can't give us a position, we may use this remembered location.
             rememberStandLocationFromUseBlock(event, ctx);
         }
     }
@@ -300,15 +331,25 @@ public class Realm_Ruler extends JavaPlugin {
     /**
      * PlayerInteractLib integration.
      *
-     * We avoid compile-time deps by:
-     *  - finding the plugin via PluginManager (reflection)
-     *  - pulling its publisher via getPublisher()
-     *  - calling subscribe(Consumer<Event>)
+     * This is the primary interaction stream for your "press F" stand interactions.
+     *
+     * Why reflection:
+     * - We do not want PlayerInteractLib as a compile-time dependency.
+     * - Reflection lets this plugin compile without the library JAR present.
+     * - If PlayerInteractLib is installed at runtime, we subscribe to it.
+     *
+     * High-level steps:
+     *  1) Ask PluginManager for the PlayerInteractLib plugin instance
+     *  2) Call getPublisher() on that plugin
+     *  3) Subscribe a Flow.Subscriber so we receive PlayerInteractionEvent callbacks
      */
     private void tryRegisterPlayerInteractLib() {
         try {
+            // PluginManager is the global registry for plugins at runtime.
             Object pm = PluginManager.get();
 
+            // PlayerInteractLib might be registered under slightly different name strings depending on build,
+            // so we try several candidates.
             Object libPlugin = findPluginBestEffort(pm,
                     "Hytale:PlayerInteractLib",
                     "PlayerInteractLib",
@@ -321,13 +362,17 @@ public class Realm_Ruler extends JavaPlugin {
                 return;
             }
 
+            // PlayerInteractLib is expected to expose: getPublisher()
             Method getPublisher = libPlugin.getClass().getMethod("getPublisher");
             Object publisherObj = getPublisher.invoke(libPlugin);
+
             if (publisherObj == null) {
                 LOGGER.atWarning().log("[RR-PI] PlayerInteractLib returned a null publisher.");
                 return;
             }
 
+            // We expect a SubmissionPublisher<PlayerInteractionEvent>.
+            // This check prevents ClassCastException with a clearer log message.
             if (!(publisherObj instanceof java.util.concurrent.SubmissionPublisher<?>)) {
                 LOGGER.atWarning().log("[RR-PI] Unexpected publisher type: %s", publisherObj.getClass().getName());
                 return;
@@ -337,25 +382,31 @@ public class Realm_Ruler extends JavaPlugin {
             java.util.concurrent.SubmissionPublisher<PlayerInteractionEvent> publisher =
                     (java.util.concurrent.SubmissionPublisher<PlayerInteractionEvent>) publisherObj;
 
+            // Flow.Subscriber is the Java reactive-streams style subscription interface.
+            // Once subscribed, PlayerInteractLib will call onNext(...) for each interaction event.
             Flow.Subscriber<PlayerInteractionEvent> subscriber = new Flow.Subscriber<>() {
                 @Override
                 public void onSubscribe(Flow.Subscription subscription) {
+                    // Request all events. This is the normal pattern for "we want the full stream".
                     subscription.request(Long.MAX_VALUE);
                     LOGGER.atInfo().log("[RR-PI] Subscribed OK. publisher=%s", publisherObj.getClass().getName());
                 }
 
                 @Override
                 public void onNext(PlayerInteractionEvent event) {
+                    // Main per-event handler (our logic lives there).
                     onPlayerInteraction(event);
                 }
 
                 @Override
                 public void onError(Throwable throwable) {
+                    // If the publisher dies or the stream errors, we log it.
                     LOGGER.atWarning().withCause(throwable).log("[RR-PI] publisher error");
                 }
 
                 @Override
                 public void onComplete() {
+                    // Generally only happens if the plugin shuts down.
                     LOGGER.atInfo().log("[RR-PI] publisher completed");
                 }
             };
@@ -363,18 +414,27 @@ public class Realm_Ruler extends JavaPlugin {
             publisher.subscribe(subscriber);
 
         } catch (Throwable t) {
+            // Any reflection issues or unexpected runtime mismatch lands here.
             LOGGER.atSevere().withCause(t).log("[RR-PI] Failed to register PlayerInteractLib event subscription.");
         }
     }
 
     /**
-     * Try a few PluginManager APIs without hardcoding PluginIdentifier types.
+     * Best-effort plugin lookup without compile-time PluginIdentifier dependencies.
+     *
+     * We try multiple possible PluginManager APIs because server/plugin builds can differ:
+     * - getPlugin(String)
+     * - getPluginByName(String)
+     * - getPluginOrNull(String)
+     * If those fail, we attempt getPlugins() and scan for something that "looks like" the plugin.
+     *
+     * This keeps the plugin resilient to minor API naming changes.
      */
     private Object findPluginBestEffort(Object pluginManager, String... names) {
         // Try common method shapes:
         // - getPlugin(String)
         // - getPluginByName(String)
-        // - getPlugin(Object) with a string arg
+        // - getPluginOrNull(String)
         String[] methodNames = new String[] { "getPlugin", "getPluginByName", "getPluginOrNull" };
 
         for (String name : names) {
@@ -383,11 +443,13 @@ public class Realm_Ruler extends JavaPlugin {
                     Method m = pluginManager.getClass().getMethod(mName, String.class);
                     Object p = m.invoke(pluginManager, name);
                     if (p != null) return p;
-                } catch (Throwable ignored) {}
+                } catch (Throwable ignored) {
+                    // Ignored on purpose: we are probing multiple possible method names.
+                }
             }
         }
 
-        // As a last resort: scan plugins list if a getter exists
+        // Last resort: scan plugins list if a getter exists
         try {
             Method m = pluginManager.getClass().getMethod("getPlugins");
             Object plugins = m.invoke(pluginManager);
@@ -400,36 +462,64 @@ public class Realm_Ruler extends JavaPlugin {
                     }
                 }
             }
-        } catch (Throwable ignored) {}
+        } catch (Throwable ignored) {
+            // Ignored on purpose: getPlugins() might not exist in some builds.
+        }
 
         return null;
     }
 
-    // Toggle stand swapping once we have reliable (world,x,y,z) extraction
-    private static final boolean ENABLE_STAND_SWAP = true;
-
-    // Phase 1: ignore item-in-hand and simply toggle Empty <-> Blue on any stand interaction
-    private static final boolean PHASE1_TOGGLE_BLUE_ONLY = true;
-
-
+// -----------------------------------------------------------------------------
+// Feature switches
+// -----------------------------------------------------------------------------
 
     /**
-     * PlayerInteractLib event handler (Phase 3):
-     * - log the event
-     * - extract the block position from the SyncInteractionChain (nested hit/target)
-     * - (optionally) swap the stand variant based on the flag in hand
+     * When true, we actually modify the world (swap blocks). When false, we only log what we would do.
+     * This is useful when you're still verifying that position extraction is correct.
+     */
+    private static final boolean ENABLE_STAND_SWAP = true;
+
+    /**
+     * Phase 1: ignore item-in-hand and simply toggle Empty <-> Blue on any stand interaction.
+     * Phase 2+: set this false and use itemInHand to choose stand color based on flags.
+     */
+    private static final boolean PHASE1_TOGGLE_BLUE_ONLY = true;
+
+    /**
+     * PlayerInteractLib event handler.
+     *
+     * Responsibilities:
+     *  1) Extract stable identifiers from the event (uuid, interaction type, item-in-hand)
+     *  2) Resolve a target block position (prefer chain extraction; fallback to look tracker)
+     *  3) Verify the clicked block is one of our stand IDs
+     *  4) Decide which stand variant we want
+     *  5) Perform the swap (or dry-run if disabled)
+     *
+     * NOTE:
+     * - "press F" tends to show up as InteractionType.Use in your logs.
+     * - PlayerInteractLib does not always provide a direct block position, which is why we use the look tracker.
      */
     private void onPlayerInteraction(PlayerInteractionEvent event) {
+        // Log-limiter for "chatty" per-event debug logging.
+        // IMPORTANT: This should NEVER stop functionality, only reduce logs.
         boolean shouldLog = (PI_DEBUG_LIMIT-- > 0);
+
+        // Defensive extraction: these helpers avoid crashes if any field is missing/null.
         InteractionType type = safeInteractionType(event);
         String uuid = safeUuid(event);
         String itemInHand = safeItemInHandId(event);
         Object chain = safeInteractionChain(event);
 
+        // Step 1: resolve (world,x,y,z) of the interacted block.
+        // Prefer extracting from the interaction chain (if it contains a hit result).
+        // If that fails, use our per-tick look tracker (fresh aim data).
         BlockLocation loc = null;
         LookTarget look = null;
+
         try {
             loc = tryExtractBlockLocation(uuid, event, chain);
+
+            // Fallback: if the chain doesn't provide a usable position, use "what the player was looking at".
             if (loc == null) {
                 look = getFreshLookTarget(uuid);
                 if (look != null && look.world != null && look.basePos != null) {
@@ -440,44 +530,55 @@ public class Realm_Ruler extends JavaPlugin {
             LOGGER.atWarning().withCause(t).log("[RR-PI] Failed while extracting block location");
         }
 
-        // If we used the look-tracker fallback, log it (once per interaction, not per tick).
+        // If we used look-tracker fallback, log it once per interaction (not per tick).
         if (look != null && look.basePos != null) {
             long ageMs = (System.nanoTime() - look.nanoTime) / 1_000_000L;
-            if (shouldLog) LOGGER.atInfo().log("[RR-LOOK] uuid=%s lookBlock=%s pos=%d,%d,%d ageMs=%d",
-                    uuid,
-                    String.valueOf(look.blockId),
-                    look.basePos.x, look.basePos.y, look.basePos.z,
-                    ageMs);
+            if (shouldLog) {
+                LOGGER.atInfo().log("[RR-LOOK] uuid=%s lookBlock=%s pos=%d,%d,%d ageMs=%d",
+                        uuid,
+                        String.valueOf(look.blockId),
+                        look.basePos.x, look.basePos.y, look.basePos.z,
+                        ageMs);
+            }
         }
 
-        if (shouldLog) LOGGER.atInfo().log("[RR-PI] uuid=%s type=%s item=%s chain=%s pos=%s",
-                uuid,
-                String.valueOf(type),
-                itemInHand,
-                (chain == null ? "<null>" : chain.getClass().getName()),
-                (loc == null ? "<none>" : (loc.x + "," + loc.y + "," + loc.z)));
+        // Log the interaction summary (bounded by shouldLog).
+        if (shouldLog) {
+            LOGGER.atInfo().log("[RR-PI] uuid=%s type=%s item=%s chain=%s pos=%s",
+                    uuid,
+                    String.valueOf(type),
+                    itemInHand,
+                    (chain == null ? "<null>" : chain.getClass().getName()),
+                    (loc == null ? "<none>" : (loc.x + "," + loc.y + "," + loc.z)));
+        }
 
+        // If we can't determine a valid location, we can't safely change the world.
         if (loc == null || loc.world == null) return;
 
-        // Determine clicked block type at that position
+        // Step 2: confirm what block is actually at that position.
+        // We intentionally read the block ID from the world so we don't swap the wrong thing.
         String clickedId = tryGetBlockIdAt(loc.world, loc.x, loc.y, loc.z);
         if (clickedId == null) return;
 
+        // Only continue if this is one of our stand variants.
         if (!isStandId(clickedId)) return;
 
+        // Step 3: choose the desired stand variant.
         String desiredStand;
         if (PHASE1_TOGGLE_BLUE_ONLY) {
-            // Phase 1: any interaction with any stand toggles Empty <-> Blue.
-            // Later we'll swap to "based on item in hand" once the signal is reliable.
+            // Phase 1 behavior: toggle between empty and blue.
             desiredStand = STAND_BLUE.equals(clickedId) ? STAND_EMPTY : STAND_BLUE;
         } else {
-            // Future: choose variant based on the flag item in-hand.
+            // Phase 2+ behavior: choose stand based on what flag item is currently in hand.
             desiredStand = STAND_EMPTY;
             if (FLAG_RED.equals(itemInHand)) desiredStand = STAND_RED;
             else if (FLAG_BLUE.equals(itemInHand)) desiredStand = STAND_BLUE;
             else if (FLAG_WHITE.equals(itemInHand)) desiredStand = STAND_WHITE;
             else if (FLAG_YELLOW.equals(itemInHand)) desiredStand = STAND_YELLOW;
         }
+
+        // (The remainder of your method continues here: doing the swap / dry-run using desiredStand)
+    
 
 
 
