@@ -578,6 +578,13 @@ public class Realm_Ruler extends JavaPlugin {
         String itemInHand = safeItemInHandId(event);
         Object chain = safeInteractionChain(event);
 
+        // Only react to the "F/use" interaction.
+        // (On your build, F tends to come through as InteractionType.Use.)
+        if (type != InteractionType.Use) {
+            return;
+        }
+
+
         // Step 1: resolve (world,x,y,z) of the interacted block.
         // Prefer extracting from the interaction chain (if it contains a hit result).
         // If that fails, use our per-tick look tracker (fresh aim data).
