@@ -3,6 +3,8 @@ package com.Chris__.Realm_Ruler;
 
 import com.Chris__.Realm_Ruler.core.ModeManager;
 import com.Chris__.Realm_Ruler.modes.CtfMode;
+import com.Chris__.Realm_Ruler.world.StandSwapService;
+
 
 
 import com.hypixel.hytale.logger.HytaleLogger;
@@ -1118,7 +1120,8 @@ public class Realm_Ruler extends JavaPlugin {
 
     // WORLD: single entry point for stand swaps (wrapper for now; extracted later)
     private void swapStandAt(BlockLocation loc, String desiredStand) {
-        standSwapService.swap(loc, desiredStand);
+        standSwapService.swapStand(loc.world, loc.x, loc.y, loc.z, desiredStand);
+
     }
 
 
