@@ -612,8 +612,6 @@ public class Realm_Ruler extends JavaPlugin {
         standSwapService.swapStand(loc.world, loc.x, loc.y, loc.z, standKey);
     }
 
-
-
     public void rrRunOnTick(Runnable r) {
         runOnTick(r);
     }
@@ -621,7 +619,6 @@ public class Realm_Ruler extends JavaPlugin {
     public Player rrResolvePlayer(String uuid) {
         return playerByUuid.get(uuid);
     }
-
 
     public void handleCtfAction(Object action) {
         // Legacy bridge: allow direct calls (or fallback paths) to reuse the migrated mode logic.
@@ -802,6 +799,15 @@ public class Realm_Ruler extends JavaPlugin {
 
         return STAND_EMPTY;
     }
+
+    public ItemStack rrCreateItemStackById(String itemId, int amount) {
+        return createItemStackById(itemId, amount);
+    }
+
+    public String rrFlagItemForStand(String standId) {
+        return flagItemForStand(standId);
+    }
+
 
     private ItemStack createItemStackById(String itemId, int amount) {
         if (itemId == null) return null;

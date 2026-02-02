@@ -6,24 +6,25 @@ import com.Chris__.Realm_Ruler.modes.ctf.CtfRules;
 import com.Chris__.Realm_Ruler.modes.ctf.CtfState;
 import com.hypixel.hytale.logger.HytaleLogger;
 import com.hypixel.hytale.protocol.InteractionType;
+import com.hypixel.hytale.server.core.Message;
 import com.hypixel.hytale.server.core.entity.entities.Player;
 import com.hypixel.hytale.server.core.inventory.Inventory;
 import com.hypixel.hytale.server.core.inventory.ItemStack;
 import com.hypixel.hytale.server.core.inventory.container.ItemContainer;
 import pl.grzegorz2047.hytale.lib.playerinteractlib.PlayerInteractionEvent;
-import com.hypixel.hytale.server.core.Message;
+
 import com.Chris__.Realm_Ruler.targeting.TargetingModels.BlockLocation;
 import com.Chris__.Realm_Ruler.targeting.TargetingModels.LookTarget;
 import com.Chris__.Realm_Ruler.targeting.TargetingModels.TargetingResult;
 
-
+import java.lang.reflect.Method;
 
 /**
  * CtfMode (Capture-the-Flag mode)  [MODE]
  *
  * This mode owns:
- * - CTF gameplay state (which flag is mounted on which stand)
- * - CTF rules (via CtfRules)
+ * - CTF gameplay state (which flag is mounted on which stand)  -> CtfState (in-memory)
+ * - CTF rules (IDs + policy)                                  -> CtfRules (pure)
  *
  * Realm_Ruler remains responsible for:
  * - Event wiring / dispatch
@@ -33,10 +34,16 @@ import com.Chris__.Realm_Ruler.targeting.TargetingModels.TargetingResult;
  */
 public class CtfMode implements RealmMode {
 
+    private static final Message MSG_NEED_EMPTY_HAND =
+            Message.raw("Your hand must be empty to take the flag.");
+
     private final Realm_Ruler plugin;
     private final HytaleLogger logger;
 
-    // CTF STATE: which flag item is currently "mounted" on each stand
+    /**
+     * Runtime state (not persisted across server/plugin restarts).
+     * The world block variant is treated as a secondary source of truth so gameplay still works after reconnects.
+     */
     private final CtfState state = new CtfState();
 
     public CtfMode(Realm_Ruler plugin) {
@@ -57,12 +64,6 @@ public class CtfMode implements RealmMode {
 
     @Override
     public void onPlayerAction(Object action) {
-        /*
-         * The plugin forwards actions/events to the active mode as plain Object.
-         * This mode should:
-         *  - Handle only the action types it understands
-         *  - Ignore everything else (do NOT throw or assume the type)
-         */
         if (!(action instanceof PlayerInteractionEvent event)) return;
 
         // Keep logging behavior identical by consuming the shared PI debug budget.
@@ -73,7 +74,6 @@ public class CtfMode implements RealmMode {
         String itemInHand = plugin.rrPi().safeItemInHandId(event);
         Object chain = plugin.rrPi().safeInteractionChain(event);
 
-
         // Only react to "F/use"
         if (type != InteractionType.Use) return;
 
@@ -83,7 +83,6 @@ public class CtfMode implements RealmMode {
 
         BlockLocation loc = tr.loc;
         LookTarget look = tr.look;
-
 
         if (look != null && look.basePos != null && shouldLog) {
             long ageMs = (System.nanoTime() - look.nanoTime) / 1_000_000L;
@@ -101,35 +100,36 @@ public class CtfMode implements RealmMode {
         // Only continue if this is one of our stand variants
         if (!CtfRules.isStandId(clickedId)) return;
 
-        // Best-effort: suppress default chest UI / container open for flag stands.
-        // (UseBlockEvent.Pre is also cancelled in Realm_Ruler, but this helps when PI is the only path.)
-        plugin.rrTryCancelEvent(event);
-        plugin.rrPi().tryCancel(event);
-
         final String clicked = clickedId;
         final String heldId = itemInHand;
 
         // IMPORTANT: Key format matches existing behavior for now.
         final String key = CtfState.standKey(plugin.rrWorldKey(loc.world), loc.x, loc.y, loc.z);
 
-        boolean standHasStoredFlag = state.hasFlag(key);
+        // "Occupied" is derived from BOTH:
+        // - runtime state (preferred when present)
+        // - world block variant (survives reconnects/restarts)
+        boolean stateSaysOccupied = state.hasFlag(key);
+        boolean worldLooksOccupied = !CtfRules.STAND_EMPTY.equals(clicked);
+        boolean occupied = stateSaysOccupied || worldLooksOccupied;
+
         boolean heldIsFlag = CtfRules.isCustomFlagId(heldId);
         boolean heldIsEmpty = CtfRules.isEmptyHandId(heldId);
 
-        // DENY: occupied stand + non-empty hand (prevents color-to-color swapping)
-        if (standHasStoredFlag && !heldIsEmpty) {
+        // DENY: occupied stand + non-empty hand (prevents all color-to-color swaps)
+        if (occupied && !heldIsEmpty) {
             plugin.rrRunOnTick(() -> {
                 Player p = plugin.rrResolvePlayer(uuid);
                 if (p == null) return;
 
-                p.sendMessage(Message.raw("Your hand must be empty to take the flag."));
-                plugin.rrTryPlayDenySound(p);
+                p.sendMessage(MSG_NEED_EMPTY_HAND);
+                tryPlayDenySound(p);
             });
             return;
         }
 
-        // Deposit: empty stand + holding custom flag + no stored flag yet
-        if (!standHasStoredFlag && CtfRules.STAND_EMPTY.equals(clicked) && heldIsFlag) {
+        // DEPOSIT: empty stand + holding custom flag
+        if (!occupied && CtfRules.STAND_EMPTY.equals(clicked) && heldIsFlag) {
             plugin.rrRunOnTick(() -> {
                 Player p = plugin.rrResolvePlayer(uuid);
                 if (p == null) return;
@@ -147,7 +147,7 @@ public class CtfMode implements RealmMode {
                 // Ensure it's actually the flag we think it is
                 if (!heldId.equals(inSlot.getItemId())) return;
 
-                // Store exact ItemStack so we can give it back later
+                // Store exact ItemStack so we can give it back later (while server is running)
                 state.putFlag(key, inSlot);
 
                 // Remove from hand (flags don't stack, so remove 1)
@@ -159,13 +159,7 @@ public class CtfMode implements RealmMode {
                         heldId,
                         plugin.rrPhase1ToggleBlueOnly()
                 );
-
-                if (plugin.rrStandSwapEnabled()) {
-                    plugin.rrSwapStandAt(loc, standVariant);
-                } else {
-                    logger.atInfo().log("[RR] (dry-run) would swap stand @ %d,%d,%d from %s -> %s",
-                            loc.x, loc.y, loc.z, clicked, standVariant);
-                }
+                plugin.rrSwapStandAt(loc, standVariant);
 
                 // Sync
                 p.sendInventory();
@@ -173,8 +167,8 @@ public class CtfMode implements RealmMode {
             return;
         }
 
-        // Withdraw: stand has stored flag + empty hand
-        if (standHasStoredFlag && heldIsEmpty) {
+        // WITHDRAW: occupied stand + empty hand
+        if (occupied && heldIsEmpty) {
             plugin.rrRunOnTick(() -> {
                 Player p = plugin.rrResolvePlayer(uuid);
                 if (p == null) return;
@@ -191,26 +185,63 @@ public class CtfMode implements RealmMode {
                 ItemStack current = hotbar.getItemStack(slot);
                 if (current != null && current.getQuantity() > 0) return;
 
+                // Preferred path: return the exact stack we stored at deposit-time
                 ItemStack stored = state.takeFlag(key);
-                if (stored == null) return;
+
+                // Fallback path: state was lost (rejoin/restart/worldKey mismatch).
+                // Reconstruct a 1x flag from the stand color, then empty the stand.
+                if (stored == null) {
+                    String fallbackFlagId = flagIdForStand(clicked);
+                    if (fallbackFlagId != null) {
+                        stored = plugin.rrCreateItemStackById(fallbackFlagId, 1);
+                    }
+                }
+
+                if (stored == null) {
+                    logger.atWarning().log("[RR-CTF] withdraw failed: occupied but no flag (key=%s clicked=%s)", key, clicked);
+                    return;
+                }
 
                 // Put it into their hand slot
                 hotbar.setItemStackForSlot(slot, stored);
 
-                if (plugin.rrStandSwapEnabled()) {
-                    // Visual swap back to empty
-                    plugin.rrSwapStandAt(loc, CtfRules.STAND_EMPTY);
-                } else {
-                    logger.atInfo().log("[RR] (dry-run) would swap stand @ %d,%d,%d from %s -> %s",
-                            loc.x, loc.y, loc.z, clicked, CtfRules.STAND_EMPTY);
-                }
+                // Visual swap back to empty
+                plugin.rrSwapStandAt(loc, CtfRules.STAND_EMPTY);
 
                 p.sendInventory();
             });
             return;
         }
 
-        // Otherwise: do nothing. (No swaps, no UI.)
+        // Otherwise: do nothing. (No auto-swaps and no UI logic here.)
+    }
 
+    private static String flagIdForStand(String standId) {
+        if (CtfRules.STAND_RED.equals(standId)) return CtfRules.FLAG_RED;
+        if (CtfRules.STAND_BLUE.equals(standId)) return CtfRules.FLAG_BLUE;
+        if (CtfRules.STAND_WHITE.equals(standId)) return CtfRules.FLAG_WHITE;
+        if (CtfRules.STAND_YELLOW.equals(standId)) return CtfRules.FLAG_YELLOW;
+        return null;
+    }
+
+    /**
+     * Best-effort deny sound (reflection-safe). If the API doesn't support it, this silently no-ops.
+     */
+    private static void tryPlayDenySound(Player player) {
+        if (player == null) return;
+
+        for (String mName : new String[]{"playSound", "playSoundEffect", "playUISound"}) {
+            try {
+                Method m = player.getClass().getMethod(mName, String.class);
+                m.invoke(player, "ui.button.invalid");
+                return;
+            } catch (Throwable ignored) {}
+
+            try {
+                Method m = player.getClass().getMethod(mName, String.class, float.class, float.class);
+                m.invoke(player, "ui.button.invalid", 1.0f, 1.0f);
+                return;
+            } catch (Throwable ignored) {}
+        }
     }
 }
