@@ -180,9 +180,6 @@ public class Realm_Ruler extends JavaPlugin {
     // PLAYER RESOLUTION: uuid -> Player (refreshed every tick by LookTargetTrackerSystem)
     public final Map<String, Player> playerByUuid = new ConcurrentHashMap<>();
 
-    // LOOK TRACKER CACHE: uuid -> LookTarget snapshot (freshness-gated)
-    private final Map<String, TargetingModels.LookTarget> lookByUuid = new ConcurrentHashMap<>();
-
     // -------------------------------------------------------------------------
     // Asset IDs (strings must match your JSON block/item IDs exactly)
     // -------------------------------------------------------------------------
@@ -679,19 +676,9 @@ public class Realm_Ruler extends JavaPlugin {
 //   slight timing differences between tick updates and interaction events.
 
     public TargetingModels.LookTarget getFreshLookTarget(String uuid) {
-
-        // Guard against garbage keys (uuid sometimes becomes "<null>" from safeUuid)
-        if (uuid == null || uuid.isEmpty() || "<null>".equals(uuid)) return null;
-
-        TargetingModels.LookTarget t = lookByUuid.get(uuid);
-
-        if (t == null) return null;
-
-        long age = System.nanoTime() - t.nanoTime;
-        if (age > LOOK_FRESH_NANOS) return null;
-
-        return t;
+        return (targetingService == null) ? null : targetingService.getFreshLookTarget(uuid);
     }
+
 
     /**
      * Convenience: take a UUID and return a BlockLocation directly from the look tracker.
@@ -713,28 +700,9 @@ public class Realm_Ruler extends JavaPlugin {
 
     // TARGETING: one place that turns (uuid + event + chain) into a BlockLocation
     public TargetingModels.TargetingResult resolveTarget(String uuid, PlayerInteractionEvent event, Object chain) {
-
-        BlockLocation loc = null;
-        TargetingModels.LookTarget look = null;
-
-        try {
-            // Your primary layered extractor (chain → look → remembered UseBlock)
-            loc = tryExtractBlockLocation(uuid, event, chain);
-
-            // Keep your current behavior: if still null, try look fallback explicitly
-            // (This matches what handleCtfAction does today.)
-            if (loc == null) {
-                look = getFreshLookTarget(uuid);
-                if (look != null && look.world != null && look.basePos != null) {
-                    loc = new BlockLocation(look.world, look.basePos.x, look.basePos.y, look.basePos.z);
-                }
-            }
-        } catch (Throwable t) {
-            LOGGER.atWarning().withCause(t).log("[RR-PI] Failed while extracting block location");
-        }
-
-        return (loc == null) ? null : new TargetingModels.TargetingResult(loc, look);
+        return (targetingService == null) ? null : targetingService.resolveTarget(uuid, event, chain);
     }
+
 
 
 
@@ -1447,7 +1415,7 @@ public class Realm_Ruler extends JavaPlugin {
 // -----------------------------------------------------------------------------
 //
 // UUID extraction is surprisingly annoying across versions, so we use best-effort methods.
-// This is only used to key our lookByUuid map.
+// This is only used to key the targeting look-tracker maps in TargetingService.
 
     private String safeUuidFromPlayer(PlayerRef ref, Player player) {
         // Prefer PlayerRef methods (most stable), then Player methods, then toString() fallback.

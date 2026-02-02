@@ -127,7 +127,7 @@ public final class TargetingService {
     // Look tracker helpers
     // -------------------------------------------------------------------------
 
-    private LookTarget getFreshLookTarget(String uuid) {
+    public LookTarget getFreshLookTarget(String uuid) {
         if (uuid == null || uuid.isEmpty() || "<null>".equals(uuid)) return null;
 
         LookTarget t = lookByUuid.get(uuid);
