@@ -592,10 +592,6 @@ public class Realm_Ruler extends JavaPlugin {
         return LOGGER;
     }
 
-    public boolean rrStandSwapEnabled() {
-        return ENABLE_STAND_SWAP;
-    }
-
     public boolean rrPhase1ToggleBlueOnly() {
         return PHASE1_TOGGLE_BLUE_ONLY;
     }
@@ -707,22 +703,6 @@ public class Realm_Ruler extends JavaPlugin {
         }
     }
 
-
-// ---------- Block placement ----------
-//
-// This is the "write" side: it performs the actual world edit.
-// WARNING (gameplay/design note):
-// - If this block has an attached inventory (block entity), swapping block IDs may reset it.
-// - You're okay with that in early phases, but keep it in mind when you later implement deposit logic.
-
-    // WORLD: single entry point for stand swaps (wrapper for now; extracted later)
-    public void swapStandAt(TargetingModels.BlockLocation loc, String desiredStand) {
-        if (loc == null || loc.world == null || desiredStand == null) return;
-        standSwapService.swapStand(loc.world, loc.x, loc.y, loc.z, desiredStand);
-    }
-
-
-
 // ---------- Helpers ----------
 
     private static void dumpPlayerMethods() {
@@ -782,9 +762,6 @@ public class Realm_Ruler extends JavaPlugin {
         dumpMethods(com.hypixel.hytale.server.core.inventory.container.ItemContainer.class, "ItemContainer");
     }
 
-
-
-
     /** RULES: Decide which stand variant we want given the current state. */
     private String selectDesiredStand(String clickedStandId, String itemInHandId) {
         if (PHASE1_TOGGLE_BLUE_ONLY) {
@@ -803,11 +780,6 @@ public class Realm_Ruler extends JavaPlugin {
     public ItemStack rrCreateItemStackById(String itemId, int amount) {
         return createItemStackById(itemId, amount);
     }
-
-    public String rrFlagItemForStand(String standId) {
-        return flagItemForStand(standId);
-    }
-
 
     private ItemStack createItemStackById(String itemId, int amount) {
         if (itemId == null) return null;
@@ -871,7 +843,6 @@ public class Realm_Ruler extends JavaPlugin {
         return null;
     }
 
-
     private String flagItemForStand(String standId) {
         if (STAND_RED.equals(standId)) return FLAG_RED;
         if (STAND_BLUE.equals(standId)) return FLAG_BLUE;
@@ -879,15 +850,6 @@ public class Realm_Ruler extends JavaPlugin {
         if (STAND_YELLOW.equals(standId)) return FLAG_YELLOW;
         return null; // empty or unknown
     }
-
-    private boolean isEmptyHand(String itemInHandId) {
-        return itemInHandId == null
-                || itemInHandId.isEmpty()
-                || "<empty>".equals(itemInHandId)
-                || "<null>".equals(itemInHandId);
-    }
-
-
 //
 // UseBlockEvent-based fallback position capture.
 // Useful when UseBlockEvent actually fires for stands or when debugging target resolution.
