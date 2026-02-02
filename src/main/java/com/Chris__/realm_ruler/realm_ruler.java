@@ -1,4 +1,3 @@
-
 package com.Chris__.Realm_Ruler;
 
 import com.hypixel.hytale.server.core.universe.world.World;
@@ -22,20 +21,7 @@ import com.hypixel.hytale.server.core.inventory.ItemStack;
 import com.hypixel.hytale.server.core.plugin.JavaPlugin;
 import com.hypixel.hytale.server.core.plugin.JavaPluginInit;
 import com.hypixel.hytale.server.core.plugin.PluginManager;
-import com.hypixel.hytale.math.util.ChunkUtil;
-import com.hypixel.hytale.server.core.universe.world.chunk.WorldChunk;
-import com.hypixel.hytale.component.ArchetypeChunk;
-import com.hypixel.hytale.component.CommandBuffer;
-import com.hypixel.hytale.component.Holder;
-import com.hypixel.hytale.component.Store;
-import com.hypixel.hytale.component.query.Query;
-import com.hypixel.hytale.component.system.tick.EntityTickingSystem;
-import com.hypixel.hytale.server.core.entity.EntityUtils;
 import com.hypixel.hytale.server.core.universe.PlayerRef;
-import com.hypixel.hytale.server.core.universe.world.storage.EntityStore;
-import com.hypixel.hytale.server.core.util.FillerBlockUtil;
-import com.hypixel.hytale.server.core.util.TargetUtil;
-import com.hypixel.hytale.math.vector.Vector3i;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 import pl.grzegorz2047.hytale.lib.playerinteractlib.PlayerInteractionEvent;
@@ -1455,29 +1441,6 @@ public class Realm_Ruler extends JavaPlugin {
         String s = itemId.trim().toLowerCase(Locale.ROOT);
         return s.isEmpty() || s.equals("<empty>") || s.equals("air") || s.endsWith(":air");
     }
-
-    /**
-     * Convert a potentially "filler block" hit into the true base block position.
-     *
-     * Background:
-     * - Some complex blocks are represented as a base block + filler parts.
-     * - The engine stores filler offsets packed into an int via FillerBlockUtil.
-     * - To modify the real block, we must subtract those offsets.
-     *
-     * NOTE: chunk.getFiller(...) is deprecated in your build, but still works.
-     * When it is removed in the future, we will need the new API equivalent.
-     */
-    private static Vector3i resolveBaseBlock(WorldChunk chunk, int x, int y, int z) {
-        int filler = chunk.getFiller(x, y, z);
-        if (filler == 0) return new Vector3i(x, y, z);
-
-        return new Vector3i(
-                x - FillerBlockUtil.unpackX(filler),
-                y - FillerBlockUtil.unpackY(filler),
-                z - FillerBlockUtil.unpackZ(filler)
-        );
-    }
-
 
 // -----------------------------------------------------------------------------
 // UUID extraction helpers (PlayerRef / Player / regex fallback)
