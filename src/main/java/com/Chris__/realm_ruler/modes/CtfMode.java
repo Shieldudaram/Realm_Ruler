@@ -119,7 +119,8 @@ public class CtfMode implements RealmMode {
         final String heldId = itemInHand;
 
         // IMPORTANT: Key format matches existing behavior for now.
-        final String key = loc.x + "|" + loc.y + "|" + loc.z;
+        final String key = CtfState.standKey(plugin.rrWorldKey(loc.world), loc.x, loc.y, loc.z);
+
 
         boolean standHasStoredFlag = state.hasFlag(key);
         boolean heldIsFlag = CtfRules.isCustomFlagId(heldId);

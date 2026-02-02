@@ -1,20 +1,16 @@
 
 package com.Chris__.Realm_Ruler;
 
+import com.hypixel.hytale.server.core.universe.world.World;
+import com.Chris__.Realm_Ruler.debug.RrDebugDumper;
 import com.Chris__.Realm_Ruler.core.ModeManager;
 import com.Chris__.Realm_Ruler.modes.CtfMode;
 import com.Chris__.Realm_Ruler.targeting.TargetingService;
 import com.Chris__.Realm_Ruler.world.StandSwapService;
 import com.Chris__.Realm_Ruler.targeting.TargetingModels;
 import com.Chris__.Realm_Ruler.targeting.TargetingModels.BlockLocation;
-
-
-
-
 import java.util.concurrent.ConcurrentLinkedQueue;
 import com.Chris__.Realm_Ruler.platform.PlayerInteractAdapter;
-
-
 import com.hypixel.hytale.logger.HytaleLogger;
 import com.hypixel.hytale.protocol.InteractionType;
 import com.hypixel.hytale.server.core.Message;
@@ -27,9 +23,7 @@ import com.hypixel.hytale.server.core.plugin.JavaPlugin;
 import com.hypixel.hytale.server.core.plugin.JavaPluginInit;
 import com.hypixel.hytale.server.core.plugin.PluginManager;
 import com.hypixel.hytale.math.util.ChunkUtil;
-import com.hypixel.hytale.server.core.universe.world.World;
 import com.hypixel.hytale.server.core.universe.world.chunk.WorldChunk;
-
 import com.hypixel.hytale.component.ArchetypeChunk;
 import com.hypixel.hytale.component.CommandBuffer;
 import com.hypixel.hytale.component.Holder;
@@ -42,18 +36,22 @@ import com.hypixel.hytale.server.core.universe.world.storage.EntityStore;
 import com.hypixel.hytale.server.core.util.FillerBlockUtil;
 import com.hypixel.hytale.server.core.util.TargetUtil;
 import com.hypixel.hytale.math.vector.Vector3i;
-
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
-
-
 import pl.grzegorz2047.hytale.lib.playerinteractlib.PlayerInteractionEvent;
-
 import javax.annotation.Nonnull;
 import java.lang.reflect.Method;
 import java.util.Locale;
 import java.util.Set;
 import java.util.concurrent.Flow;
+
+// AUTHORITY MAP (edit in these files first):
+// - Game rules/IDs/state: modes/ctf/CtfRules.java, modes/ctf/CtfState.java
+// - Target resolution + look tracking: targeting/TargetingService.java
+// - World writes (stand swaps): world/StandSwapService.java
+// - PlayerInteractLib plumbing: platform/...
+// Realm_Ruler.java should stay mostly wiring + rr* bridge surface.
+
 
 /**
  * Realm Ruler (Hytale minigame framework starting with Capture-the-Flag)
@@ -61,32 +59,37 @@ import java.util.concurrent.Flow;
  * Status: WORKING + MODE MIGRATION IN PROGRESS
  *
  * What works today:
- * - Capture-the-Flag Phase 1 behavior is working using PlayerInteractLib "F/use" (InteractionType.Use).
+ * - CTF interactions work via PlayerInteractLib "F/use" (InteractionType.Use).
  * - Stand interactions support:
  *     - visual stand swapping (empty/colored variants)
  *     - deposit + withdraw of custom flag items (stored per-stand, returned to player)
- * - Core seams are in place to keep monthly Hytale API drift contained:
+ * - Core seams are in place to keep monthly Hytale / PlayerInteractLib API drift contained:
  *     1) TARGETING seam: TargetingService resolves WHERE an interaction happened (world + x,y,z)
  *     2) WORLD seam: StandSwapService performs stand block swaps safely in one place
  *
  * Current architecture (how the code is organized now):
  * - Realm_Ruler.java:
  *     - plugin entry point + wiring (init, event subscriptions, mode setup)
- *     - owns shared services and compatibility glue (TargetingService, player resolution, etc.)
- *     - exposes a small "bridge surface" (rr* helper methods) used by modes during refactor
+ *     - owns shared services + small bridge surface (rr* helpers) while migration is ongoing
+ * - targeting/TargetingService.java:
+ *     - resolves (world,x,y,z) for PlayerInteractLib events using layered strategies
+ *     - hosts look-tracking ("EyeSpy") fallback to recover WHERE when chain data is missing
+ * - targeting/TargetingModels.java:
+ *     - shared data models (BlockLocation, LookTarget, TargetingResult)
+ *     - multiworld-ready: BlockLocation always includes World
  * - modes/CtfMode.java:
  *     - active mode implementation for CTF
- *     - receives PlayerInteractLib PlayerInteractionEvent actions via ModeManager dispatch
- *     - coordinates targeting resolution + tick-thread scheduling + stand swaps
+ *     - receives PlayerInteractionEvent actions via ModeManager dispatch
+ *     - coordinates: targeting -> rules/state -> tick-thread work -> stand swaps
  * - modes/ctf/CtfRules.java:
- *     - pure rules and IDs (stand IDs, flag IDs, empty-hand detection, desired stand selection)
+ *     - pure rules + IDs (stand IDs, flag IDs, empty-hand detection, desired stand selection)
  * - modes/ctf/CtfState.java:
  *     - CTF state container (which flag ItemStack is stored in which stand key)
  *     - cleared on mode end (onDisable) so state does not leak across modes
  * - world/StandSwapService.java:
- *     - validates block asset IDs, checks chunk loaded, and performs the world write
+ *     - validates block asset IDs, checks chunk loaded, performs the world write
  *
- * Current gameplay behavior (Phase 1, as implemented now):
+ * Current gameplay behavior (CTF interaction loop, as implemented now):
  * - Listen for PlayerInteractLib PlayerInteractionEvent.
  * - Filter to InteractionType.Use ("F/use") to avoid accidental triggers.
  * - Resolve target block location via TargetingService.
@@ -105,14 +108,19 @@ import java.util.concurrent.Flow;
  * - PlayerInteractLib reliably gives WHO + WHAT, but not always WHERE.
  * - TargetingService bridges that gap using a layered strategy:
  *     (A) Try extracting a hit position from the interaction chain (when present)
- *     (B) Fallback to per-tick look tracking joined by uuid
- * - Targeting logic is isolated so monthly API changes are localized.
+ *     (B) Fallback to per-tick look tracking joined by uuid (freshness-window gated)
+ *     (C) Optional fallback: last remembered UseBlock location (only when available)
  *
  * Threading note (important for future edits):
  * - PlayerInteractLib events may arrive off the main tick thread (async).
- * - Inventory mutations and world writes should happen on the server tick thread.
- * - The project uses a tick-thread scheduling helper (runOnTick / rrRunOnTick) to queue sensitive work.
- * - TODO: ensure ALL world swaps are routed consistently through the tick-thread scheduler if any remain inline.
+ * - Inventory mutations and world writes must happen on the server tick thread.
+ * - CtfMode schedules sensitive work via rrRunOnTick(...) before touching inventory or world.
+ * - TODO: ensure any remaining world swaps outside CtfMode also route through the tick-thread scheduler.
+ *
+ * Multiworld note (future-proofing):
+ * - TargetingModels.BlockLocation always includes World (multiworld/instances ready).
+ * - TODO: ensure CtfState stand keys include a stable world identifier (not coords-only) to avoid collisions
+ *   when multiple worlds/instances are active.
  *
  * Scaling roadmap:
  * - Phase 2: Stand variant depends on held flag item (already represented in CtfRules; extend as needed).
@@ -138,12 +146,7 @@ import java.util.concurrent.Flow;
  * - ROADMAP  = planned future work
  */
 
-
-
 public class Realm_Ruler extends JavaPlugin {
-
-
-
 
 
     private ModeManager modeManager;
@@ -151,9 +154,6 @@ public class Realm_Ruler extends JavaPlugin {
     private final StandSwapService standSwapService = new StandSwapService(LOGGER);
     private TargetingService targetingService;
     private final PlayerInteractAdapter pi = new PlayerInteractAdapter();
-
-
-
 
 
     private void setupModes() {
@@ -164,6 +164,21 @@ public class Realm_Ruler extends JavaPlugin {
 
         modeManager.setActive("ctf");
     }
+
+    public String rrWorldKey(World world) {
+        if (world == null) return "<world?>";
+
+        // Try common identifiers via reflection (API drift tolerant).
+        Object v = safeCall(world, "getId", "id", "getName", "name", "getKey", "key", "getWorldId", "worldId");
+        if (v != null) {
+            String s = String.valueOf(v);
+            if (!s.isBlank()) return s;
+        }
+
+        // Fallback: stable enough within a running server process.
+        return "world@" + System.identityHashCode(world);
+    }
+
 
     /** Logger provided by the Hytale server runtime. */
     private static final HytaleLogger LOGGER = HytaleLogger.forEnclosingClass();
@@ -177,7 +192,11 @@ public class Realm_Ruler extends JavaPlugin {
     private final ConcurrentLinkedQueue<Runnable> tickQueue = new ConcurrentLinkedQueue<>();
 
     // PLAYER RESOLUTION: uuid -> Player (refreshed every tick by LookTargetTrackerSystem)
+    private final Map<String, TargetingModels.LookTarget> lookByUuid = new ConcurrentHashMap<>();
+
     public final Map<String, Player> playerByUuid = new ConcurrentHashMap<>();
+
+
 
     // -------------------------------------------------------------------------
     // Asset IDs (strings must match your JSON block/item IDs exactly)
@@ -248,7 +267,6 @@ public class Realm_Ruler extends JavaPlugin {
      * Latest looked-at block info per player UUID (string form).
      * Used to "join" PlayerInteractLib events to a concrete (world + x,y,z).
      */
-    private final Map<String, LookTarget> lookByUuid = new ConcurrentHashMap<>();
 
     public Realm_Ruler(@Nonnull JavaPluginInit init) {
         super(init);
@@ -675,11 +693,13 @@ public class Realm_Ruler extends JavaPlugin {
 // - 250ms is short enough to match the moment of interaction, but long enough to handle
 //   slight timing differences between tick updates and interaction events.
 
-    public LookTarget getFreshLookTarget(String uuid) {
+    public TargetingModels.LookTarget getFreshLookTarget(String uuid) {
+
         // Guard against garbage keys (uuid sometimes becomes "<null>" from safeUuid)
         if (uuid == null || uuid.isEmpty() || "<null>".equals(uuid)) return null;
 
-        LookTarget t = lookByUuid.get(uuid);
+        TargetingModels.LookTarget t = lookByUuid.get(uuid);
+
         if (t == null) return null;
 
         long age = System.nanoTime() - t.nanoTime;
@@ -697,7 +717,8 @@ public class Realm_Ruler extends JavaPlugin {
     private BlockLocation tryLocationFromLook(String uuid) {
         if (uuid == null || uuid.isEmpty() || "<null>".equals(uuid)) return null;
 
-        LookTarget t = getFreshLookTarget(uuid);
+        TargetingModels.LookTarget t = getFreshLookTarget(uuid);
+
         if (t == null) return null;
 
         if (t.world == null || t.basePos == null) return null;
@@ -706,9 +727,10 @@ public class Realm_Ruler extends JavaPlugin {
     }
 
     // TARGETING: one place that turns (uuid + event + chain) into a BlockLocation
-    public TargetingResult resolveTarget(String uuid, PlayerInteractionEvent event, Object chain) {
+    public TargetingModels.TargetingResult resolveTarget(String uuid, PlayerInteractionEvent event, Object chain) {
+
         BlockLocation loc = null;
-        LookTarget look = null;
+        TargetingModels.LookTarget look = null;
 
         try {
             // Your primary layered extractor (chain → look → remembered UseBlock)
@@ -726,7 +748,7 @@ public class Realm_Ruler extends JavaPlugin {
             LOGGER.atWarning().withCause(t).log("[RR-PI] Failed while extracting block location");
         }
 
-        return (loc == null) ? null : new TargetingResult(loc, look);
+        return (loc == null) ? null : new TargetingModels.TargetingResult(loc, look);
     }
 
 
@@ -975,30 +997,9 @@ public class Realm_Ruler extends JavaPlugin {
      * - add a DEBUG_REFLECTION_DUMPS flag and wrap this call.
      */
     private void dumpInteractionSurface(Object obj) {
-        try {
-            Class<?> cls = obj.getClass();
-            LOGGER.atInfo().log("[RR-PI] ---- Phase3 surface dump (%s) ----", cls.getName());
-
-            int shown = 0;
-            for (Method m : cls.getMethods()) {
-                if (shown >= 40) break;
-                if (m.getParameterCount() != 0) continue;
-                String n = m.getName().toLowerCase(Locale.ROOT);
-                if (!containsAny(n, new String[]{"hit","target","block","pos","position","world","coord","location"})) continue;
-                LOGGER.atInfo().log("[RR-PI]   m: %s -> %s", m.getName(), m.getReturnType().getTypeName());
-                shown++;
-            }
-
-            shown = 0;
-            for (var f : cls.getDeclaredFields()) {
-                if (shown >= 40) break;
-                String n = f.getName().toLowerCase(Locale.ROOT);
-                if (!containsAny(n, new String[]{"hit","target","block","pos","position","world","coord","location"})) continue;
-                LOGGER.atInfo().log("[RR-PI]   f: %s : %s", f.getName(), f.getType().getTypeName());
-                shown++;
-            }
-        } catch (Throwable ignored) {}
+        RrDebugDumper.dumpInteractionSurface(LOGGER, obj);
     }
+
 
 
 // -----------------------------------------------------------------------------
@@ -1457,60 +1458,6 @@ public class Realm_Ruler extends JavaPlugin {
     }
 
 
-
-// -----------------------------------------------------------------------------
-// Look target tracking (EyeSpy technique)
-// -----------------------------------------------------------------------------
-//
-// This is the "sensor" system that runs every tick.
-// It answers: "What block is each player currently aiming at?"
-//
-// We store it keyed by UUID so we can join with PlayerInteractLib interaction events.
-//
-// Why we store both targetPos and basePos:
-// - targetPos is the raw raycast hit
-// - basePos resolves "filler blocks" (multi-block structures) to the true base block
-//   so that swapping the stand will affect the correct placed block.
-
-    /**
-     * Immutable data snapshot of what a player is looking at at a moment in time.
-     */
-    public static final class LookTarget {
-        public final World world;
-
-        /** Raw raycast hit position (can be a filler part of a larger block structure). */
-        final Vector3i targetPos;
-
-        /** Resolved position (adjusted for filler blocks so we target the base block). */
-        public final Vector3i basePos;
-
-        /** Best-effort string ID for the block type at basePos (used for debugging and safety checks). */
-        public final String blockId;
-
-        /** Timestamp used to enforce freshness (we only trust recent aim data). */
-        public final long nanoTime;
-
-        LookTarget(World world, Vector3i targetPos, Vector3i basePos, String blockId, long nanoTime) {
-            this.world = world;
-            this.targetPos = targetPos;
-            this.basePos = basePos;
-            this.blockId = blockId;
-            this.nanoTime = nanoTime;
-        }
-    }
-
-    // TARGETING: carries both the final location and (optionally) the look-tracker data used.
-    public static final class TargetingResult {
-        public final BlockLocation loc;
-        public final LookTarget look; // non-null only if look fallback was used
-
-        public TargetingResult(BlockLocation loc, LookTarget look) {
-            this.loc = loc;
-            this.look = look;
-        }
-    }
-
-
     /**
      * EntityTickingSystem that updates lookByUuid every tick.
      *
@@ -1607,7 +1554,8 @@ public class Realm_Ruler extends JavaPlugin {
 
                 // Store a fresh snapshot keyed by UUID.
                 // Note: we store world as well so interaction handler can directly act on it.
-                lookByUuid.put(uuid, new LookTarget(world, hit, base, blockId, System.nanoTime()));
+                lookByUuid.put(uuid, new TargetingModels.LookTarget(world, hit, base, blockId, System.nanoTime()));
+
 
                 // ✅ DRAIN QUEUED TASKS ON TICK THREAD
                 Runnable r;
