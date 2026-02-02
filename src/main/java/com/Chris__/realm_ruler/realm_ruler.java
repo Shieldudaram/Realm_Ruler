@@ -33,7 +33,6 @@ import java.util.concurrent.Flow;
  * Realm Ruler: quick navigation + runtime flow map
  * Keep this directly under imports so it stays “always visible”.
  * ─────────────────────────────────────────────────────────────────────────────
- *
  * WHAT TO EDIT WHERE (authority map)
  *   - Wiring / plugin boot / subscriptions:     Realm_Ruler.java
  *   - Mode routing / active mode selection:     core/ModeManager.java
@@ -44,39 +43,32 @@ import java.util.concurrent.Flow;
  *   - Shared targeting models:                  targeting/TargetingModels.java
  *   - World write boundary (stand swaps):       world/StandSwapService.java
  *   - PlayerInteractLib plumbing/adapters:      platform/...
- *
  * RUNTIME FLOW (high level)
  *   INPUTS
  *     1) PlayerInteractLib (primary): PlayerInteractionEvent (often InteractionType.Use for “F/use”)
  *        Realm_Ruler.tryRegisterPlayerInteractLib()
  *          -> subscriber.onNext(...) -> Realm_Ruler.onPlayerInteraction(event)
- *
  *     2) Hytale UseBlockEvent.Pre (fallback telemetry / position hint)
  *        Realm_Ruler.setup() registers when ENABLE_USEBLOCK_FALLBACK=true
  *          -> Realm_Ruler.onUseBlock(event)
  *          -> TargetingService.rememberPendingStandLocation(...) (optional hint)
- *
  *   DISPATCH
  *     ModeManager.dispatchPlayerAction(action)
  *       action is either PlayerInteractionEvent or UseBlockEvent.Pre
  *       -> modes/CtfMode.onPlayerAction(action)
- *
  *   WHERE RESOLUTION (action -> World + x,y,z)
  *     TargetingService.resolveTarget(uuid, event, chain)
  *       1) CHAIN: extractPosRecursive(chain, world, ...)
  *       2) LOOK : getFreshLookTarget(uuid) (freshness-gated)
  *       3) USEBLOCK: pendingStandLocation fallback
- *
  *   TICK-THREAD SAFETY (required for world/inventory writes)
  *     Realm_Ruler.rrRunOnTick(Runnable) -> tickQueue
  *     tickQueue drained on tick thread by TargetingService.LookTargetTrackerSystem.tick(...)
- *
  *   WORLD WRITE BOUNDARY
  *     StandSwapService.swapStand(world, x, y, z, desiredStandId)
  *       - validates asset id exists
  *       - checks chunk loaded
  *       - performs the block swap
- *
  * THREADING RED FLAGS
  *   - Any inventory mutation must happen on tick thread.
  *   - Any world write (stand swap) must happen on tick thread.
@@ -146,30 +138,11 @@ public class Realm_Ruler extends JavaPlugin {
     private static final String STAND_WHITE  = "Flag_Stand_White";
     private static final String STAND_YELLOW = "Flag_Stand_Yellow";
 
-    /** Flag item IDs (items in player inventory / hand). */
-    private static final String FLAG_RED    = "Realm_Ruler_Flag_Red";
-    private static final String FLAG_BLUE   = "Realm_Ruler_Flag_Blue";
-    private static final String FLAG_WHITE  = "Realm_Ruler_Flag_White";
-    private static final String FLAG_YELLOW = "Realm_Ruler_Flag_Yellow";
-
     /** Small in-game message used for quick sanity testing. */
     private static final Message MSG_DEBUG_HIT =
             Message.raw("[RealmRuler] Flag stand interaction detected.");
 
-    private static final Message MSG_PI_HIT =
-            Message.raw("[RR] PI event fired (PlayerInteractLib).");
-
-    private static final Message MSG_USEBLOCK_HIT =
-            Message.raw("[RR] UseBlockEvent.Pre fired (ECS fallback).");
-
-
-    // -------------------------------------------------------------------------
-    // Debug / log safety rails
-    // -------------------------------------------------------------------------
-
-    /**
-     * Limits how many UseBlock fallback logs we print (UseBlockEvent can be noisy when enabled).
-     */
+    //Limits how many UseBlock fallback logs we print (UseBlockEvent can be noisy when enabled).
     private static int USEBLOCK_DEBUG_LIMIT = 30;
 
     public Realm_Ruler(@Nonnull JavaPluginInit init) {
@@ -182,7 +155,6 @@ public class Realm_Ruler extends JavaPlugin {
         dumpInventoryApis();
 
     }
-
 
     @Override
     protected void setup() {
@@ -493,13 +465,6 @@ public class Realm_Ruler extends JavaPlugin {
 // -----------------------------------------------------------------------------
 // Feature switches
 // -----------------------------------------------------------------------------
-
-    /**
-     * When true, we actually modify the world (swap blocks). When false, we only log what we would do.
-     * This is useful when you're still verifying that position extraction is correct.
-     */
-    private static final boolean ENABLE_STAND_SWAP = true;
-
     /**
      * Phase 1: ignore item-in-hand and simply toggle Empty <-> Blue on any stand interaction.
      * Phase 2+: set this false and use itemInHand to choose stand color based on flags.
@@ -561,29 +526,6 @@ public class Realm_Ruler extends JavaPlugin {
         }
     }
 
-    /**
-     * Best-effort "deny" sound. If the server API doesn't expose a sound method on Player, this no-ops.
-     */
-    public void rrTryPlayDenySound(Player player) {
-        if (player == null) return;
-
-        // We don't know the exact sound API in your build, so we probe gently.
-        // If none match, it silently does nothing.
-        for (String mName : new String[]{"playSound", "playSoundEffect", "playUISound"}) {
-            try {
-                Method m = player.getClass().getMethod(mName, String.class);
-                m.invoke(player, "ui.button.invalid");
-                return;
-            } catch (Throwable ignored) {}
-
-            try {
-                Method m = player.getClass().getMethod(mName, String.class, float.class, float.class);
-                m.invoke(player, "ui.button.invalid", 1.0f, 1.0f);
-                return;
-            } catch (Throwable ignored) {}
-        }
-    }
-
     public TargetingService TargetingService() {
         return targetingService;
     }
@@ -620,31 +562,11 @@ public class Realm_Ruler extends JavaPlugin {
         // Legacy bridge: allow direct calls (or fallback paths) to reuse the migrated mode logic.
         if (ctfMode != null) {
             ctfMode.onPlayerAction(action);
-            return;
         }
 
         // If we ever reach here, modes haven't been initialized yet.
         // Intentionally no-op to avoid changing behavior in unexpected init states.
     }
-
-// -----------------------------------------------------------------------------
-// Look tracker helpers (EyeSpy approach)
-// -----------------------------------------------------------------------------
-//
-// The look tracker runs every tick and stores "what block is this player looking at?".
-// We only want to use that data if it's *fresh*, otherwise we might swap the wrong block
-// if the player moved their aim.
-//
-// Freshness check concept:
-// - we accept a look target only if it was recorded in the last LOOK_FRESH_NANOS (250ms).
-// - 250ms is short enough to match the moment of interaction, but long enough to handle
-//   slight timing differences between tick updates and interaction events.
-
-    public TargetingModels.LookTarget getFreshLookTarget(String uuid) {
-        return (targetingService == null) ? null : targetingService.getFreshLookTarget(uuid);
-    }
-
-
 
     // TARGETING: one place that turns (uuid + event + chain) into a BlockLocation
     public TargetingModels.TargetingResult resolveTarget(String uuid, PlayerInteractionEvent event, Object chain) {
@@ -762,21 +684,6 @@ public class Realm_Ruler extends JavaPlugin {
         dumpMethods(com.hypixel.hytale.server.core.inventory.container.ItemContainer.class, "ItemContainer");
     }
 
-    /** RULES: Decide which stand variant we want given the current state. */
-    private String selectDesiredStand(String clickedStandId, String itemInHandId) {
-        if (PHASE1_TOGGLE_BLUE_ONLY) {
-            return STAND_BLUE.equals(clickedStandId) ? STAND_EMPTY : STAND_BLUE;
-        }
-
-        // Phase 2+ behavior: stand depends on held flag item.
-        if (FLAG_RED.equals(itemInHandId)) return STAND_RED;
-        if (FLAG_BLUE.equals(itemInHandId)) return STAND_BLUE;
-        if (FLAG_WHITE.equals(itemInHandId)) return STAND_WHITE;
-        if (FLAG_YELLOW.equals(itemInHandId)) return STAND_YELLOW;
-
-        return STAND_EMPTY;
-    }
-
     public ItemStack rrCreateItemStackById(String itemId, int amount) {
         return createItemStackById(itemId, amount);
     }
@@ -841,14 +748,6 @@ public class Realm_Ruler extends JavaPlugin {
             if (idx instanceof Integer i && i != Integer.MIN_VALUE) return i;
         } catch (Throwable ignored) {}
         return null;
-    }
-
-    private String flagItemForStand(String standId) {
-        if (STAND_RED.equals(standId)) return FLAG_RED;
-        if (STAND_BLUE.equals(standId)) return FLAG_BLUE;
-        if (STAND_WHITE.equals(standId)) return FLAG_WHITE;
-        if (STAND_YELLOW.equals(standId)) return FLAG_YELLOW;
-        return null; // empty or unknown
     }
 //
 // UseBlockEvent-based fallback position capture.

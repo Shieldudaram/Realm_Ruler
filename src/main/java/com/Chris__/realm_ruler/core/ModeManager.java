@@ -109,7 +109,6 @@ public class ModeManager {
         active.onPlayerAction(action);
     }
 }
-
 // Example:
 // modeManager.register(new CtfMode(...));
 // modeManager.setActive("ctf");
