@@ -192,11 +192,10 @@ public class Realm_Ruler extends JavaPlugin {
     private final ConcurrentLinkedQueue<Runnable> tickQueue = new ConcurrentLinkedQueue<>();
 
     // PLAYER RESOLUTION: uuid -> Player (refreshed every tick by LookTargetTrackerSystem)
-    private final Map<String, TargetingModels.LookTarget> lookByUuid = new ConcurrentHashMap<>();
-
     public final Map<String, Player> playerByUuid = new ConcurrentHashMap<>();
 
-
+    // LOOK TRACKER CACHE: uuid -> LookTarget snapshot (freshness-gated)
+    private final Map<String, TargetingModels.LookTarget> lookByUuid = new ConcurrentHashMap<>();
 
     // -------------------------------------------------------------------------
     // Asset IDs (strings must match your JSON block/item IDs exactly)
@@ -1455,124 +1454,6 @@ public class Realm_Ruler extends JavaPlugin {
         if (itemId == null) return true;
         String s = itemId.trim().toLowerCase(Locale.ROOT);
         return s.isEmpty() || s.equals("<empty>") || s.equals("air") || s.endsWith(":air");
-    }
-
-
-    /**
-     * EntityTickingSystem that updates lookByUuid every tick.
-     *
-     * Runs for every entity matching the query (players).
-     * IMPORTANT: This tick method runs extremely frequently, so:
-     * - it must be fast
-     * - it should avoid heavy logging
-     * - it should swallow errors (or gate logs behind a debug flag)
-     */
-    public final class LookTargetTrackerSystem extends EntityTickingSystem<EntityStore> {
-
-        /**
-         * Query determines which ECS entities this system runs for.
-         * We require both Player and PlayerRef components, because:
-         * - Player gives us identity/connection info
-         * - PlayerRef tends to contain UUID and is a stable reference
-         */
-        private final Query<EntityStore> query;
-
-        LookTargetTrackerSystem() {
-            this.query = Query.and(Player.getComponentType(), PlayerRef.getComponentType());
-        }
-
-        /**
-         * Engine callback: the system must declare what it wants to tick.
-         * This method is required even if it feels "unused" because the ECS framework calls it.
-         */
-        @Override
-        public Query<EntityStore> getQuery() {
-            return query;
-        }
-
-        /**
-         * Per-tick update for each player entity.
-         *
-         * Steps:
-         *  1) Resolve Player + PlayerRef components
-         *  2) Extract player's UUID (string)
-         *  3) Raycast to find the targeted block within LOOK_RAYCAST_RANGE
-         *  4) Resolve filler/base block position
-         *  5) Read block type at that base position
-         *  6) Store in lookByUuid map for later use by interaction handler
-         */
-        @Override
-        public void tick(float dt,
-                         int entityId,
-                         ArchetypeChunk<EntityStore> chunk,
-                         Store<EntityStore> store,
-                         CommandBuffer<EntityStore> commandBuffer) {
-
-            try {
-                Holder<EntityStore> holder = EntityUtils.toHolder(entityId, chunk);
-
-                Player player = (Player) holder.getComponent(Player.getComponentType());
-                PlayerRef playerRef = (PlayerRef) holder.getComponent(PlayerRef.getComponentType());
-                if (player == null || playerRef == null) return;
-
-                String uuid = safeUuidFromPlayer(playerRef, player);
-                if (uuid == null || uuid.isEmpty()) return;
-
-                playerByUuid.put(uuid, player);
-
-                // Raycast for target block (same call EyeSpy uses)
-                Vector3i hit = TargetUtil.getTargetBlock(chunk.getReferenceTo(entityId), LOOK_RAYCAST_RANGE, store);
-                if (hit == null) return;
-
-                // ExternalData contains world info for this store (engine-specific wiring).
-                EntityStore es = (EntityStore) store.getExternalData();
-                if (es == null) return;
-
-                World world = es.getWorld();
-                if (world == null) return;
-
-                // Resolve correct chunk + filler blocks (same logic as EyeSpy BlockContext.create)
-                long hitChunkIndex = ChunkUtil.indexChunkFromBlock(hit.x, hit.z);
-                WorldChunk hitChunk = world.getChunkIfLoaded(hitChunkIndex);
-                if (hitChunk == null) return;
-
-                // Convert hit position to base block position (handles filler blocks).
-                Vector3i base = resolveBaseBlock(hitChunk, hit.x, hit.y, hit.z);
-                if (base == null) return;
-
-                // Base block might be in a different chunk.
-                long baseChunkIndex = ChunkUtil.indexChunkFromBlock(base.x, base.z);
-                WorldChunk baseChunk = (baseChunkIndex == hitChunkIndex)
-                        ? hitChunk
-                        : world.getChunkIfLoaded(baseChunkIndex);
-
-                if (baseChunk == null) return;
-
-                // Read block type at base position
-                BlockType bt = baseChunk.getBlockType(base.x, base.y, base.z);
-                String blockId = (bt == null) ? null : safeBlockTypeId(bt);
-
-                // Store a fresh snapshot keyed by UUID.
-                // Note: we store world as well so interaction handler can directly act on it.
-                lookByUuid.put(uuid, new TargetingModels.LookTarget(world, hit, base, blockId, System.nanoTime()));
-
-
-                // ✅ DRAIN QUEUED TASKS ON TICK THREAD
-                Runnable r;
-                while ((r = tickQueue.poll()) != null) {
-                    try {
-                        r.run();
-                    } catch (Throwable t) {
-                        LOGGER.atWarning().withCause(t).log("[RR] tickQueue task failed");
-                    }
-                }
-
-
-            } catch (Throwable ignored) {
-                // Intentionally silent: this runs every tick.
-                // If you ever debug issues here, add a DEBUG flag and log occasionally.
-            }
-        }
     }
 
     /**
