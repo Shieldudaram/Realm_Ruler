@@ -34,6 +34,15 @@ import java.util.concurrent.ConcurrentHashMap;
 
 import static com.Chris__.Realm_Ruler.targeting.TargetingModels.*;
 
+// ============================================================================
+// TARGETING: "WHERE did the interaction happen?"
+// Single source of truth:
+// - resolveTarget(...) calls tryExtractBlockLocation(...)
+// - tryExtractBlockLocation(...) uses chain -> lookTracker -> UseBlock fallback
+// - extractPosRecursive(...) is the reflection spelunker
+// ============================================================================
+
+
 /**
  * TARGET: Resolve WHERE an interaction happened.
  *
@@ -145,24 +154,44 @@ public final class TargetingService {
         return new BlockLocation(t.world, t.basePos.x, t.basePos.y, t.basePos.z);
     }
 
-    // -------------------------------------------------------------------------
-    // Chain/pos extraction
-    // -------------------------------------------------------------------------
-
+    /**
+     * TARGET RESOLUTION PIPELINE (single source of truth)
+     *
+     * Goal:
+     *   Convert (player uuid + PlayerInteractLib event + "chain" object) into a concrete block location:
+     *   (World + x,y,z).
+     *
+     * Why this exists:
+     *   PlayerInteractLib reliably tells us WHO + WHAT (interaction type, etc),
+     *   but not always WHERE (block position).
+     *
+     * Strategy order (most reliable -> least):
+     *   1) Walk the interaction "chain" (reflection spelunker) and try to find x/y/z (+ maybe world)
+     *   2) If chain fails, use our per-tick "look tracker" (uuid -> freshest aimed-at block)
+     *   3) If still nothing, use last remembered UseBlockEvent location (rare fallback)
+     *
+     * Notes for future edits:
+     *   - Keep this function small: orchestration only. Heavy lifting stays in extractPosRecursive.
+     *   - Never add world writes or inventory mutations here. This should remain pure target resolution.
+     */
     private BlockLocation tryExtractBlockLocation(String uuid, PlayerInteractionEvent event, Object chain) {
         World world = null;
 
+        // 0) Try to get World directly from the event (some builds expose it).
         try {
             Object w = safeCall(event, "getWorld", "world");
             if (w instanceof World ww) world = ww;
         } catch (Throwable ignored) {}
 
+        // 1) Primary: spelunk the chain for coordinates (and maybe a World).
         BlockLocation found = extractPosRecursive(chain, world, 0, "chain");
         if (found != null) return found;
 
+        // 2) Secondary: look tracker (fresh within window).
         BlockLocation lookLoc = tryLocationFromLook(uuid);
         if (lookLoc != null) return lookLoc;
 
+        // 3) Last resort: remembered UseBlock location.
         if (pendingStandLocation != null) {
             if (pendingStandLocation.world != null) return pendingStandLocation;
             if (world != null) return new BlockLocation(world, pendingStandLocation.x, pendingStandLocation.y, pendingStandLocation.z);
@@ -171,10 +200,30 @@ public final class TargetingService {
         return null;
     }
 
+    /**
+     * REFLECTION SPELUNKER: recursively search an arbitrary object graph for a "position-like" object.
+     *
+     * How it works:
+     *   - First tries to read x/y/z directly from obj (tryReadXYZ)
+     *   - Then recursively explores members (methods + fields) whose names look "position-ish"
+     *   - Carries forward a World if discovered anywhere in the graph
+     *
+     * Safety rails:
+     *   - Depth limit prevents runaway recursion and massive graph walks
+     *   - Keyword filter limits which members are explored
+     *   - Skips primitive-ish values (String, Number, enums) to reduce useless recursion
+     *
+     * Debugging:
+     *   - dumpInteractionSurface(obj) runs once per class (dumpedInteractionClasses guard)
+     *   - Keep dumps gated behind a debug flag inside dumpInteractionSurface to avoid log explosions
+     */
     private BlockLocation extractPosRecursive(Object obj, World world, int depth, String path) {
         if (obj == null) return null;
+
+        // Safety rail: keep recursion bounded.
         if (depth > 4) return null;
 
+        // 1) Does THIS object directly expose x/y/z (or blockX/blockY/blockZ)?
         BlockLocation direct = tryReadXYZ(obj, world);
         if (direct != null) {
             logger.atInfo().log("[RR-TARGET] FOUND pos via %s (%s)", path, obj.getClass().getName());
@@ -182,12 +231,19 @@ public final class TargetingService {
         }
 
         Class<?> cls = obj.getClass();
+
+        // 2) Optional: dump class surface once (helps discover new API shapes after updates).
         if (dumpedInteractionClasses.add(cls)) {
-            dumpInteractionSurface(obj);
+            dumpInteractionSurface(obj); // should be gated by a DEBUG flag inside this method
         }
 
-        String[] keys = new String[] { "hit", "target", "block", "pos", "position", "location", "coord", "world", "chunk" };
+        // 3) Only recurse into members that *sound* related to targeting/position data.
+        //    This keeps the search focused and fast.
+        final String[] keys = new String[] {
+                "hit", "target", "block", "pos", "position", "location", "coord", "world", "chunk"
+        };
 
+        // 4) Methods first (often more stable than fields).
         for (Method m : cls.getMethods()) {
             try {
                 if (m.getParameterCount() != 0) continue;
@@ -198,30 +254,48 @@ public final class TargetingService {
 
                 Object child = m.invoke(obj);
                 if (child == null) continue;
-                if (child instanceof String) continue;
 
-                BlockLocation res = extractPosRecursive(child, world, depth + 1, path + "." + m.getName());
+                // Skip leafy values
+                if (child instanceof String) continue;
+                if (child instanceof Number) continue;
+                if (child.getClass().isEnum()) continue;
+                if (child.getClass().isPrimitive()) continue;
+
+                // If we discover a World anywhere, carry it forward.
+                if (world == null && child instanceof World ww) world = ww;
+
+                BlockLocation res = extractPosRecursive(child, world, depth + 1, path + "." + m.getName() + "()");
                 if (res != null) return res;
+
             } catch (Throwable ignored) {}
         }
 
+        // 5) Then fields (less stable, but sometimes needed).
         for (Field f : cls.getDeclaredFields()) {
             try {
-                f.setAccessible(true);
                 String name = f.getName().toLowerCase(Locale.ROOT);
                 if (!containsAny(name, keys)) continue;
 
+                f.setAccessible(true);
                 Object child = f.get(obj);
                 if (child == null) continue;
+
                 if (child instanceof String) continue;
+                if (child instanceof Number) continue;
+                if (child.getClass().isEnum()) continue;
+                if (child.getClass().isPrimitive()) continue;
+
+                if (world == null && child instanceof World ww) world = ww;
 
                 BlockLocation res = extractPosRecursive(child, world, depth + 1, path + "." + f.getName());
                 if (res != null) return res;
+
             } catch (Throwable ignored) {}
         }
 
         return null;
     }
+
 
     private BlockLocation tryReadXYZ(Object obj, World world) {
         if (obj == null) return null;

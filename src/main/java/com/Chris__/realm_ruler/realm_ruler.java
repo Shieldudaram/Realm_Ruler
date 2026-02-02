@@ -1,7 +1,6 @@
 package com.Chris__.Realm_Ruler;
 
 import com.hypixel.hytale.server.core.universe.world.World;
-import com.Chris__.Realm_Ruler.debug.RrDebugDumper;
 import com.Chris__.Realm_Ruler.core.ModeManager;
 import com.Chris__.Realm_Ruler.modes.CtfMode;
 import com.Chris__.Realm_Ruler.targeting.TargetingService;
@@ -21,116 +20,71 @@ import com.hypixel.hytale.server.core.inventory.ItemStack;
 import com.hypixel.hytale.server.core.plugin.JavaPlugin;
 import com.hypixel.hytale.server.core.plugin.JavaPluginInit;
 import com.hypixel.hytale.server.core.plugin.PluginManager;
-import com.hypixel.hytale.server.core.universe.PlayerRef;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 import pl.grzegorz2047.hytale.lib.playerinteractlib.PlayerInteractionEvent;
 import javax.annotation.Nonnull;
 import java.lang.reflect.Method;
 import java.util.Locale;
-import java.util.Set;
 import java.util.concurrent.Flow;
 
-// AUTHORITY MAP (edit in these files first):
-// - Game rules/IDs/state: modes/ctf/CtfRules.java, modes/ctf/CtfState.java
-// - Target resolution + look tracking: targeting/TargetingService.java
-// - World writes (stand swaps): world/StandSwapService.java
-// - PlayerInteractLib plumbing: platform/...
-// Realm_Ruler.java should stay mostly wiring + rr* bridge surface.
-
-
 /**
- * Realm Ruler (Hytale minigame framework starting with Capture-the-Flag)
+ * ─────────────────────────────────────────────────────────────────────────────
+ * Realm Ruler: quick navigation + runtime flow map
+ * Keep this directly under imports so it stays “always visible”.
+ * ─────────────────────────────────────────────────────────────────────────────
  *
- * Status: WORKING + MODE MIGRATION IN PROGRESS
+ * WHAT TO EDIT WHERE (authority map)
+ *   - Wiring / plugin boot / subscriptions:     Realm_Ruler.java
+ *   - Mode routing / active mode selection:     core/ModeManager.java
+ *   - CTF behavior (interactions):              modes/CtfMode.java
+ *   - CTF rules + IDs (pure logic):             modes/ctf/CtfRules.java
+ *   - CTF stored state (stand->flag):           modes/ctf/CtfState.java
+ *   - Target resolution + look tracking:        targeting/TargetingService.java
+ *   - Shared targeting models:                  targeting/TargetingModels.java
+ *   - World write boundary (stand swaps):       world/StandSwapService.java
+ *   - PlayerInteractLib plumbing/adapters:      platform/...
  *
- * What works today:
- * - CTF interactions work via PlayerInteractLib "F/use" (InteractionType.Use).
- * - Stand interactions support:
- *     - visual stand swapping (empty/colored variants)
- *     - deposit + withdraw of custom flag items (stored per-stand, returned to player)
- * - Core seams are in place to keep monthly Hytale / PlayerInteractLib API drift contained:
- *     1) TARGETING seam: TargetingService resolves WHERE an interaction happened (world + x,y,z)
- *     2) WORLD seam: StandSwapService performs stand block swaps safely in one place
+ * RUNTIME FLOW (high level)
+ *   INPUTS
+ *     1) PlayerInteractLib (primary): PlayerInteractionEvent (often InteractionType.Use for “F/use”)
+ *        Realm_Ruler.tryRegisterPlayerInteractLib()
+ *          -> subscriber.onNext(...) -> Realm_Ruler.onPlayerInteraction(event)
  *
- * Current architecture (how the code is organized now):
- * - Realm_Ruler.java:
- *     - plugin entry point + wiring (init, event subscriptions, mode setup)
- *     - owns shared services + small bridge surface (rr* helpers) while migration is ongoing
- * - targeting/TargetingService.java:
- *     - resolves (world,x,y,z) for PlayerInteractLib events using layered strategies
- *     - hosts look-tracking ("EyeSpy") fallback to recover WHERE when chain data is missing
- * - targeting/TargetingModels.java:
- *     - shared data models (BlockLocation, LookTarget, TargetingResult)
- *     - multiworld-ready: BlockLocation always includes World
- * - modes/CtfMode.java:
- *     - active mode implementation for CTF
- *     - receives PlayerInteractionEvent actions via ModeManager dispatch
- *     - coordinates: targeting -> rules/state -> tick-thread work -> stand swaps
- * - modes/ctf/CtfRules.java:
- *     - pure rules + IDs (stand IDs, flag IDs, empty-hand detection, desired stand selection)
- * - modes/ctf/CtfState.java:
- *     - CTF state container (which flag ItemStack is stored in which stand key)
- *     - cleared on mode end (onDisable) so state does not leak across modes
- * - world/StandSwapService.java:
- *     - validates block asset IDs, checks chunk loaded, performs the world write
+ *     2) Hytale UseBlockEvent.Pre (fallback telemetry / position hint)
+ *        Realm_Ruler.setup() registers when ENABLE_USEBLOCK_FALLBACK=true
+ *          -> Realm_Ruler.onUseBlock(event)
+ *          -> TargetingService.rememberPendingStandLocation(...) (optional hint)
  *
- * Current gameplay behavior (CTF interaction loop, as implemented now):
- * - Listen for PlayerInteractLib PlayerInteractionEvent.
- * - Filter to InteractionType.Use ("F/use") to avoid accidental triggers.
- * - Resolve target block location via TargetingService.
- * - If clicked block is a stand variant:
- *     - Deposit: empty stand + player holds valid flag -> remove 1 flag from active hotbar slot,
- *       store ItemStack in CtfState, swap stand to the correct colored variant, sendInventory().
- *     - Withdraw: stand has stored flag + player hand empty -> restore stored ItemStack to active hotbar slot,
- *       clear CtfState entry, swap stand to empty, sendInventory().
- *     - Otherwise: swap stand to the "desired" visual variant per CtfRules (preserves prior behavior).
+ *   DISPATCH
+ *     ModeManager.dispatchPlayerAction(action)
+ *       action is either PlayerInteractionEvent or UseBlockEvent.Pre
+ *       -> modes/CtfMode.onPlayerAction(action)
  *
- * Why PlayerInteractLib:
- * - In the current Hytale build, opening/closing the stand UI via "F" does not reliably fire UseBlockEvent.Pre.
- * - PlayerInteractLib provides a higher-level interaction stream that does fire for "F/use".
+ *   WHERE RESOLUTION (action -> World + x,y,z)
+ *     TargetingService.resolveTarget(uuid, event, chain)
+ *       1) CHAIN: extractPosRecursive(chain, world, ...)
+ *       2) LOOK : getFreshLookTarget(uuid) (freshness-gated)
+ *       3) USEBLOCK: pendingStandLocation fallback
  *
- * Key technical challenge (WHERE):
- * - PlayerInteractLib reliably gives WHO + WHAT, but not always WHERE.
- * - TargetingService bridges that gap using a layered strategy:
- *     (A) Try extracting a hit position from the interaction chain (when present)
- *     (B) Fallback to per-tick look tracking joined by uuid (freshness-window gated)
- *     (C) Optional fallback: last remembered UseBlock location (only when available)
+ *   TICK-THREAD SAFETY (required for world/inventory writes)
+ *     Realm_Ruler.rrRunOnTick(Runnable) -> tickQueue
+ *     tickQueue drained on tick thread by TargetingService.LookTargetTrackerSystem.tick(...)
  *
- * Threading note (important for future edits):
- * - PlayerInteractLib events may arrive off the main tick thread (async).
- * - Inventory mutations and world writes must happen on the server tick thread.
- * - CtfMode schedules sensitive work via rrRunOnTick(...) before touching inventory or world.
- * - TODO: ensure any remaining world swaps outside CtfMode also route through the tick-thread scheduler.
+ *   WORLD WRITE BOUNDARY
+ *     StandSwapService.swapStand(world, x, y, z, desiredStandId)
+ *       - validates asset id exists
+ *       - checks chunk loaded
+ *       - performs the block swap
  *
- * Multiworld note (future-proofing):
- * - TargetingModels.BlockLocation always includes World (multiworld/instances ready).
- * - TODO: ensure CtfState stand keys include a stable world identifier (not coords-only) to avoid collisions
- *   when multiple worlds/instances are active.
+ * THREADING RED FLAGS
+ *   - Any inventory mutation must happen on tick thread.
+ *   - Any world write (stand swap) must happen on tick thread.
+ *   - If you add a new path that edits inventory or swaps blocks: wrap it in rrRunOnTick(...).
  *
- * Scaling roadmap:
- * - Phase 2: Stand variant depends on held flag item (already represented in CtfRules; extend as needed).
- * - Phase 3: Full CTF match state (teams, captures, scoring, lifecycle).
- * - Multi-arena: multiple arenas running different modes simultaneously.
- *   Plan: resolved target location -> ArenaSession -> mode instance.
- *
- * Refactor roadmap:
- * 1) Keep Realm_Ruler as wiring only (hooks, init, mode registration, shared services).
- * 2) Keep gameplay rules/state in mode-specific code (ctf rules/state + future match/session logic).
- * 3) Keep brittle API glue in a compat/adapter layer (reflection + shims).
- * 4) Enforce tick-thread-only inventory and world writes via centralized scheduling.
- *
- * Comment tags legend:
- * - COMPAT   = compatibility shim / reflection / version-sensitive API glue
- * - MODE     = mode routing / mode boundary code
- * - TARGET   = target resolution / look tracking / interaction chain parsing
- * - RULES    = gameplay rules (safe to change often)
- * - STATE    = gameplay state containers (owned by a mode/session)
- * - WORLD    = world read/write (must be tick-thread safe)
- * - DEV      = debug/introspection helper
- * - OPTIONAL = fallback path for resilience
- * - ROADMAP  = planned future work
+ * ─────────────────────────────────────────────────────────────────────────────
  */
+
 
 public class Realm_Ruler extends JavaPlugin {
 
@@ -174,6 +128,7 @@ public class Realm_Ruler extends JavaPlugin {
     private static final boolean ENABLE_USEBLOCK_FALLBACK = true;
     private static final boolean ENABLE_LOOK_TRACKER = true;
 
+
     // TICK-SAFE EXECUTOR: queue work from async callbacks to run on tick thread.
     private final ConcurrentLinkedQueue<Runnable> tickQueue = new ConcurrentLinkedQueue<>();
 
@@ -209,46 +164,6 @@ public class Realm_Ruler extends JavaPlugin {
      * Limits how many UseBlock fallback logs we print (UseBlockEvent can be noisy when enabled).
      */
     private static int USEBLOCK_DEBUG_LIMIT = 30;
-
-    /**
-     * We do reflection-based "surface dumps" to discover what data exists inside interaction chains.
-     * This set prevents dumping the same class repeatedly.
-     */
-    private final Set<Class<?>> dumpedInteractionClasses = ConcurrentHashMap.newKeySet();
-
-    /**
-     * Fallback: sometimes UseBlockEvent provides a target position when PlayerInteractLib doesn't.
-     * We store the last known stand target as a "best effort" fallback.
-     *
-     * volatile because it may be written and read from different callbacks (thread safety).
-     */
-    private volatile BlockLocation pendingStandLocation = null;
-
-    /**
-     * These sets are just "warn-once" guards so the log doesn't become a firehose.
-     * - warnedMissingStandKeys: we attempted to swap to a stand ID that wasn't found in AssetMap.
-     * - warnedMissingChunkIndices: chunk wasn't loaded when we tried to read/write at that position.
-     */
-    private final Set<String> warnedMissingStandKeys = ConcurrentHashMap.newKeySet();
-    private final Set<Long> warnedMissingChunkIndices = ConcurrentHashMap.newKeySet();
-
-    // -------------------------------------------------------------------------
-    // EyeSpy-style looked-at block tracker (UUID -> what block they are aiming at)
-    // -------------------------------------------------------------------------
-
-    /** How far the raycast should check for a targeted block. */
-    private static final double LOOK_RAYCAST_RANGE = 5.0d;
-
-    /**
-     * Freshness window: we only trust looked-at results captured very recently.
-     * This prevents "stale aim" where a player looked somewhere else 2 seconds ago.
-     */
-    private static final long LOOK_FRESH_NANOS = 250_000_000L; // 250ms window
-
-    /**
-     * Latest looked-at block info per player UUID (string form).
-     * Used to "join" PlayerInteractLib events to a concrete (world + x,y,z).
-     */
 
     public Realm_Ruler(@Nonnull JavaPluginInit init) {
         super(init);
@@ -680,280 +595,11 @@ public class Realm_Ruler extends JavaPlugin {
     }
 
 
-    /**
-     * Convenience: take a UUID and return a BlockLocation directly from the look tracker.
-     *
-     * NOTE: This is currently a helper used as a fallback inside tryExtractBlockLocation.
-     * If you later restructure tryExtractBlockLocation, this helper might become unused.
-     */
-    private BlockLocation tryLocationFromLook(String uuid) {
-        if (uuid == null || uuid.isEmpty() || "<null>".equals(uuid)) return null;
-
-        TargetingModels.LookTarget t = getFreshLookTarget(uuid);
-
-        if (t == null) return null;
-
-        if (t.world == null || t.basePos == null) return null;
-
-        return new BlockLocation(t.world, t.basePos.x, t.basePos.y, t.basePos.z);
-    }
 
     // TARGETING: one place that turns (uuid + event + chain) into a BlockLocation
     public TargetingModels.TargetingResult resolveTarget(String uuid, PlayerInteractionEvent event, Object chain) {
         return (targetingService == null) ? null : targetingService.resolveTarget(uuid, event, chain);
     }
-
-
-
-
-// -----------------------------------------------------------------------------
-// Location extraction: turning "player interacted" into "world + x,y,z"
-// -----------------------------------------------------------------------------
-//
-// This is one of the most important parts of the mod.
-//
-// Inputs:
-// - uuid: identifies the player (used for look-tracker map lookup)
-// - event: the PlayerInteractLib event
-// - chain: "SyncInteractionChain" (or similar) which sometimes contains hit/target info
-//
-// Output:
-// - BlockLocation containing world + x,y,z (or null if we cannot determine target)
-//
-// Extraction strategy:
-//  1) Try to pull World directly off event (if exposed by build)
-//  2) Recursively search inside "chain" for objects that contain x/y/z
-//  3) Fallback to look tracker (uuid -> looked-at block)
-//  4) Fallback to remembered UseBlockEvent location (rare but sometimes helpful)
-//
-// This is deliberately layered: each fallback is less "direct" than the previous.
-
-     public BlockLocation tryExtractBlockLocation(String uuid, PlayerInteractionEvent event, Object chain) {
-        World world = null;
-
-        // Some builds may expose the World directly on the event.
-        // If we can find it, it makes any extracted x/y/z more reliable.
-        try {
-            Object w = safeCall(event, "getWorld", "world");
-            if (w instanceof World ww) world = ww;
-        } catch (Throwable ignored) {}
-
-        // 1) Attempt to drill into the interaction chain.
-        // The chain may contain nested objects such as hit results / target data.
-        BlockLocation found = extractPosRecursive(chain, world, 0, "chain");
-        if (found != null) return found;
-
-        // 2) Fallback: looked-at block from EyeSpy raycast (fresh within 250ms).
-        BlockLocation lookLoc = tryLocationFromLook(uuid);
-        if (lookLoc != null) return lookLoc;
-
-        // 3) Fallback: if legacy UseBlock ever captured a target location, use it.
-        // This is a "best effort" and may be stale, so we keep it last.
-        if (pendingStandLocation != null) {
-            // If pendingStandLocation includes a world, prefer it.
-            if (pendingStandLocation.world != null) return pendingStandLocation;
-
-            // If it doesn't, but we found a world from the event, combine them.
-            if (world != null) return new BlockLocation(world, pendingStandLocation.x, pendingStandLocation.y, pendingStandLocation.z);
-        }
-
-        return null;
-    }
-
-
-// -----------------------------------------------------------------------------
-// Recursive reflection search for position data
-// -----------------------------------------------------------------------------
-//
-// This is the "spelunker": it explores nested objects looking for something that looks like
-// a coordinate triplet (x,y,z) or (blockX,blockY,blockZ), and optionally a World.
-//
-// How it works:
-// - First, it tries tryReadXYZ(obj) to see if obj itself exposes coordinates.
-// - If not, it optionally dumps method/field names one time per class (debug discovery).
-// - Then it scans methods and fields whose NAMES contain hints like "hit", "target", "pos", etc.
-// - It recurses into those children until it finds coordinates or exceeds depth.
-//
-// Why limit depth?
-// - Prevents runaway recursion on huge graphs.
-// - Makes the search predictable and safer for runtime.
-
-    public BlockLocation extractPosRecursive(Object obj, World world, int depth, String path) {
-        if (obj == null) return null;
-
-        // Depth limit is a safety rail.
-        // If you later discover position is nested deeper, you can increase this to 5 or 6,
-        // but keep a limit to avoid exploring entire object graphs.
-        if (depth > 4) return null;
-
-        // Step 1: Does this object directly expose x/y/z?
-        BlockLocation direct = tryReadXYZ(obj, world);
-        if (direct != null) {
-            LOGGER.atInfo().log("[RR-PI] FOUND pos via %s (%s)", path, obj.getClass().getName());
-            return direct;
-        }
-
-        // Step 2: One-time "what does this object contain?" dump.
-        // This is development-time introspection. Great while reverse engineering.
-        // You can gate it behind a DEBUG flag later if desired.
-        Class<?> cls = obj.getClass();
-        if (dumpedInteractionClasses.add(cls)) {
-            dumpInteractionSurface(obj);
-        }
-
-        // Names that often appear in hit/target/position structures.
-        // We only recurse into members with these keywords to keep search focused.
-        String[] keys = new String[] { "hit", "target", "block", "pos", "position", "location", "coord", "world", "chunk" };
-
-        // Step 3: Scan methods first (public getters are often more stable than fields).
-        for (Method m : cls.getMethods()) {
-            try {
-                if (m.getParameterCount() != 0) continue;
-                if (m.getReturnType() == Void.TYPE) continue;
-
-                String name = m.getName().toLowerCase(Locale.ROOT);
-                if (!containsAny(name, keys)) continue;
-
-                Object child = m.invoke(obj);
-                if (child == null) continue;
-
-                // Skip "leafy" values that are not useful for recursion
-                if (child instanceof String) continue;
-                if (child.getClass().isPrimitive()) continue;
-                if (child instanceof Number) continue;
-
-                // If this child is a World, capture it for downstream coordinate reads.
-                if (world == null && child instanceof World ww) world = ww;
-
-                BlockLocation loc = extractPosRecursive(child, world, depth + 1, path + "." + m.getName() + "()");
-                if (loc != null) return loc;
-            } catch (Throwable ignored) {}
-        }
-
-        // Step 4: If methods didn't work, scan declared fields (less stable, but sometimes necessary).
-        for (var f : cls.getDeclaredFields()) {
-            try {
-                String name = f.getName().toLowerCase(Locale.ROOT);
-                if (!containsAny(name, keys)) continue;
-
-                f.setAccessible(true);
-                Object child = f.get(obj);
-                if (child == null) continue;
-
-                if (world == null && child instanceof World ww) world = ww;
-
-                BlockLocation loc = extractPosRecursive(child, world, depth + 1, path + "." + f.getName());
-                if (loc != null) return loc;
-            } catch (Throwable ignored) {}
-        }
-
-        return null;
-    }
-
-
-// -----------------------------------------------------------------------------
-// Coordinate reading helpers
-// -----------------------------------------------------------------------------
-//
-// tryReadXYZ attempts common coordinate “shapes” seen across libraries.
-// If the object exposes x/y/z, we build a BlockLocation.
-
-    private BlockLocation tryReadXYZ(Object obj, World world) {
-        try {
-            // Common getter shapes: getX()/getY()/getZ() OR x()/y()/z()
-            Integer x = tryGetInt(obj, "getX", "x");
-            Integer y = tryGetInt(obj, "getY", "y");
-            Integer z = tryGetInt(obj, "getZ", "z");
-            if (x != null && y != null && z != null) return new BlockLocation(world, x, y, z);
-
-            // Alternative shapes: getBlockX()/blockX() or field blockX, etc.
-            x = tryGetInt(obj, "getBlockX", "blockX");
-            y = tryGetInt(obj, "getBlockY", "blockY");
-            z = tryGetInt(obj, "getBlockZ", "blockZ");
-            if (x != null && y != null && z != null) return new BlockLocation(world, x, y, z);
-        } catch (Throwable ignored) {}
-
-        return null;
-    }
-
-    /**
-     * Reads an integer property from an object by trying:
-     * - a named getter method (getX)
-     * - a named no-arg method (x)
-     * - a public field (x)
-     * - a private/protected field (x)
-     *
-     * Why so many attempts?
-     * - Different internal classes follow different conventions.
-     * - Reflection lets us survive API shape differences.
-     */
-    private Integer tryGetInt(Object obj, String getterName, String fieldName) {
-        // Getter method: getX()
-        try {
-            Method m = obj.getClass().getMethod(getterName);
-            if (m.getParameterCount() == 0) {
-                Object v = m.invoke(obj);
-                if (v instanceof Number n) return n.intValue();
-            }
-        } catch (Throwable ignored) {}
-
-        // No-arg method: x()
-        try {
-            Method m = obj.getClass().getMethod(fieldName);
-            if (m.getParameterCount() == 0) {
-                Object v = m.invoke(obj);
-                if (v instanceof Number n) return n.intValue();
-            }
-        } catch (Throwable ignored) {}
-
-        // Public field: obj.x
-        try {
-            var f = obj.getClass().getField(fieldName);
-            Object v = f.get(obj);
-            if (v instanceof Number n) return n.intValue();
-        } catch (Throwable ignored) {}
-
-        // Declared field: private/protected x
-        try {
-            var f = obj.getClass().getDeclaredField(fieldName);
-            f.setAccessible(true);
-            Object v = f.get(obj);
-            if (v instanceof Number n) return n.intValue();
-        } catch (Throwable ignored) {}
-
-        return null;
-    }
-
-    /**
-     * Simple keyword filter used by extractPosRecursive.
-     * We pass the method/field name already lowercased to avoid repeated allocations.
-     */
-    private boolean containsAny(String haystackLower, String[] needlesLower) {
-        for (String n : needlesLower) {
-            if (haystackLower.contains(n)) return true;
-        }
-        return false;
-    }
-
-    /**
-     * Reflection-based “surface dump” used during reverse engineering.
-     *
-     * What it does:
-     * - Logs method names and field names that look relevant to positions and hits.
-     * - Only runs once per class (guarded by dumpedInteractionClasses).
-     *
-     * Why keep it:
-     * - When Hytale/PlayerInteractLib internals change, you can quickly rediscover the new
-     *   path to the coordinates by inspecting what members exist.
-     *
-     * If you want less log noise:
-     * - add a DEBUG_REFLECTION_DUMPS flag and wrap this call.
-     */
-    private void dumpInteractionSurface(Object obj) {
-        RrDebugDumper.dumpInteractionSurface(LOGGER, obj);
-    }
-
-
 
 // -----------------------------------------------------------------------------
 // Domain checks: is this block one of our stand variants?
@@ -1081,6 +727,7 @@ public class Realm_Ruler extends JavaPlugin {
         dumpMethods(com.hypixel.hytale.server.core.inventory.ItemStack.class, "ItemStack");
         dumpMethods(com.hypixel.hytale.server.core.inventory.container.ItemContainer.class, "ItemContainer");
     }
+
 
 
 
@@ -1213,7 +860,9 @@ public class Realm_Ruler extends JavaPlugin {
             int y = readVecInt(pos, "getY", "y");
             int z = readVecInt(pos, "getZ", "z");
 
-            pendingStandLocation = new BlockLocation(world, x, y, z);
+            if (targetingService != null) {
+                targetingService.rememberPendingStandLocation(new BlockLocation(world, x, y, z));
+            }
         } catch (Throwable ignored) {}
     }
 
@@ -1231,29 +880,6 @@ public class Realm_Ruler extends JavaPlugin {
         }
         return null;
     }
-
-    /**
-     * NOTE: Currently appears unused in the shown snippet (you mostly use safeInteractionType now).
-     * Keep it if it is used elsewhere; otherwise it can be removed later.
-     *
-     * Purpose:
-     * - Converts a reflected value into our InteractionType enum by name.
-     */
-    private InteractionType safeEnum(Object obj, String... methodNames) {
-        Object v = safeCall(obj, methodNames);
-        if (v instanceof InteractionType it) return it;
-
-        try {
-            // Some implementations return an enum with same name; try to map
-            if (v != null) {
-                String s = String.valueOf(v);
-                return InteractionType.valueOf(s);
-            }
-        } catch (Throwable ignored) {}
-
-        return null;
-    }
-
 
     // -----------------------------------------------------------------------------
 // Small reflection utilities (vector/item/block id extraction + messaging)
@@ -1288,46 +914,6 @@ public class Realm_Ruler extends JavaPlugin {
 
         // Fallback: unable to read the value
         return 0;
-    }
-
-    /**
-     * Reads an Item ID from an unknown object that might represent an item stack.
-     *
-     * Why this exists:
-     * - In some events/contexts we receive ItemStack
-     * - In others we might receive a different "item-like" wrapper with getItemId() or itemId()
-     * - This keeps our logging and decision logic consistent across those shapes.
-     *
-     * Returns:
-     * - "<empty>" if null
-     * - otherwise best-effort string ID
-     *
-     * NOTE: Used mainly for logging/inspection; your main logic uses safeItemId(ItemStack) when possible.
-     */
-    private String safeItemIdFromUnknown(Object maybeItemStack) {
-        if (maybeItemStack == null) return "<empty>";
-
-        // If this is already an ItemStack, use the canonical extraction helper
-        try {
-            if (maybeItemStack instanceof ItemStack is) return safeItemId(is);
-        } catch (Throwable ignored) {}
-
-        // Try common method name: getItemId()
-        try {
-            Method m = maybeItemStack.getClass().getMethod("getItemId");
-            Object v = m.invoke(maybeItemStack);
-            return String.valueOf(v);
-        } catch (Throwable ignored) {}
-
-        // Try alternate method name: itemId()
-        try {
-            Method m = maybeItemStack.getClass().getMethod("itemId");
-            Object v = m.invoke(maybeItemStack);
-            return String.valueOf(v);
-        } catch (Throwable ignored) {}
-
-        // Last resort: string representation (useful for debugging even if not stable)
-        return String.valueOf(maybeItemStack);
     }
 
     /**
@@ -1395,7 +981,6 @@ public class Realm_Ruler extends JavaPlugin {
         return x + "|" + y + "|" + z;
     }
 
-
     private static boolean isCustomFlagId(String itemId) {
         if (itemId == null) return false;
         return itemId.equals(FLAG_RED)
@@ -1408,66 +993,5 @@ public class Realm_Ruler extends JavaPlugin {
         if (itemId == null) return true;
         String s = itemId.trim().toLowerCase(Locale.ROOT);
         return s.isEmpty() || s.equals("<empty>") || s.equals("air") || s.endsWith(":air");
-    }
-
-// -----------------------------------------------------------------------------
-// UUID extraction helpers (PlayerRef / Player / regex fallback)
-// -----------------------------------------------------------------------------
-//
-// UUID extraction is surprisingly annoying across versions, so we use best-effort methods.
-// This is only used to key the targeting look-tracker maps in TargetingService.
-
-    private String safeUuidFromPlayer(PlayerRef ref, Player player) {
-        // Prefer PlayerRef methods (most stable), then Player methods, then toString() fallback.
-        String u = safeUuidFromObject(ref);
-        if (u != null) return u;
-
-        u = safeUuidFromObject(player);
-        if (u != null) return u;
-
-        // Last resort: regex search UUID inside toString() output.
-        // This is not ideal but can save you if method names change.
-        try {
-            String s = String.valueOf(ref);
-            java.util.regex.Matcher m = java.util.regex.Pattern
-                    .compile("([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12})")
-                    .matcher(s);
-            if (m.find()) return m.group(1);
-        } catch (Throwable ignored) {}
-
-        return null;
-    }
-
-    /**
-     * Best-effort UUID/ID extraction from an arbitrary object via common method names.
-     *
-     * NOTE:
-     * - We treat any returned string length >= 32 as "probably an ID/UUID".
-     * - If you want stricter behavior later, we can regex validate a UUID pattern here.
-     */
-    private String safeUuidFromObject(Object obj) {
-        if (obj == null) return null;
-
-        String[] methods = new String[]{
-                "getUuid", "uuid",
-                "getPlayerUuid", "playerUuid",
-                "getUniqueId", "uniqueId",
-                "getId", "id"
-        };
-
-        for (String mName : methods) {
-            try {
-                Method m = obj.getClass().getMethod(mName);
-                if (m.getParameterCount() != 0) continue;
-                Object v = m.invoke(obj);
-                if (v == null) continue;
-                String s = String.valueOf(v);
-
-                // Heuristic: UUIDs and unique IDs are generally long strings.
-                if (s.length() >= 32) return s;
-            } catch (Throwable ignored) {}
-        }
-
-        return null;
     }
 }
