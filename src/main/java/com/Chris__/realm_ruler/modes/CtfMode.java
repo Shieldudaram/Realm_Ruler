@@ -79,7 +79,7 @@ public class CtfMode implements RealmMode {
         if (type != InteractionType.Use) return;
 
         // Resolve (world,x,y,z) of interacted block
-        TargetingResult tr = plugin.rrTargetingService().resolveTarget(uuid, event, chain);
+        TargetingResult tr = plugin.TargetingService().resolveTarget(uuid, event, chain);
         if (tr == null || tr.loc == null || tr.loc.world == null) return;
 
         BlockLocation loc = tr.loc;

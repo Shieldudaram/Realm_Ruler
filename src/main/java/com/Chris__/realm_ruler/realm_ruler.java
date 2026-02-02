@@ -10,6 +10,7 @@ import com.Chris__.Realm_Ruler.targeting.TargetingModels.BlockLocation;
 
 
 
+
 import java.util.concurrent.ConcurrentLinkedQueue;
 import com.Chris__.Realm_Ruler.platform.PlayerInteractAdapter;
 
@@ -611,7 +612,7 @@ public class Realm_Ruler extends JavaPlugin {
     }
 
 
-    public TargetingService rrTargetingService() {
+    public TargetingService TargetingService() {
         return targetingService;
     }
 
@@ -631,14 +632,14 @@ public class Realm_Ruler extends JavaPlugin {
         return tryGetBlockIdAt(world, x, y, z);
     }
 
-    public void rrSwapStandAt(BlockLocation loc, String desiredStand) {
-        swapStandAt(loc, desiredStand);
+    public void rrSwapStandAt(TargetingModels.BlockLocation loc, String standKey) {
+        if (loc == null || loc.world == null || standKey == null) return;
+
+        // Keep world writes centralized through your WORLD seam
+        // (StandSwapService handles asset-id validation + chunk loaded checks)
+        standSwapService.swapStand(loc.world, loc.x, loc.y, loc.z, standKey);
     }
 
-    public void rrSwapStandAt(TargetingModels.BlockLocation loc, String standKey) {
-        if (loc == null) return;
-        rrSwapStandAt(new BlockLocation(loc.world, loc.x, loc.y, loc.z), standKey);
-    }
 
 
     public void rrRunOnTick(Runnable r) {
@@ -1061,10 +1062,11 @@ public class Realm_Ruler extends JavaPlugin {
 // - You're okay with that in early phases, but keep it in mind when you later implement deposit logic.
 
     // WORLD: single entry point for stand swaps (wrapper for now; extracted later)
-    public void swapStandAt(BlockLocation loc, String desiredStand) {
+    public void swapStandAt(TargetingModels.BlockLocation loc, String desiredStand) {
+        if (loc == null || loc.world == null || desiredStand == null) return;
         standSwapService.swapStand(loc.world, loc.x, loc.y, loc.z, desiredStand);
-
     }
+
 
 
 // ---------- Helpers ----------
@@ -1707,29 +1709,5 @@ public class Realm_Ruler extends JavaPlugin {
         }
 
         return null;
-    }
-
-
-// -----------------------------------------------------------------------------
-// BlockLocation: small internal struct used by swap logic
-// -----------------------------------------------------------------------------
-//
-// This is intentionally minimal.
-// It allows us to represent:
-// - a fully resolved location (world + x,y,z)
-// - OR coordinates alone when world isn't known yet (world=null)
-
-    public static final class BlockLocation {
-        public final World world; // can be null if we only have coords
-        public final int x;
-        public final int y;
-        public final int z;
-
-        public BlockLocation(World world, int x, int y, int z) {
-            this.world = world;
-            this.x = x;
-            this.y = y;
-            this.z = z;
-        }
     }
 }
