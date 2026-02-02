@@ -12,6 +12,13 @@ import com.hypixel.hytale.server.core.inventory.ItemStack;
 import com.hypixel.hytale.server.core.inventory.container.ItemContainer;
 import pl.grzegorz2047.hytale.lib.playerinteractlib.PlayerInteractionEvent;
 
+import com.Chris__.Realm_Ruler.targeting.TargetingModels;
+import com.Chris__.Realm_Ruler.targeting.TargetingModels.BlockLocation;
+import com.Chris__.Realm_Ruler.targeting.TargetingModels.LookTarget;
+import com.Chris__.Realm_Ruler.targeting.TargetingModels.TargetingResult;
+
+
+
 /**
  * CtfMode (Capture-the-Flag mode)  [MODE]
  *
@@ -72,11 +79,12 @@ public class CtfMode implements RealmMode {
         if (type != InteractionType.Use) return;
 
         // Resolve (world,x,y,z) of interacted block
-        Realm_Ruler.TargetingResult tr = plugin.rrTargetingService().resolveTarget(uuid, event, chain);
+        TargetingResult tr = plugin.rrTargetingService().resolveTarget(uuid, event, chain);
         if (tr == null || tr.loc == null || tr.loc.world == null) return;
 
-        Realm_Ruler.BlockLocation loc = tr.loc;
-        Realm_Ruler.LookTarget look = tr.look;
+        BlockLocation loc = tr.loc;
+        LookTarget look = tr.look;
+
 
         if (look != null && look.basePos != null && shouldLog) {
             long ageMs = (System.nanoTime() - look.nanoTime) / 1_000_000L;

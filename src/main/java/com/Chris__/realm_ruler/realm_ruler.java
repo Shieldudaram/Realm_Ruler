@@ -3,9 +3,13 @@ package com.Chris__.Realm_Ruler;
 
 import com.Chris__.Realm_Ruler.core.ModeManager;
 import com.Chris__.Realm_Ruler.modes.CtfMode;
+import com.Chris__.Realm_Ruler.targeting.TargetingService;
 import com.Chris__.Realm_Ruler.world.StandSwapService;
-import com.hypixel.hytale.server.core.inventory.Inventory;
-import com.hypixel.hytale.server.core.inventory.container.ItemContainer;
+import com.Chris__.Realm_Ruler.targeting.TargetingModels;
+import com.Chris__.Realm_Ruler.targeting.TargetingModels.BlockLocation;
+
+
+
 import java.util.concurrent.ConcurrentLinkedQueue;
 import com.Chris__.Realm_Ruler.platform.PlayerInteractAdapter;
 
@@ -46,7 +50,6 @@ import pl.grzegorz2047.hytale.lib.playerinteractlib.PlayerInteractionEvent;
 
 import javax.annotation.Nonnull;
 import java.lang.reflect.Method;
-import java.util.HashSet;
 import java.util.Locale;
 import java.util.Set;
 import java.util.concurrent.Flow;
@@ -145,7 +148,7 @@ public class Realm_Ruler extends JavaPlugin {
     private ModeManager modeManager;
     private CtfMode ctfMode;
     private final StandSwapService standSwapService = new StandSwapService(LOGGER);
-    public final TargetingService targetingService = new TargetingService(LOGGER, this);
+    private TargetingService targetingService;
     private final PlayerInteractAdapter pi = new PlayerInteractAdapter();
 
 
@@ -277,6 +280,8 @@ public class Realm_Ruler extends JavaPlugin {
         // ---------------------------------------------------------------------
 
         LOGGER.atInfo().log("Setting up Realm Ruler %s", this.getName());
+        this.targetingService = new TargetingService(LOGGER, tickQueue, playerByUuid);
+
 
         // ---------------------------------------------------------------------
         // 1) Command registration (debug/testing convenience)
@@ -330,7 +335,7 @@ public class Realm_Ruler extends JavaPlugin {
         //   WHO interacted  ->  WHERE they interacted (most likely).
         // ---------------------------------------------------------------------
         if (ENABLE_LOOK_TRACKER) {
-            this.getEntityStoreRegistry().registerSystem(new LookTargetTrackerSystem());
+            this.getEntityStoreRegistry().registerSystem(targetingService.createLookTargetTrackerSystem());
             LOGGER.atInfo().log("Registered LookTargetTrackerSystem (raycast per tick).");
         } else {
             LOGGER.atInfo().log("LookTargetTrackerSystem is disabled (ENABLE_LOOK_TRACKER=false).");
@@ -630,6 +635,12 @@ public class Realm_Ruler extends JavaPlugin {
         swapStandAt(loc, desiredStand);
     }
 
+    public void rrSwapStandAt(TargetingModels.BlockLocation loc, String standKey) {
+        if (loc == null) return;
+        rrSwapStandAt(new BlockLocation(loc.world, loc.x, loc.y, loc.z), standKey);
+    }
+
+
     public void rrRunOnTick(Runnable r) {
         runOnTick(r);
     }
@@ -663,7 +674,7 @@ public class Realm_Ruler extends JavaPlugin {
 // - 250ms is short enough to match the moment of interaction, but long enough to handle
 //   slight timing differences between tick updates and interaction events.
 
-    LookTarget getFreshLookTarget(String uuid) {
+    public LookTarget getFreshLookTarget(String uuid) {
         // Guard against garbage keys (uuid sometimes becomes "<null>" from safeUuid)
         if (uuid == null || uuid.isEmpty() || "<null>".equals(uuid)) return null;
 
@@ -741,7 +752,7 @@ public class Realm_Ruler extends JavaPlugin {
 //
 // This is deliberately layered: each fallback is less "direct" than the previous.
 
-     BlockLocation tryExtractBlockLocation(String uuid, PlayerInteractionEvent event, Object chain) {
+     public BlockLocation tryExtractBlockLocation(String uuid, PlayerInteractionEvent event, Object chain) {
         World world = null;
 
         // Some builds may expose the World directly on the event.
@@ -1463,7 +1474,7 @@ public class Realm_Ruler extends JavaPlugin {
      * Immutable data snapshot of what a player is looking at at a moment in time.
      */
     public static final class LookTarget {
-        final World world;
+        public final World world;
 
         /** Raw raycast hit position (can be a filler part of a larger block structure). */
         final Vector3i targetPos;
@@ -1491,7 +1502,7 @@ public class Realm_Ruler extends JavaPlugin {
         public final BlockLocation loc;
         public final LookTarget look; // non-null only if look fallback was used
 
-        TargetingResult(BlockLocation loc, LookTarget look) {
+        public TargetingResult(BlockLocation loc, LookTarget look) {
             this.loc = loc;
             this.look = look;
         }
@@ -1714,19 +1725,11 @@ public class Realm_Ruler extends JavaPlugin {
         public final int y;
         public final int z;
 
-        BlockLocation(World world, int x, int y, int z) {
+        public BlockLocation(World world, int x, int y, int z) {
             this.world = world;
             this.x = x;
             this.y = y;
             this.z = z;
         }
-
-        BlockLocation(int x, int y, int z) {
-            this.world = null;
-            this.x = x;
-            this.y = y;
-            this.z = z;
-        }
     }
-
 }
