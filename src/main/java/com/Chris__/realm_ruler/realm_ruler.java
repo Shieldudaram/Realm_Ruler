@@ -156,6 +156,13 @@ public class Realm_Ruler extends JavaPlugin {
     private static final Message MSG_DEBUG_HIT =
             Message.raw("[RealmRuler] Flag stand interaction detected.");
 
+    private static final Message MSG_PI_HIT =
+            Message.raw("[RR] PI event fired (PlayerInteractLib).");
+
+    private static final Message MSG_USEBLOCK_HIT =
+            Message.raw("[RR] UseBlockEvent.Pre fired (ECS fallback).");
+
+
     // -------------------------------------------------------------------------
     // Debug / log safety rails
     // -------------------------------------------------------------------------
@@ -335,6 +342,10 @@ public class Realm_Ruler extends JavaPlugin {
             // We record the stand location from this event as a fallback.
             // Later, if PlayerInteractLib can't give us a position, we may use this remembered location.
             rememberStandLocationFromUseBlock(event, ctx);
+
+            // Suppress default chest UI for flag stands.
+            rrTryCancelEvent(event);
+
         }
     }
 
@@ -526,6 +537,52 @@ public class Realm_Ruler extends JavaPlugin {
         return pi;
     }
 
+    /**
+     * Best-effort event cancellation (reflection-safe).
+     * Used to suppress the chest UI for flag stands and to block invalid swaps.
+     */
+    public void rrTryCancelEvent(Object event) {
+        if (event == null) return;
+
+        for (String mName : new String[]{"setCancelled", "setCanceled", "cancel"}) {
+            // setX(boolean)
+            try {
+                Method m = event.getClass().getMethod(mName, boolean.class);
+                m.invoke(event, true);
+                return;
+            } catch (Throwable ignored) {}
+
+            // cancel() with no args
+            try {
+                Method m = event.getClass().getMethod(mName);
+                m.invoke(event);
+                return;
+            } catch (Throwable ignored) {}
+        }
+    }
+
+    /**
+     * Best-effort "deny" sound. If the server API doesn't expose a sound method on Player, this no-ops.
+     */
+    public void rrTryPlayDenySound(Player player) {
+        if (player == null) return;
+
+        // We don't know the exact sound API in your build, so we probe gently.
+        // If none match, it silently does nothing.
+        for (String mName : new String[]{"playSound", "playSoundEffect", "playUISound"}) {
+            try {
+                Method m = player.getClass().getMethod(mName, String.class);
+                m.invoke(player, "ui.button.invalid");
+                return;
+            } catch (Throwable ignored) {}
+
+            try {
+                Method m = player.getClass().getMethod(mName, String.class, float.class, float.class);
+                m.invoke(player, "ui.button.invalid", 1.0f, 1.0f);
+                return;
+            } catch (Throwable ignored) {}
+        }
+    }
 
     public TargetingService TargetingService() {
         return targetingService;

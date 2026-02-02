@@ -61,6 +61,32 @@ public final class PlayerInteractAdapter {
         return safeCall(e, "interaction", "getInteraction", "interactionChain", "getInteractionChain");
     }
 
+    /**
+     * Best-effort cancellation. PlayerInteractLib versions differ; some events are cancellable, some aren't.
+     * Returns true if we successfully invoked a cancellation-style method.
+     */
+    public boolean tryCancel(PlayerInteractionEvent e) {
+        if (e == null) return false;
+
+        // Common cancel patterns across event libs
+        for (String mName : new String[]{"setCancelled", "setCanceled", "cancel", "setHandled"}) {
+            // setX(boolean)
+            try {
+                Method m = e.getClass().getMethod(mName, boolean.class);
+                m.invoke(e, true);
+                return true;
+            } catch (Throwable ignored) {}
+
+            // cancel() / setHandled() with no args
+            try {
+                Method m = e.getClass().getMethod(mName);
+                m.invoke(e);
+                return true;
+            } catch (Throwable ignored) {}
+        }
+        return false;
+    }
+
     private static Object safeCall(Object obj, String... methodNames) {
         for (String name : methodNames) {
             try {

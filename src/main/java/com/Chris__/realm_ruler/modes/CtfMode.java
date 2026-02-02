@@ -11,8 +11,7 @@ import com.hypixel.hytale.server.core.inventory.Inventory;
 import com.hypixel.hytale.server.core.inventory.ItemStack;
 import com.hypixel.hytale.server.core.inventory.container.ItemContainer;
 import pl.grzegorz2047.hytale.lib.playerinteractlib.PlayerInteractionEvent;
-
-import com.Chris__.Realm_Ruler.targeting.TargetingModels;
+import com.hypixel.hytale.server.core.Message;
 import com.Chris__.Realm_Ruler.targeting.TargetingModels.BlockLocation;
 import com.Chris__.Realm_Ruler.targeting.TargetingModels.LookTarget;
 import com.Chris__.Realm_Ruler.targeting.TargetingModels.TargetingResult;
@@ -102,18 +101,10 @@ public class CtfMode implements RealmMode {
         // Only continue if this is one of our stand variants
         if (!CtfRules.isStandId(clickedId)) return;
 
-        // Choose desired variant using the same rules as before
-        String desiredStand = CtfRules.selectDesiredStand(
-                clickedId,
-                itemInHand,
-                plugin.rrPhase1ToggleBlueOnly()
-        );
-
-        if (!plugin.rrStandSwapEnabled()) {
-            logger.atInfo().log("[RR] (dry-run) would swap stand @ %d,%d,%d from %s -> %s",
-                    loc.x, loc.y, loc.z, clickedId, desiredStand);
-            return;
-        }
+        // Best-effort: suppress default chest UI / container open for flag stands.
+        // (UseBlockEvent.Pre is also cancelled in Realm_Ruler, but this helps when PI is the only path.)
+        plugin.rrTryCancelEvent(event);
+        plugin.rrPi().tryCancel(event);
 
         final String clicked = clickedId;
         final String heldId = itemInHand;
@@ -121,10 +112,21 @@ public class CtfMode implements RealmMode {
         // IMPORTANT: Key format matches existing behavior for now.
         final String key = CtfState.standKey(plugin.rrWorldKey(loc.world), loc.x, loc.y, loc.z);
 
-
         boolean standHasStoredFlag = state.hasFlag(key);
         boolean heldIsFlag = CtfRules.isCustomFlagId(heldId);
         boolean heldIsEmpty = CtfRules.isEmptyHandId(heldId);
+
+        // DENY: occupied stand + non-empty hand (prevents color-to-color swapping)
+        if (standHasStoredFlag && !heldIsEmpty) {
+            plugin.rrRunOnTick(() -> {
+                Player p = plugin.rrResolvePlayer(uuid);
+                if (p == null) return;
+
+                p.sendMessage(Message.raw("Your hand must be empty to take the flag."));
+                plugin.rrTryPlayDenySound(p);
+            });
+            return;
+        }
 
         // Deposit: empty stand + holding custom flag + no stored flag yet
         if (!standHasStoredFlag && CtfRules.STAND_EMPTY.equals(clicked) && heldIsFlag) {
@@ -157,7 +159,13 @@ public class CtfMode implements RealmMode {
                         heldId,
                         plugin.rrPhase1ToggleBlueOnly()
                 );
-                plugin.rrSwapStandAt(loc, standVariant);
+
+                if (plugin.rrStandSwapEnabled()) {
+                    plugin.rrSwapStandAt(loc, standVariant);
+                } else {
+                    logger.atInfo().log("[RR] (dry-run) would swap stand @ %d,%d,%d from %s -> %s",
+                            loc.x, loc.y, loc.z, clicked, standVariant);
+                }
 
                 // Sync
                 p.sendInventory();
@@ -189,15 +197,20 @@ public class CtfMode implements RealmMode {
                 // Put it into their hand slot
                 hotbar.setItemStackForSlot(slot, stored);
 
-                // Visual swap back to empty
-                plugin.rrSwapStandAt(loc, CtfRules.STAND_EMPTY);
+                if (plugin.rrStandSwapEnabled()) {
+                    // Visual swap back to empty
+                    plugin.rrSwapStandAt(loc, CtfRules.STAND_EMPTY);
+                } else {
+                    logger.atInfo().log("[RR] (dry-run) would swap stand @ %d,%d,%d from %s -> %s",
+                            loc.x, loc.y, loc.z, clicked, CtfRules.STAND_EMPTY);
+                }
 
                 p.sendInventory();
             });
             return;
         }
 
-        // Preserve current behavior: always swap to the computed desired variant
-        plugin.rrSwapStandAt(loc, desiredStand);
+        // Otherwise: do nothing. (No swaps, no UI.)
+
     }
 }
