@@ -1039,22 +1039,4 @@ public class Realm_Ruler extends JavaPlugin {
     public void runOnTick(Runnable r) {
         if (r != null) tickQueue.add(r);
     }
-
-    private static String standKey(World world, int x, int y, int z) {
-        return x + "|" + y + "|" + z;
-    }
-
-    private static boolean isCustomFlagId(String itemId) {
-        if (itemId == null) return false;
-        return itemId.equals(FLAG_RED)
-                || itemId.equals(FLAG_BLUE)
-                || itemId.equals(FLAG_WHITE)
-                || itemId.equals(FLAG_YELLOW);
-    }
-
-    private static boolean isEmptyHandId(String itemId) {
-        if (itemId == null) return true;
-        String s = itemId.trim().toLowerCase(Locale.ROOT);
-        return s.isEmpty() || s.equals("<empty>") || s.equals("air") || s.endsWith(":air");
-    }
 }
