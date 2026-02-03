@@ -1,5 +1,6 @@
 package com.Chris__.Realm_Ruler;
 
+import com.hypixel.hytale.server.core.entity.entities.Player;
 import com.hypixel.hytale.server.core.universe.world.World;
 import com.Chris__.Realm_Ruler.core.ModeManager;
 import com.Chris__.Realm_Ruler.modes.CtfMode;
@@ -14,7 +15,6 @@ import com.hypixel.hytale.protocol.InteractionType;
 import com.hypixel.hytale.server.core.Message;
 import com.hypixel.hytale.server.core.asset.type.blocktype.config.BlockType;
 import com.hypixel.hytale.server.core.entity.InteractionContext;
-import com.hypixel.hytale.server.core.entity.entities.Player;
 import com.hypixel.hytale.server.core.event.events.ecs.UseBlockEvent;
 import com.hypixel.hytale.server.core.inventory.ItemStack;
 import com.hypixel.hytale.server.core.plugin.JavaPlugin;
@@ -86,7 +86,6 @@ public class Realm_Ruler extends JavaPlugin {
     private final StandSwapService standSwapService = new StandSwapService(LOGGER);
     private TargetingService targetingService;
     private final PlayerInteractAdapter pi = new PlayerInteractAdapter();
-
 
     private void setupModes() {
         modeManager = new ModeManager();
@@ -189,7 +188,8 @@ public class Realm_Ruler extends JavaPlugin {
         //  - permissions / chat output behave as expected
         // ---------------------------------------------------------------------
         this.getCommandRegistry().registerCommand(
-                new ExampleCommand(this.getName(), this.getManifest().getVersion().toString())
+                new ExampleCommand(this.getName(), this.getManifest().getVersion().toString(), this.targetingService)
+
         );
 
         // ---------------------------------------------------------------------

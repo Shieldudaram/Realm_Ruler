@@ -1,5 +1,9 @@
 package com.Chris__.Realm_Ruler.targeting;
 
+import com.Chris__.Realm_Ruler.ui.GlobalMatchTimerService;
+import com.Chris__.Realm_Ruler.ui.TimerAction;
+import java.util.concurrent.ConcurrentLinkedQueue;
+import java.util.concurrent.atomic.AtomicLong;
 import com.hypixel.hytale.component.ArchetypeChunk;
 import com.hypixel.hytale.component.CommandBuffer;
 import com.hypixel.hytale.component.Holder;
@@ -26,11 +30,6 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
-import java.util.concurrent.ConcurrentLinkedQueue;
-
-import java.util.Map;
-import java.util.concurrent.ConcurrentHashMap;
-
 
 import static com.Chris__.Realm_Ruler.targeting.TargetingModels.*;
 
@@ -54,6 +53,15 @@ import static com.Chris__.Realm_Ruler.targeting.TargetingModels.*;
  * This class is intentionally "engine-brittle glue" so Realm_Ruler stays small.
  */
 public final class TargetingService {
+
+    // --- GLOBAL MATCH TIMER (shared for everyone) ---
+    private final GlobalMatchTimerService matchTimer = new GlobalMatchTimerService();
+    private final ConcurrentLinkedQueue<TimerAction> timerActions = new ConcurrentLinkedQueue<>();
+
+    // This makes sure the timer "ticks" only once per real time slice, even though tick(...) runs per player.
+    private final AtomicLong nextGlobalTimerUpdateNanos = new AtomicLong(0L);
+    private final AtomicLong lastGlobalTimerUpdateNanos = new AtomicLong(0L);
+
 
     // -------------------------------------------------------------------------
 // EyeSpy-style looked-at block tracker (UUID -> what block they are aiming at)
@@ -90,6 +98,39 @@ public final class TargetingService {
 
     private final Set<Class<?>> dumpedInteractionClasses = ConcurrentHashMap.newKeySet();
 
+    public void queueTimerStart(int seconds) {
+        timerActions.add(new TimerAction.Start(seconds));
+    }
+
+    public void queueTimerStop() {
+        timerActions.add(new TimerAction.Stop());
+    }
+
+    private void tickGlobalMatchTimerOncePerSlice() {
+        long now = System.nanoTime();
+
+        // Only allow one "winner" to tick the global timer about every 50ms.
+        // If 10 players call tick(), only the first one per slice runs this body.
+        long next = nextGlobalTimerUpdateNanos.get();
+        if (now < next) return;
+        if (!nextGlobalTimerUpdateNanos.compareAndSet(next, now + 50_000_000L)) return; // 50ms
+
+        long last = lastGlobalTimerUpdateNanos.getAndSet(now);
+        float dt = (last == 0L) ? 0f : (float) ((now - last) / 1_000_000_000.0);
+
+        // Apply queued actions on the tick thread
+        TimerAction a;
+        while ((a = timerActions.poll()) != null) {
+            if (a instanceof TimerAction.Start s) matchTimer.start(s.seconds());
+            else if (a instanceof TimerAction.Stop) matchTimer.stop();
+        }
+
+        if (dt > 0f) {
+            matchTimer.tick(dt);
+        }
+    }
+
+
     public TargetingService(HytaleLogger logger,
                             ConcurrentLinkedQueue<Runnable> tickQueue,
                             Map<String, Player> playerByUuid) {
@@ -97,6 +138,8 @@ public final class TargetingService {
         this.tickQueue = tickQueue;
         this.playerByUuid = playerByUuid;
     }
+
+
 
     // -------------------------------------------------------------------------
     // Public API used by modes / plugin
@@ -131,7 +174,6 @@ public final class TargetingService {
     public EntityTickingSystem<EntityStore> createLookTargetTrackerSystem() {
         return new LookTargetTrackerSystem();
     }
-
     // -------------------------------------------------------------------------
     // Look tracker helpers
     // -------------------------------------------------------------------------
@@ -348,6 +390,8 @@ public final class TargetingService {
 
                 // Keep existing behavior: refresh player cache every tick
                 playerByUuid.put(uuid, player);
+                tickGlobalMatchTimerOncePerSlice();          // ticks the shared timer (only once per slice)
+                matchTimer.renderForPlayer(uuid, player, playerRef); // shows the same time to everyone
 
                 Vector3i hit = TargetUtil.getTargetBlock(chunk.getReferenceTo(entityId), LOOK_RAYCAST_RANGE, store);
                 if (hit == null) return;
@@ -388,6 +432,7 @@ public final class TargetingService {
                 // silent: per-tick system
             }
         }
+
     }
 
     private static Vector3i resolveBaseBlock(WorldChunk chunk, int x, int y, int z) {
