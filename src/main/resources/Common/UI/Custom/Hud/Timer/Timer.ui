@@ -1,10 +1,10 @@
 Group #TimerHud {
-  LayoutMode: Left;
+  LayoutMode: Center;
 
   Group #Plaque {
     // Give the frame a bit more breathing room
-    Anchor: (Top: 16, Left: 20, Width: 380, Height: 104);
-    LayoutMode: Left;
+    Anchor: (Top: 16, Width: 380, Height: 104);
+    LayoutMode: Center;
 
     // Slightly less padding so the frame art isn't crushed
     Padding: (Horizontal: 8, Vertical: 8);
@@ -26,13 +26,13 @@ Group #TimerHud {
       Label #TimerTitle {
         Style: LabelStyle(FontSize: 16, Alignment: Center);
         Anchor: (Width: 364, Height: 18);
-        Text: "RUNE TIMER";
+        Text: "Capture The Flag";
       }
 
       Label #TimerLabel {
         Style: LabelStyle(FontSize: 40, Alignment: Center);
         Anchor: (Top: 2, Width: 364, Height: 56);
-        Text: "03:00";
+        Text: "15:00";
       }
     }
   }
