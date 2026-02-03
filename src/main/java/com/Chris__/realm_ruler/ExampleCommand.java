@@ -24,11 +24,11 @@ public class ExampleCommand extends CommandBase {
 
     @Override
     protected void executeSync(@Nonnull CommandContext ctx) {
-        ctx.sendMessage(Message.raw("Hello from the " + pluginName + " v" + pluginVersion + " plugin! V0.1.25"));
+        ctx.sendMessage(Message.raw("Hello from the " + pluginName + " v" + pluginVersion + " plugin! V0.1.26"));
 
         // Start a shared 3-minute timer for everyone
-        targetingService.queueTimerStart(180);
+        targetingService.queueTimerStart(60 * 15);
 
-        ctx.sendMessage(Message.raw("Started match timer: 03:00"));
+        ctx.sendMessage(Message.raw("Started match timer: 15:00"));
     }
 }

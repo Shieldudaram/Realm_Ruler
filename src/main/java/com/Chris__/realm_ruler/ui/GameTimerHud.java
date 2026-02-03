@@ -16,8 +16,8 @@ public class GameTimerHud extends CustomUIHud {
         super(playerRef);
     }
 
-    public void show(int startingSeconds) {
-        this.secondsRemaining = Math.max(0, startingSeconds);
+    public void showSeconds(int seconds) {
+        this.secondsRemaining = Math.max(0, seconds);
         this.visible = true;
     }
 
@@ -25,9 +25,8 @@ public class GameTimerHud extends CustomUIHud {
         this.visible = false;
     }
 
-    public void tickOneSecond() {
-        if (!visible) return;
-        if (secondsRemaining > 0) secondsRemaining--;
+    public boolean isVisible() {
+        return visible;
     }
 
     @Override
@@ -35,11 +34,10 @@ public class GameTimerHud extends CustomUIHud {
         if (!visible) return;
 
         ui.append("Hud/Timer/Timer.ui");
-
         ui.set("#TimerLabel.TextSpans", Message.raw(format(secondsRemaining)));
-        // ui.set("#TimerTitle.TextSpans", Message.raw("RUNE TIMER")); // optional if exists
+        // Optional if your UI has this id:
+        // ui.set("#TimerTitle.TextSpans", Message.raw("CAPTURE THE FLAG TIMER"));
     }
-
 
     private static String format(int totalSeconds) {
         int m = totalSeconds / 60;

@@ -6,51 +6,84 @@ import com.hypixel.hytale.server.core.universe.PlayerRef;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 
+/**
+ * One authoritative match timer shared by everyone.
+ *
+ * Call flow:
+ *  - start(seconds) / stop() are queued from commands/modes via TimerAction
+ *  - tick(dt) is called from TargetingService's "global tick gate" (once per slice)
+ *  - renderForPlayer(...) is called once per player tick to show the same remaining time to everyone
+ */
 public final class GlobalMatchTimerService {
 
     private final Map<String, GameTimerHud> hudByUuid = new ConcurrentHashMap<>();
+    private final Map<String, Integer> lastShownSecondsByUuid = new ConcurrentHashMap<>();
 
     private boolean running = false;
-    private int secondsRemaining = 0;
-    private float accum = 0f;
+    private int remainingSeconds = 0;
+    private float secondAccumulator = 0f;
 
-    /** Start a single shared match timer for everyone. */
     public void start(int seconds) {
-        this.running = true;
-        this.secondsRemaining = Math.max(0, seconds);
-        this.accum = 0f;
+        this.remainingSeconds = Math.max(0, seconds);
+        this.secondAccumulator = 0f;
+        this.running = (this.remainingSeconds > 0);
+        this.lastShownSecondsByUuid.clear(); // force refresh for all players
     }
 
     public void stop() {
         this.running = false;
-        this.secondsRemaining = 0;
-        this.accum = 0f;
+        this.remainingSeconds = 0;
+        this.secondAccumulator = 0f;
+        this.lastShownSecondsByUuid.clear(); // force hide refresh
     }
 
-    /** One tick per server tick (not per player). */
+    /** dt is in seconds. */
     public void tick(float dt) {
         if (!running) return;
+        if (dt <= 0f) return;
 
-        accum += dt;
-        while (accum >= 1.0f) {
-            accum -= 1.0f;
-            if (secondsRemaining > 0) secondsRemaining--;
-            if (secondsRemaining <= 0) {
-                secondsRemaining = 0;
+        secondAccumulator += dt;
+
+        while (secondAccumulator >= 1.0f && remainingSeconds > 0) {
+            secondAccumulator -= 1.0f;
+            remainingSeconds--;
+
+            if (remainingSeconds <= 0) {
+                remainingSeconds = 0;
                 running = false;
                 break;
             }
         }
     }
 
-    /** Called per player tick (cheap): just render the shared time for that player. */
+    /** Call from per-player tick. Cheap because it only refreshes HUD when seconds changes. */
     public void renderForPlayer(String uuid, Player player, PlayerRef playerRef) {
-        if (!running && secondsRemaining <= 0) return;
+        if (uuid == null || uuid.isEmpty() || player == null || playerRef == null) return;
 
         GameTimerHud hud = hudByUuid.computeIfAbsent(uuid, k -> new GameTimerHud(playerRef));
-        hud.show(secondsRemaining);
 
-        // Your API expects (playerRef, hud) based on what you already fixed
-        player.getHudManager().setCustomHud(playerRef, hud);
+        if (!running) {
+            // Hide once when stopped
+            if (hud.isVisible()) {
+                hud.hide();
+                player.getHudManager().setCustomHud(playerRef, hud);
+            }
+            return;
+        }
+
+        int lastShown = lastShownSecondsByUuid.getOrDefault(uuid, -1);
+        if (lastShown != remainingSeconds) {
+            hud.showSeconds(remainingSeconds); // IMPORTANT: matches your GameTimerHud API
+            player.getHudManager().setCustomHud(playerRef, hud);
+            lastShownSecondsByUuid.put(uuid, remainingSeconds);
+        }
+    }
+
+    public boolean isRunning() {
+        return running;
+    }
+
+    public int getRemainingSeconds() {
+        return remainingSeconds;
     }
 }
