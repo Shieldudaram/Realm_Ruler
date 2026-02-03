@@ -34,11 +34,12 @@ public class GameTimerHud extends CustomUIHud {
     protected void build(@Nonnull UICommandBuilder ui) {
         if (!visible) return;
 
-        // This path is RELATIVE to: resources/Common/UI/Custom/
-        ui.append("RealmRuler/Hud/Timer/Timer.ui");
+        ui.append("Hud/Timer/Timer.ui");
 
-        ui.set("#TimerLabel.TextSpans", Message.raw("Time: " + format(secondsRemaining)));
+        ui.set("#TimerLabel.TextSpans", Message.raw(format(secondsRemaining)));
+        // ui.set("#TimerTitle.TextSpans", Message.raw("RUNE TIMER")); // optional if exists
     }
+
 
     private static String format(int totalSeconds) {
         int m = totalSeconds / 60;
