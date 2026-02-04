@@ -24,7 +24,7 @@ public class ExampleCommand extends CommandBase {
 
     @Override
     protected void executeSync(@Nonnull CommandContext ctx) {
-        ctx.sendMessage(Message.raw("Hello from the " + pluginName + " v" + pluginVersion + " plugin! V0.1.26"));
+        ctx.sendMessage(Message.raw("Hello from the " + pluginName + " v" + pluginVersion + " plugin!"));
 
         // Start a shared 3-minute timer for everyone
         targetingService.queueTimerStart(60 * 15);
