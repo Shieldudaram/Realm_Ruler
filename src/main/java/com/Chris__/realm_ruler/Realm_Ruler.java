@@ -1,15 +1,15 @@
-package com.Chris__.Realm_Ruler;
+package com.Chris__.realm_ruler;
 
 import com.hypixel.hytale.server.core.entity.entities.Player;
 import com.hypixel.hytale.server.core.universe.world.World;
-import com.Chris__.Realm_Ruler.core.ModeManager;
-import com.Chris__.Realm_Ruler.modes.CtfMode;
-import com.Chris__.Realm_Ruler.targeting.TargetingService;
-import com.Chris__.Realm_Ruler.world.StandSwapService;
-import com.Chris__.Realm_Ruler.targeting.TargetingModels;
-import com.Chris__.Realm_Ruler.targeting.TargetingModels.BlockLocation;
+import com.Chris__.realm_ruler.core.ModeManager;
+import com.Chris__.realm_ruler.modes.CtfMode;
+import com.Chris__.realm_ruler.targeting.TargetingService;
+import com.Chris__.realm_ruler.world.StandSwapService;
+import com.Chris__.realm_ruler.targeting.TargetingModels;
+import com.Chris__.realm_ruler.targeting.TargetingModels.BlockLocation;
 import java.util.concurrent.ConcurrentLinkedQueue;
-import com.Chris__.Realm_Ruler.platform.PlayerInteractAdapter;
+import com.Chris__.realm_ruler.platform.PlayerInteractAdapter;
 import com.hypixel.hytale.logger.HytaleLogger;
 import com.hypixel.hytale.protocol.InteractionType;
 import com.hypixel.hytale.server.core.Message;
@@ -498,7 +498,7 @@ public class Realm_Ruler extends JavaPlugin {
 // This avoids changing functionality while we relocate code out of Realm_Ruler.
 // -----------------------------------------------------------------------------
 
-    public com.Chris__.Realm_Ruler.platform.PlayerInteractAdapter rrPi() {
+    public com.Chris__.realm_ruler.platform.PlayerInteractAdapter rrPi() {
         return pi;
     }
 

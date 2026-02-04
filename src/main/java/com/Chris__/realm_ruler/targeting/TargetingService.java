@@ -1,7 +1,7 @@
-package com.Chris__.Realm_Ruler.targeting;
+package com.Chris__.realm_ruler.targeting;
 
-import com.Chris__.Realm_Ruler.ui.GlobalMatchTimerService;
-import com.Chris__.Realm_Ruler.ui.TimerAction;
+import com.Chris__.realm_ruler.ui.GlobalMatchTimerService;
+import com.Chris__.realm_ruler.ui.TimerAction;
 import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.concurrent.atomic.AtomicLong;
 import com.hypixel.hytale.component.ArchetypeChunk;
@@ -31,7 +31,7 @@ import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 
-import static com.Chris__.Realm_Ruler.targeting.TargetingModels.*;
+import static com.Chris__.realm_ruler.targeting.TargetingModels.*;
 
 // ============================================================================
 // TARGETING: "WHERE did the interaction happen?"

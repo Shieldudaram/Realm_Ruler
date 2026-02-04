@@ -17,6 +17,6 @@
         
     },
     "DisabledByDefault": false,
-    "Main": "com.Chris__.Realm_Ruler.Realm_Ruler",
+    "Main": "com.Chris__.realm_ruler.Realm_Ruler",
     "IncludesAssetPack": true
 }

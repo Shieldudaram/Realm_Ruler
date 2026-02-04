@@ -1,4 +1,4 @@
-package com.Chris__.Realm_Ruler.core;
+package com.Chris__.realm_ruler.core;
 
 /**
  * RealmMode represents a "game mode" (or ruleset) that Realm_Ruler can run.

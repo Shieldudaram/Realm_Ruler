@@ -1,4 +1,4 @@
-package com.Chris__.Realm_Ruler.ui;
+package com.Chris__.realm_ruler.ui;
 
 import com.hypixel.hytale.server.core.Message;
 import com.hypixel.hytale.server.core.entity.entities.player.hud.CustomUIHud;

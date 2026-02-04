@@ -1,4 +1,4 @@
-package com.Chris__.Realm_Ruler.ui;
+package com.Chris__.realm_ruler.ui;
 
 public sealed interface TimerAction permits TimerAction.Start, TimerAction.Stop {
 

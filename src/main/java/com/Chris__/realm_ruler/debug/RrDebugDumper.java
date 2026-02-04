@@ -1,4 +1,4 @@
-package com.Chris__.Realm_Ruler.debug;
+package com.Chris__.realm_ruler.debug;
 
 import com.hypixel.hytale.logger.HytaleLogger;
 

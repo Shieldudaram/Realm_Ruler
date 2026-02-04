@@ -1,4 +1,4 @@
-package com.Chris__.Realm_Ruler.world;
+package com.Chris__.realm_ruler.world;
 
 import com.hypixel.hytale.logger.HytaleLogger;
 import com.hypixel.hytale.math.util.ChunkUtil;

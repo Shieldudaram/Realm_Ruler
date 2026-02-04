@@ -1,4 +1,4 @@
-package com.Chris__.Realm_Ruler.platform;
+package com.Chris__.realm_ruler.platform;
 
 import com.hypixel.hytale.protocol.InteractionType;
 import pl.grzegorz2047.hytale.lib.playerinteractlib.PlayerInteractionEvent;

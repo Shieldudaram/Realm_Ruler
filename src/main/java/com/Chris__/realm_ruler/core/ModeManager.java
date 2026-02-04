@@ -1,4 +1,4 @@
-package com.Chris__.Realm_Ruler.core;
+package com.Chris__.realm_ruler.core;
 
 import java.util.HashMap;
 import java.util.Map;
@@ -113,4 +113,3 @@ public class ModeManager {
 // modeManager.register(new CtfMode(...));
 // modeManager.setActive("ctf");
 // modeManager.dispatchPlayerAction(event);
-

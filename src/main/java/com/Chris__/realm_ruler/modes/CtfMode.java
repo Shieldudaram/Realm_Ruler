@@ -1,9 +1,9 @@
-package com.Chris__.Realm_Ruler.modes;
+package com.Chris__.realm_ruler.modes;
 
-import com.Chris__.Realm_Ruler.Realm_Ruler;
-import com.Chris__.Realm_Ruler.core.RealmMode;
-import com.Chris__.Realm_Ruler.modes.ctf.CtfRules;
-import com.Chris__.Realm_Ruler.modes.ctf.CtfState;
+import com.Chris__.realm_ruler.Realm_Ruler;
+import com.Chris__.realm_ruler.core.RealmMode;
+import com.Chris__.realm_ruler.modes.ctf.CtfRules;
+import com.Chris__.realm_ruler.modes.ctf.CtfState;
 import com.hypixel.hytale.logger.HytaleLogger;
 import com.hypixel.hytale.protocol.InteractionType;
 import com.hypixel.hytale.server.core.Message;
@@ -13,9 +13,9 @@ import com.hypixel.hytale.server.core.inventory.ItemStack;
 import com.hypixel.hytale.server.core.inventory.container.ItemContainer;
 import pl.grzegorz2047.hytale.lib.playerinteractlib.PlayerInteractionEvent;
 
-import com.Chris__.Realm_Ruler.targeting.TargetingModels.BlockLocation;
-import com.Chris__.Realm_Ruler.targeting.TargetingModels.LookTarget;
-import com.Chris__.Realm_Ruler.targeting.TargetingModels.TargetingResult;
+import com.Chris__.realm_ruler.targeting.TargetingModels.BlockLocation;
+import com.Chris__.realm_ruler.targeting.TargetingModels.LookTarget;
+import com.Chris__.realm_ruler.targeting.TargetingModels.TargetingResult;
 
 import java.lang.reflect.Method;
 

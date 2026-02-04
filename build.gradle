@@ -135,3 +135,27 @@ tasks.register('generateVSCodeLaunch') {
         launchFile.text = groovy.json.JsonOutput.prettyPrint(groovy.json.JsonOutput.toJson(launchConfig))
     }
 }
+
+// Copies the built plugin JAR into the user's Hytale mods folder so it loads on next launch.
+// This is the Gradle equivalent of:
+//   cp build/libs/realm_ruler-*.jar "<hytaleHome>/UserData/Mods"
+def hytaleModsDir = file("${project.findProperty('hytaleHome')}/UserData/Mods")
+
+tasks.register('installToHytaleMods', Copy) {
+    dependsOn tasks.named('jar')
+
+    // Copy only the main plugin jar (not -sources/-javadoc).
+    from(tasks.named('jar').flatMap { it.archiveFile })
+    into(hytaleModsDir)
+
+    doFirst {
+        if (!hytaleModsDir.exists()) {
+            hytaleModsDir.mkdirs()
+        }
+    }
+}
+
+// Run install automatically after a local build so you don't forget to copy the jar.
+tasks.named('build') {
+    finalizedBy 'installToHytaleMods'
+}

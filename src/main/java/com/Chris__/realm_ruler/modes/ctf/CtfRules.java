@@ -1,4 +1,4 @@
-package com.Chris__.Realm_Ruler.modes.ctf;
+package com.Chris__.realm_ruler.modes.ctf;
 
 import java.util.Locale;
 

@@ -1,4 +1,4 @@
-package com.Chris__.Realm_Ruler.ui;
+package com.Chris__.realm_ruler.ui;
 
 import com.hypixel.hytale.server.core.entity.entities.Player;
 import com.hypixel.hytale.server.core.universe.PlayerRef;

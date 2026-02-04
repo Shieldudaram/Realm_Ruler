@@ -1,4 +1,4 @@
-package com.Chris__.Realm_Ruler.targeting;
+package com.Chris__.realm_ruler.targeting;
 
 import com.hypixel.hytale.math.vector.Vector3i;
 import com.hypixel.hytale.server.core.universe.world.World;

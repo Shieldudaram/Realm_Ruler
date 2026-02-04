@@ -1,10 +1,10 @@
-package com.Chris__.Realm_Ruler;
+package com.Chris__.realm_ruler;
 
 import com.hypixel.hytale.protocol.GameMode;
 import com.hypixel.hytale.server.core.Message;
 import com.hypixel.hytale.server.core.command.system.CommandContext;
 import com.hypixel.hytale.server.core.command.system.basecommands.CommandBase;
-import com.Chris__.Realm_Ruler.targeting.TargetingService;
+import com.Chris__.realm_ruler.targeting.TargetingService;
 
 import javax.annotation.Nonnull;
 
