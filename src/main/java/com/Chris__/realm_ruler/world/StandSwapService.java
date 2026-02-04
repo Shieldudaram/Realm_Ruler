@@ -1,5 +1,6 @@
 package com.Chris__.realm_ruler.world;
 
+import com.Chris__.realm_ruler.core.RrDebugFlags;
 import com.hypixel.hytale.logger.HytaleLogger;
 import com.hypixel.hytale.math.util.ChunkUtil;
 import com.hypixel.hytale.server.core.asset.type.blocktype.config.BlockType;
@@ -118,6 +119,8 @@ public final class StandSwapService {
         chunk.setBlock(x, y, z, newBlockId, 0);
 
         // Info log for visibility during development.
-        logger.atInfo().log("[RR] Swapped stand @ %d,%d,%d -> %s", x, y, z, standKey);
+        if (RrDebugFlags.verbose()) {
+            logger.atInfo().log("[RR] Swapped stand @ %d,%d,%d -> %s", x, y, z, standKey);
+        }
     }
 }

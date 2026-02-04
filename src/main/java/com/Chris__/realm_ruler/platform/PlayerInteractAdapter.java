@@ -1,18 +1,20 @@
 package com.Chris__.realm_ruler.platform;
 
 import com.hypixel.hytale.protocol.InteractionType;
-import pl.grzegorz2047.hytale.lib.playerinteractlib.PlayerInteractionEvent;
 
 import java.lang.reflect.Method;
 
 /**
  * PlayerInteractAdapter
  *
- * Centralizes safe extraction from PlayerInteractionEvent.
+ * Centralizes safe extraction from PlayerInteractLib's PlayerInteractionEvent (via reflection).
  * IMPORTANT: PlayerInteractLib often uses record-style accessors (uuid(), interactionType(), etc.)
  * rather than JavaBean getters (getUuid(), getInteractionType()).
  */
 public final class PlayerInteractAdapter {
+
+    private static final String PI_EVENT_CLASS =
+            "pl.grzegorz2047.hytale.lib.playerinteractlib.PlayerInteractionEvent";
 
     private int debugRemaining = 400;
 
@@ -21,9 +23,12 @@ public final class PlayerInteractAdapter {
         return (debugRemaining-- > 0);
     }
 
-    public InteractionType safeInteractionType(PlayerInteractionEvent e) {
-        // Primary: record accessor
-        try { return e.interactionType(); } catch (Throwable ignored) {}
+    public boolean isPlayerInteractionEvent(Object e) {
+        return e != null && PI_EVENT_CLASS.equals(e.getClass().getName());
+    }
+
+    public InteractionType safeInteractionType(Object e) {
+        if (e == null) return null;
 
         // Fallback: reflection on common names (in case lib changes)
         Object v = safeCall(e, "interactionType", "getInteractionType");
@@ -35,27 +40,24 @@ public final class PlayerInteractAdapter {
         return null;
     }
 
-    public String safeUuid(PlayerInteractionEvent e) {
-        // Primary: record accessor
-        try { return e.uuid(); } catch (Throwable ignored) {}
+    public String safeUuid(Object e) {
+        if (e == null) return "<null>";
 
         // Fallback
-        Object v = safeCall(e, "uuid", "getUuid");
+        Object v = safeCall(e, "uuid", "getUuid", "playerUuid", "getPlayerUuid");
         return (v == null) ? "<null>" : String.valueOf(v);
     }
 
-    public String safeItemInHandId(PlayerInteractionEvent e) {
-        // Primary: record accessor
-        try { return e.itemInHandId(); } catch (Throwable ignored) {}
+    public String safeItemInHandId(Object e) {
+        if (e == null) return "<empty>";
 
         // Fallback
         Object v = safeCall(e, "itemInHandId", "getItemInHandId");
         return (v == null) ? "<empty>" : String.valueOf(v);
     }
 
-    public Object safeInteractionChain(PlayerInteractionEvent e) {
-        // Primary: record accessor
-        try { return e.interaction(); } catch (Throwable ignored) {}
+    public Object safeInteractionChain(Object e) {
+        if (e == null) return null;
 
         // Fallback
         return safeCall(e, "interaction", "getInteraction", "interactionChain", "getInteractionChain");
@@ -65,7 +67,7 @@ public final class PlayerInteractAdapter {
      * Best-effort cancellation. PlayerInteractLib versions differ; some events are cancellable, some aren't.
      * Returns true if we successfully invoked a cancellation-style method.
      */
-    public boolean tryCancel(PlayerInteractionEvent e) {
+    public boolean tryCancel(Object e) {
         if (e == null) return false;
 
         // Common cancel patterns across event libs

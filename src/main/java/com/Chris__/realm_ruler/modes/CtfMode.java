@@ -11,7 +11,6 @@ import com.hypixel.hytale.server.core.entity.entities.Player;
 import com.hypixel.hytale.server.core.inventory.Inventory;
 import com.hypixel.hytale.server.core.inventory.ItemStack;
 import com.hypixel.hytale.server.core.inventory.container.ItemContainer;
-import pl.grzegorz2047.hytale.lib.playerinteractlib.PlayerInteractionEvent;
 
 import com.Chris__.realm_ruler.targeting.TargetingModels.BlockLocation;
 import com.Chris__.realm_ruler.targeting.TargetingModels.LookTarget;
@@ -64,10 +63,11 @@ public class CtfMode implements RealmMode {
 
     @Override
     public void onPlayerAction(Object action) {
-        if (!(action instanceof PlayerInteractionEvent event)) return;
+        if (!plugin.rrPi().isPlayerInteractionEvent(action)) return;
+        Object event = action;
 
-        // Keep logging behavior identical by consuming the shared PI debug budget.
-        boolean shouldLog = plugin.rrPi().consumeDebugBudget();
+        // Only log interaction spam when explicitly enabled.
+        boolean shouldLog = plugin.rrVerbose() && plugin.rrPi().consumeDebugBudget();
 
         InteractionType type = plugin.rrPi().safeInteractionType(event);
         String uuid = plugin.rrPi().safeUuid(event);

@@ -1,5 +1,6 @@
 package com.Chris__.realm_ruler.targeting;
 
+import com.Chris__.realm_ruler.core.RrDebugFlags;
 import com.Chris__.realm_ruler.ui.GlobalMatchTimerService;
 import com.Chris__.realm_ruler.ui.TimerAction;
 import java.util.concurrent.ConcurrentLinkedQueue;
@@ -22,7 +23,6 @@ import com.hypixel.hytale.server.core.universe.world.chunk.WorldChunk;
 import com.hypixel.hytale.server.core.universe.world.storage.EntityStore;
 import com.hypixel.hytale.server.core.util.FillerBlockUtil;
 import com.hypixel.hytale.server.core.util.TargetUtil;
-import pl.grzegorz2047.hytale.lib.playerinteractlib.PlayerInteractionEvent;
 
 import java.lang.reflect.Field;
 import java.lang.reflect.Method;
@@ -145,7 +145,7 @@ public final class TargetingService {
     // Public API used by modes / plugin
     // -------------------------------------------------------------------------
 
-    public TargetingResult resolveTarget(String uuid, PlayerInteractionEvent event, Object chain) {
+    public TargetingResult resolveTarget(String uuid, Object event, Object chain) {
         BlockLocation loc = null;
         LookTarget look = null;
 
@@ -216,7 +216,7 @@ public final class TargetingService {
      *   - Keep this function small: orchestration only. Heavy lifting stays in extractPosRecursive.
      *   - Never add world writes or inventory mutations here. This should remain pure target resolution.
      */
-    private BlockLocation tryExtractBlockLocation(String uuid, PlayerInteractionEvent event, Object chain) {
+    private BlockLocation tryExtractBlockLocation(String uuid, Object event, Object chain) {
         World world = null;
 
         // 0) Try to get World directly from the event (some builds expose it).
@@ -268,7 +268,9 @@ public final class TargetingService {
         // 1) Does THIS object directly expose x/y/z (or blockX/blockY/blockZ)?
         BlockLocation direct = tryReadXYZ(obj, world);
         if (direct != null) {
-            logger.atInfo().log("[RR-TARGET] FOUND pos via %s (%s)", path, obj.getClass().getName());
+            if (RrDebugFlags.verbose()) {
+                logger.atInfo().log("[RR-TARGET] FOUND pos via %s (%s)", path, obj.getClass().getName());
+            }
             return direct;
         }
 
@@ -542,6 +544,7 @@ public final class TargetingService {
     }
 
     private void dumpInteractionSurface(Object obj) {
+        if (!RrDebugFlags.debug()) return;
         try {
             Class<?> cls = obj.getClass();
             logger.atInfo().log("[RR-TARGET] Surface dump: %s", cls.getName());

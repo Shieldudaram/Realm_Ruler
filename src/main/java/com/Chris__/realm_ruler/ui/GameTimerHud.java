@@ -34,7 +34,9 @@ public class GameTimerHud extends CustomUIHud {
         if (!visible) return;
 
         ui.append("Hud/Timer/Timer.ui");
-        ui.set("#TimerLabel.TextSpans", Message.raw(format(secondsRemaining)));
+        String text = format(secondsRemaining);
+        ui.set("#TimerLabel.Text", text);
+        ui.set("#TimerLabel.TextSpans", Message.raw(text));
         // Optional if your UI has this id:
         // ui.set("#TimerTitle.TextSpans", Message.raw("CAPTURE THE FLAG TIMER"));
     }

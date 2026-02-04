@@ -26,11 +26,23 @@ ext {
     }
 }
 
-if (!project.hasProperty('hytaleHome')) {
-    throw new GradleException('Your Hytale install could not be detected automatically. If you are on an unsupported platform or using a custom install location, please define the install location using the hytale_home property.');
-}
-else if (!file(project.findProperty('hytaleHome')).exists()) {
-    throw new GradleException("Failed to find Hytale at the expected location. Please make sure you have installed the game. The expected location can be changed using the hytale_home property. Currently looking in ${project.findProperty('hytaleHome')}")
+// require_hytale=true keeps local dev behavior (fail fast if Hytale is missing).
+// CI can run with: ./gradlew ciCheck -Prequire_hytale=false
+def requireHytale = (project.findProperty('require_hytale') ?: 'true').toString().toBoolean()
+def hytaleHomePath = project.findProperty('hytaleHome')
+def hytaleHomeDir = (hytaleHomePath == null) ? null : file(hytaleHomePath)
+
+if (requireHytale) {
+    if (hytaleHomeDir == null) {
+        throw new GradleException('Your Hytale install could not be detected automatically. If you are on an unsupported platform or using a custom install location, please define the install location using the hytale_home property.')
+    }
+    if (!hytaleHomeDir.exists()) {
+        throw new GradleException("Failed to find Hytale at the expected location. Please make sure you have installed the game. The expected location can be changed using the hytale_home property. Currently looking in ${hytaleHomePath}")
+    }
+} else {
+    if (hytaleHomeDir == null || !hytaleHomeDir.exists()) {
+        logger.lifecycle("Hytale install not found; continuing because require_hytale=false. (hytale_home can override the path.)")
+    }
 }
 
 java {
@@ -82,6 +94,65 @@ tasks.register('updatePluginManifest') {
 // Makes sure the plugin manifest is up to date.
 tasks.named('processResources') {
     dependsOn 'updatePluginManifest'
+}
+
+// -----------------------------------------------------------------------------
+// CI sanity checks (do not require a local Hytale install)
+// -----------------------------------------------------------------------------
+
+tasks.register('ciCheck') {
+    group = 'verification'
+    description = 'Runs repository sanity checks that do not require a local Hytale install.'
+
+    doLast {
+        def manifestFile = file('src/main/resources/manifest.json')
+        if (!manifestFile.exists()) {
+            throw new GradleException("Could not find manifest.json at ${manifestFile.path}!")
+        }
+
+        def manifestJson = new groovy.json.JsonSlurper().parseText(manifestFile.text)
+
+        def manifestVersion = String.valueOf(manifestJson.Version ?: '').trim()
+        def gradleVersion = project.version.toString()
+        if (manifestVersion != gradleVersion) {
+            throw new GradleException("manifest.json Version (${manifestVersion}) does not match Gradle version (${gradleVersion}).")
+        }
+
+        def mainClass = String.valueOf(manifestJson.Main ?: '').trim()
+        if (mainClass.isEmpty()) {
+            throw new GradleException('manifest.json Main is missing or empty.')
+        }
+
+        def parts = mainClass.split('\\.')
+        if (parts.length < 2) {
+            throw new GradleException("manifest.json Main must be a fully qualified class name, got: ${mainClass}")
+        }
+
+        def className = parts[parts.length - 1]
+        def expectedPackage = parts[0..<(parts.length - 1)].join('.')
+
+        def expectedPath = "src/main/java/${expectedPackage.replace('.', '/')}/${className}.java"
+        def mainFile = file(expectedPath)
+        if (!mainFile.exists()) {
+            throw new GradleException("manifest.json Main points to missing source file: ${expectedPath}")
+        }
+
+        def mainText = mainFile.text
+        def pkgMatcher = (mainText =~ /(?m)^\s*package\s+([^;]+);/)
+        if (!pkgMatcher.find()) {
+            throw new GradleException("Main source file missing package declaration: ${expectedPath}")
+        }
+
+        def declaredPackage = pkgMatcher.group(1).trim()
+        if (declaredPackage != expectedPackage) {
+            throw new GradleException("Main source file package (${declaredPackage}) does not match manifest Main package (${expectedPackage}).")
+        }
+
+        def classMatcher = (mainText =~ /(?m)^\s*public\s+(?:final\s+)?class\s+${className}\b/)
+        if (!classMatcher.find()) {
+            throw new GradleException("Main source file does not declare public class ${className}: ${expectedPath}")
+        }
+    }
 }
 
 def createServerRunArguments(String srcDir) {

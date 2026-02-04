@@ -11,10 +11,10 @@
     "Website": "",
     "ServerVersion": "*",
     "Dependencies": {
-        "Hytale:PlayerInteractLib": "*"
+        
     },
     "OptionalDependencies": {
-        
+        "Hytale:PlayerInteractLib": "*"
     },
     "DisabledByDefault": false,
     "Main": "com.Chris__.realm_ruler.Realm_Ruler",

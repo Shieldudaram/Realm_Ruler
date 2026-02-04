@@ -3,6 +3,7 @@ package com.Chris__.realm_ruler;
 import com.hypixel.hytale.server.core.entity.entities.Player;
 import com.hypixel.hytale.server.core.universe.world.World;
 import com.Chris__.realm_ruler.core.ModeManager;
+import com.Chris__.realm_ruler.core.RrDebugFlags;
 import com.Chris__.realm_ruler.modes.CtfMode;
 import com.Chris__.realm_ruler.targeting.TargetingService;
 import com.Chris__.realm_ruler.world.StandSwapService;
@@ -22,7 +23,6 @@ import com.hypixel.hytale.server.core.plugin.JavaPluginInit;
 import com.hypixel.hytale.server.core.plugin.PluginManager;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
-import pl.grzegorz2047.hytale.lib.playerinteractlib.PlayerInteractionEvent;
 import javax.annotation.Nonnull;
 import java.lang.reflect.Method;
 import java.util.Locale;
@@ -149,9 +149,11 @@ public class Realm_Ruler extends JavaPlugin {
         setupModes();
         LOGGER.atInfo().log("Hello from %s version %s", this.getName(), this.getManifest().getVersion().toString());
 
-        // Debug: dump Player API methods once at startup (remove after we learn inventory APIs)
-        dumpPlayerMethods();
-        dumpInventoryApis();
+        // Debug: dump Player/Inventory API methods once at startup.
+        if (rrDebug()) {
+            dumpPlayerMethods();
+            dumpInventoryApis();
+        }
 
     }
 
@@ -301,14 +303,15 @@ public class Realm_Ruler extends JavaPlugin {
 
         // Log a limited number of events to prevent log spam.
         // If it *is* a stand, we always log it even if we exceeded the limit.
-        if (USEBLOCK_DEBUG_LIMIT-- > 0 || isStand) {
-            LOGGER.atInfo().log("[RR-USEBLOCK] type=%s clickedId=%s heldId=%s isStand=%s",
-                    type, clickedId, heldId, isStand);
+        if (rrVerbose() && (USEBLOCK_DEBUG_LIMIT-- > 0 || isStand)) {
+            LOGGER.atInfo().log("[RR-USEBLOCK] type=%s clickedId=%s heldId=%s isStand=%s", type, clickedId, heldId, isStand);
         }
 
         if (isStand) {
             // Optional: in-game confirmation (lets you test without staring at server logs).
-            sendPlayerMessage(ctx, MSG_DEBUG_HIT);
+            if (rrDebug()) {
+                sendPlayerMessage(ctx, MSG_DEBUG_HIT);
+            }
 
             // IMPORTANT:
             // We record the stand location from this event as a fallback.
@@ -334,7 +337,7 @@ public class Realm_Ruler extends JavaPlugin {
      * High-level steps:
      *  1) Ask PluginManager for the PlayerInteractLib plugin instance
      *  2) Call getPublisher() on that plugin
-     *  3) Subscribe a Flow.Subscriber so we receive PlayerInteractionEvent callbacks
+     *  3) Subscribe a Flow.Subscriber so we receive interaction event callbacks
      */
     private void tryRegisterPlayerInteractLib() {
         try {
@@ -364,20 +367,16 @@ public class Realm_Ruler extends JavaPlugin {
                 return;
             }
 
-            // We expect a SubmissionPublisher<PlayerInteractionEvent>.
-            // This check prevents ClassCastException with a clearer log message.
-            if (!(publisherObj instanceof java.util.concurrent.SubmissionPublisher<?>)) {
-                LOGGER.atWarning().log("[RR-PI] Unexpected publisher type: %s", publisherObj.getClass().getName());
+            if (!(publisherObj instanceof Flow.Publisher<?>)) {
+                LOGGER.atWarning().log("[RR-PI] Unexpected publisher type (not Flow.Publisher): %s", publisherObj.getClass().getName());
                 return;
             }
 
-            @SuppressWarnings("unchecked")
-            java.util.concurrent.SubmissionPublisher<PlayerInteractionEvent> publisher =
-                    (java.util.concurrent.SubmissionPublisher<PlayerInteractionEvent>) publisherObj;
+            Flow.Publisher<?> publisher = (Flow.Publisher<?>) publisherObj;
 
             // Flow.Subscriber is the Java reactive-streams style subscription interface.
             // Once subscribed, PlayerInteractLib will call onNext(...) for each interaction event.
-            Flow.Subscriber<PlayerInteractionEvent> subscriber = new Flow.Subscriber<>() {
+            Flow.Subscriber<Object> subscriber = new Flow.Subscriber<>() {
                 @Override
                 public void onSubscribe(Flow.Subscription subscription) {
                     // Request all events. This is the normal pattern for "we want the full stream".
@@ -386,7 +385,7 @@ public class Realm_Ruler extends JavaPlugin {
                 }
 
                 @Override
-                public void onNext(PlayerInteractionEvent event) {
+                public void onNext(Object event) {
                     // Main per-event handler (our logic lives there).
                     onPlayerInteraction(event);
                 }
@@ -404,7 +403,9 @@ public class Realm_Ruler extends JavaPlugin {
                 }
             };
 
-            publisher.subscribe(subscriber);
+            @SuppressWarnings("rawtypes")
+            Flow.Publisher rawPublisher = (Flow.Publisher) publisher;
+            rawPublisher.subscribe(subscriber);
 
         } catch (Throwable t) {
             // Any reflection issues or unexpected runtime mismatch lands here.
@@ -485,7 +486,7 @@ public class Realm_Ruler extends JavaPlugin {
      * - "press F" tends to show up as InteractionType.Use in your logs.
      * - PlayerInteractLib does not always provide a direct block position, which is why we use the look tracker.
      */
-    private void onPlayerInteraction(PlayerInteractionEvent event) {
+    private void onPlayerInteraction(Object event) {
         if (modeManager != null) {
             modeManager.dispatchPlayerAction(event);
             return;
@@ -534,6 +535,14 @@ public class Realm_Ruler extends JavaPlugin {
         return LOGGER;
     }
 
+    public boolean rrDebug() {
+        return RrDebugFlags.debug();
+    }
+
+    public boolean rrVerbose() {
+        return RrDebugFlags.verbose();
+    }
+
     public boolean rrPhase1ToggleBlueOnly() {
         return PHASE1_TOGGLE_BLUE_ONLY;
     }
@@ -569,7 +578,7 @@ public class Realm_Ruler extends JavaPlugin {
     }
 
     // TARGETING: one place that turns (uuid + event + chain) into a BlockLocation
-    public TargetingModels.TargetingResult resolveTarget(String uuid, PlayerInteractionEvent event, Object chain) {
+    public TargetingModels.TargetingResult resolveTarget(String uuid, Object event, Object chain) {
         return (targetingService == null) ? null : targetingService.resolveTarget(uuid, event, chain);
     }
 

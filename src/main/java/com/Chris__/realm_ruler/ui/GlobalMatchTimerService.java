@@ -1,6 +1,7 @@
 package com.Chris__.realm_ruler.ui;
 
 import com.hypixel.hytale.server.core.entity.entities.Player;
+import com.hypixel.hytale.server.core.entity.entities.player.hud.CustomUIHud;
 import com.hypixel.hytale.server.core.universe.PlayerRef;
 
 import java.util.Map;
@@ -61,20 +62,29 @@ public final class GlobalMatchTimerService {
         if (uuid == null || uuid.isEmpty() || player == null || playerRef == null) return;
 
         GameTimerHud hud = hudByUuid.computeIfAbsent(uuid, k -> new GameTimerHud(playerRef));
+        CustomUIHud current = player.getHudManager().getCustomHud();
 
         if (!running) {
-            // Hide once when stopped
-            if (hud.isVisible()) {
+            // Hide once when stopped (only if we own the active custom HUD).
+            if (current == hud) {
                 hud.hide();
-                player.getHudManager().setCustomHud(playerRef, hud);
+                player.getHudManager().setCustomHud(playerRef, null);
             }
             return;
         }
 
         int lastShown = lastShownSecondsByUuid.getOrDefault(uuid, -1);
-        if (lastShown != remainingSeconds) {
-            hud.showSeconds(remainingSeconds); // IMPORTANT: matches your GameTimerHud API
-            player.getHudManager().setCustomHud(playerRef, hud);
+        if (lastShown != remainingSeconds || current != hud) {
+            // IMPORTANT: HudManager#setCustomHud no-ops if the same hud instance is already set.
+            // For updates, we must call hud.show() to re-send UI commands.
+            hud.showSeconds(remainingSeconds);
+
+            if (current != hud) {
+                player.getHudManager().setCustomHud(playerRef, hud); // initial set (calls hud.show())
+            } else {
+                hud.show(); // force refresh (clear+rebuild)
+            }
+
             lastShownSecondsByUuid.put(uuid, remainingSeconds);
         }
     }
