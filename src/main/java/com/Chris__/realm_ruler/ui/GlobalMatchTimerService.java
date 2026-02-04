@@ -18,6 +18,7 @@ import java.util.concurrent.ConcurrentHashMap;
 public final class GlobalMatchTimerService {
 
     private final Map<String, GameTimerHud> hudByUuid = new ConcurrentHashMap<>();
+    private final Map<String, EmptyHud> emptyHudByUuid = new ConcurrentHashMap<>();
     private final Map<String, Integer> lastShownSecondsByUuid = new ConcurrentHashMap<>();
 
     private boolean running = false;
@@ -62,13 +63,14 @@ public final class GlobalMatchTimerService {
         if (uuid == null || uuid.isEmpty() || player == null || playerRef == null) return;
 
         GameTimerHud hud = hudByUuid.computeIfAbsent(uuid, k -> new GameTimerHud(playerRef));
+        EmptyHud emptyHud = emptyHudByUuid.computeIfAbsent(uuid, k -> new EmptyHud(playerRef));
         CustomUIHud current = player.getHudManager().getCustomHud();
 
         if (!running) {
             // Hide once when stopped (only if we own the active custom HUD).
             if (current == hud) {
                 hud.hide();
-                player.getHudManager().setCustomHud(playerRef, null);
+                player.getHudManager().setCustomHud(playerRef, emptyHud);
             }
             return;
         }

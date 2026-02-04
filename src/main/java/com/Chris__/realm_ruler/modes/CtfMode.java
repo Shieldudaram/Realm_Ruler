@@ -61,6 +61,11 @@ public class CtfMode implements RealmMode {
         state.clear();
     }
 
+    /** Reset match-local state (stand -> stored flag mapping). */
+    public void resetMatch() {
+        state.clear();
+    }
+
     @Override
     public void onPlayerAction(Object action) {
         if (!plugin.rrPi().isPlayerInteractionEvent(action)) return;

@@ -1,7 +1,9 @@
 package com.Chris__.realm_ruler.targeting;
 
+import com.Chris__.realm_ruler.core.LobbyHudState;
 import com.Chris__.realm_ruler.core.RrDebugFlags;
 import com.Chris__.realm_ruler.ui.GlobalMatchTimerService;
+import com.Chris__.realm_ruler.ui.LobbyHudService;
 import com.Chris__.realm_ruler.ui.TimerAction;
 import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.concurrent.atomic.AtomicLong;
@@ -30,6 +32,7 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.function.Function;
 
 import static com.Chris__.realm_ruler.targeting.TargetingModels.*;
 
@@ -56,6 +59,7 @@ public final class TargetingService {
 
     // --- GLOBAL MATCH TIMER (shared for everyone) ---
     private final GlobalMatchTimerService matchTimer = new GlobalMatchTimerService();
+    private final LobbyHudService lobbyHud = new LobbyHudService();
     private final ConcurrentLinkedQueue<TimerAction> timerActions = new ConcurrentLinkedQueue<>();
 
     // This makes sure the timer "ticks" only once per real time slice, even though tick(...) runs per player.
@@ -85,6 +89,9 @@ public final class TargetingService {
     // PLAYER CACHE seam: keep updating same map as before (uuid -> Player).
     private final Map<String, Player> playerByUuid;
 
+    // Optional per-player lobby HUD state provider (wired by plugin / match services).
+    private volatile Function<String, LobbyHudState> lobbyHudStateProvider = null;
+
 
     // -------------------------------------------------------------------------
     // UseBlock fallback remembered location
@@ -104,6 +111,18 @@ public final class TargetingService {
 
     public void queueTimerStop() {
         timerActions.add(new TimerAction.Stop());
+    }
+
+    public boolean isMatchTimerRunning() {
+        return matchTimer.isRunning();
+    }
+
+    public int getMatchTimerRemainingSeconds() {
+        return matchTimer.getRemainingSeconds();
+    }
+
+    public void setLobbyHudStateProvider(Function<String, LobbyHudState> provider) {
+        this.lobbyHudStateProvider = provider;
     }
 
     private void tickGlobalMatchTimerOncePerSlice() {
@@ -393,7 +412,25 @@ public final class TargetingService {
                 // Keep existing behavior: refresh player cache every tick
                 playerByUuid.put(uuid, player);
                 tickGlobalMatchTimerOncePerSlice();          // ticks the shared timer (only once per slice)
-                matchTimer.renderForPlayer(uuid, player, playerRef); // shows the same time to everyone
+                LobbyHudState lobbyState = null;
+                Function<String, LobbyHudState> provider = lobbyHudStateProvider;
+                if (provider != null) {
+                    try {
+                        lobbyState = provider.apply(uuid);
+                    } catch (Throwable ignored) {
+                        lobbyState = null;
+                    }
+                }
+
+                if (matchTimer.isRunning()) {
+                    // Match running: show only timer (hide lobby)
+                    lobbyHud.renderForPlayer(uuid, player, playerRef, null);
+                    matchTimer.renderForPlayer(uuid, player, playerRef);
+                } else {
+                    // Match not running: hide timer (if we own it) and show lobby (if visible)
+                    matchTimer.renderForPlayer(uuid, player, playerRef);
+                    lobbyHud.renderForPlayer(uuid, player, playerRef, lobbyState);
+                }
 
                 Vector3i hit = TargetUtil.getTargetBlock(chunk.getReferenceTo(entityId), LOOK_RAYCAST_RANGE, store);
                 if (hit == null) return;

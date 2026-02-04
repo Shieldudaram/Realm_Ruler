@@ -23,6 +23,7 @@ import com.hypixel.hytale.server.core.plugin.JavaPluginInit;
 import com.hypixel.hytale.server.core.plugin.PluginManager;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
+import com.Chris__.realm_ruler.match.CtfMatchService;
 import javax.annotation.Nonnull;
 import java.lang.reflect.Method;
 import java.util.Locale;
@@ -85,6 +86,7 @@ public class Realm_Ruler extends JavaPlugin {
     private CtfMode ctfMode;
     private final StandSwapService standSwapService = new StandSwapService(LOGGER);
     private TargetingService targetingService;
+    private CtfMatchService ctfMatchService;
     private final PlayerInteractAdapter pi = new PlayerInteractAdapter();
 
     private void setupModes() {
@@ -177,6 +179,8 @@ public class Realm_Ruler extends JavaPlugin {
 
         LOGGER.atInfo().log("Setting up Realm Ruler %s", this.getName());
         this.targetingService = new TargetingService(LOGGER, tickQueue, playerByUuid);
+        this.ctfMatchService = new CtfMatchService(this.targetingService, this.ctfMode);
+        this.targetingService.setLobbyHudStateProvider(this.ctfMatchService::lobbyHudStateFor);
 
 
         // ---------------------------------------------------------------------
@@ -190,9 +194,10 @@ public class Realm_Ruler extends JavaPlugin {
         //  - permissions / chat output behave as expected
         // ---------------------------------------------------------------------
         this.getCommandRegistry().registerCommand(
-                new ExampleCommand(this.getName(), this.getManifest().getVersion().toString(), this.targetingService)
+                new ExampleCommand(this.getName(), this.getManifest().getVersion().toString())
 
         );
+        this.getCommandRegistry().registerCommand(new RealmRulerCommand(this.ctfMatchService));
 
         // ---------------------------------------------------------------------
         // 2) Fallback event registration (UseBlockEvent.Pre)

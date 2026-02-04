@@ -1,0 +1,26 @@
+Group #LobbyHud {
+  LayoutMode: Left;
+  Anchor: (Top: 20, Height: 80);
+
+  Group #LobbyPanel {
+    Background: #000000(0.2);
+    Anchor: (Left: 20);
+    Padding: (Horizontal: 20, Vertical: 10);
+    LayoutMode: Top;
+
+    Label #LobbyTitle {
+      Style: (FontSize: 16, Alignment: Center);
+      Text: "CTF Lobby";
+    }
+
+    Label #LobbyTeamLabel {
+      Style: (FontSize: 16);
+      Text: "Team: ???";
+    }
+
+    Label #LobbyWaitingLabel {
+      Style: (FontSize: 16);
+      Text: "Waiting: 0";
+    }
+  }
+}
