@@ -102,6 +102,16 @@ public final class CtfMatchService {
         return lobbyTeamByUuid.get(uuid);
     }
 
+    public Team activeMatchTeamFor(String uuid) {
+        if (uuid == null || uuid.isBlank()) return null;
+        return matchTeamByUuid.get(uuid);
+    }
+
+    public boolean isActiveMatchParticipant(String uuid) {
+        if (uuid == null || uuid.isBlank()) return false;
+        return matchTeamByUuid.containsKey(uuid);
+    }
+
     public boolean leaveLobby(String uuid) {
         if (uuid == null || uuid.isBlank() || targetingService == null) return false;
         if (targetingService.isMatchTimerRunning()) return false;

@@ -24,6 +24,7 @@ import com.hypixel.hytale.server.core.plugin.PluginManager;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 import com.Chris__.realm_ruler.match.CtfMatchService;
+import com.Chris__.realm_ruler.match.CtfAutoRespawnAndTeleportSystem;
 import com.Chris__.realm_ruler.integration.SimpleClaimsCtfBridge;
 import javax.annotation.Nonnull;
 import java.lang.reflect.Method;
@@ -253,6 +254,15 @@ public class Realm_Ruler extends JavaPlugin {
         } else {
             LOGGER.atInfo().log("LookTargetTrackerSystem is disabled (ENABLE_LOOK_TRACKER=false).");
         }
+
+        // Auto-respawn + teleport back to team spawn during CTF matches.
+        this.getEntityStoreRegistry().registerSystem(new CtfAutoRespawnAndTeleportSystem(
+                this.ctfMatchService,
+                this.simpleClaimsCtfBridge,
+                this.targetingService,
+                LOGGER
+        ));
+        LOGGER.atInfo().log("Registered CtfAutoRespawnAndTeleportSystem.");
 
         // ---------------------------------------------------------------------
         // 4) Primary interaction stream: PlayerInteractLib subscription

@@ -3,7 +3,7 @@ package com.Chris__.realm_ruler;
 import com.Chris__.realm_ruler.integration.SimpleClaimsCtfBridge;
 import com.Chris__.realm_ruler.match.CtfMatchService;
 import com.Chris__.realm_ruler.targeting.TargetingService;
-import com.hypixel.hytale.math.util.ChunkUtil;
+import com.Chris__.realm_ruler.util.SpawnTeleportUtil;
 import com.hypixel.hytale.protocol.GameMode;
 import com.hypixel.hytale.server.core.Message;
 import com.hypixel.hytale.server.core.command.system.CommandContext;
@@ -16,7 +16,6 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
-import java.util.concurrent.ThreadLocalRandom;
 
 public final class RealmRulerCommand extends CommandBase {
 
@@ -99,7 +98,7 @@ public final class RealmRulerCommand extends CommandBase {
                         if (simpleClaims != null && targetingService != null) {
                             var spawn = simpleClaims.getTeamSpawn(teamName);
                             if (spawn != null) {
-                                queueTeleportWithJitter(uuid, spawn);
+                                SpawnTeleportUtil.queueTeamSpawnTeleport(targetingService, uuid, spawn.world(), spawn.x(), spawn.y(), spawn.z(), SPAWN_JITTER_RADIUS_BLOCKS);
                             } else {
                                 ctx.sendMessage(Message.raw("[RealmRuler] Team spawn not set for: " + teamName + ". Ask an admin to run: /sc " + teamName.toLowerCase(java.util.Locale.ROOT) + " spawn"));
                             }
@@ -181,7 +180,7 @@ public final class RealmRulerCommand extends CommandBase {
                                 if (e.getKey() == null || e.getValue() == null) continue;
                                 var spawn = simpleClaims.getTeamSpawn(e.getValue().displayName());
                                 if (spawn == null) continue; // should be prevented by preflight
-                                queueTeleportWithJitter(e.getKey(), spawn);
+                                SpawnTeleportUtil.queueTeamSpawnTeleport(targetingService, e.getKey(), spawn.world(), spawn.x(), spawn.y(), spawn.z(), SPAWN_JITTER_RADIUS_BLOCKS);
                             }
                         }
                     }
@@ -241,30 +240,5 @@ public final class RealmRulerCommand extends CommandBase {
     private static String safeTeamName(CtfMatchService.JoinLobbyResult jr) {
         if (jr == null || jr.team() == null) return "<unknown>";
         return jr.team().displayName();
-    }
-
-    private void queueTeleportWithJitter(String uuid, SimpleClaimsCtfBridge.TeamSpawn spawn) {
-        if (uuid == null || uuid.isBlank() || spawn == null) return;
-        if (targetingService == null) return;
-
-        int chunkX = ChunkUtil.chunkCoordinate((int) spawn.x());
-        int chunkZ = ChunkUtil.chunkCoordinate((int) spawn.z());
-
-        double minX = ChunkUtil.minBlock(chunkX) + 0.5d;
-        double maxX = ChunkUtil.maxBlock(chunkX) + 0.5d;
-        double minZ = ChunkUtil.minBlock(chunkZ) + 0.5d;
-        double maxZ = ChunkUtil.maxBlock(chunkZ) + 0.5d;
-
-        double jx = ThreadLocalRandom.current().nextDouble(-SPAWN_JITTER_RADIUS_BLOCKS, SPAWN_JITTER_RADIUS_BLOCKS);
-        double jz = ThreadLocalRandom.current().nextDouble(-SPAWN_JITTER_RADIUS_BLOCKS, SPAWN_JITTER_RADIUS_BLOCKS);
-
-        double x2 = clamp(spawn.x() + jx, minX, maxX);
-        double z2 = clamp(spawn.z() + jz, minZ, maxZ);
-
-        targetingService.queueTeleport(uuid, spawn.world(), x2, spawn.y(), z2);
-    }
-
-    private static double clamp(double v, double min, double max) {
-        return Math.max(min, Math.min(max, v));
     }
 }
