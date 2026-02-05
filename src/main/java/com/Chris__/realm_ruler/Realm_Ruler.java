@@ -24,6 +24,7 @@ import com.hypixel.hytale.server.core.plugin.PluginManager;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 import com.Chris__.realm_ruler.match.CtfMatchService;
+import com.Chris__.realm_ruler.integration.SimpleClaimsCtfBridge;
 import javax.annotation.Nonnull;
 import java.lang.reflect.Method;
 import java.util.Locale;
@@ -87,6 +88,7 @@ public class Realm_Ruler extends JavaPlugin {
     private final StandSwapService standSwapService = new StandSwapService(LOGGER);
     private TargetingService targetingService;
     private CtfMatchService ctfMatchService;
+    private SimpleClaimsCtfBridge simpleClaimsCtfBridge;
     private final PlayerInteractAdapter pi = new PlayerInteractAdapter();
 
     private void setupModes() {
@@ -181,6 +183,15 @@ public class Realm_Ruler extends JavaPlugin {
         this.targetingService = new TargetingService(LOGGER, tickQueue, playerByUuid);
         this.ctfMatchService = new CtfMatchService(this.targetingService, this.ctfMode);
         this.targetingService.setLobbyHudStateProvider(this.ctfMatchService::lobbyHudStateFor);
+        this.simpleClaimsCtfBridge = new SimpleClaimsCtfBridge(LOGGER);
+        this.targetingService.setMatchTimerEndedCallback(() -> {
+            CtfMatchService ms = ctfMatchService;
+            if (ms == null) return;
+            if (simpleClaimsCtfBridge != null) {
+                simpleClaimsCtfBridge.clearTeams(ms.getActiveMatchUuids());
+            }
+            ms.endMatch();
+        });
 
 
         // ---------------------------------------------------------------------
@@ -197,7 +208,7 @@ public class Realm_Ruler extends JavaPlugin {
                 new ExampleCommand(this.getName(), this.getManifest().getVersion().toString())
 
         );
-        this.getCommandRegistry().registerCommand(new RealmRulerCommand(this.ctfMatchService));
+        this.getCommandRegistry().registerCommand(new RealmRulerCommand(this.ctfMatchService, this.simpleClaimsCtfBridge));
 
         // ---------------------------------------------------------------------
         // 2) Fallback event registration (UseBlockEvent.Pre)
@@ -242,7 +253,6 @@ public class Realm_Ruler extends JavaPlugin {
         } else {
             LOGGER.atInfo().log("LookTargetTrackerSystem is disabled (ENABLE_LOOK_TRACKER=false).");
         }
-
 
         // ---------------------------------------------------------------------
         // 4) Primary interaction stream: PlayerInteractLib subscription

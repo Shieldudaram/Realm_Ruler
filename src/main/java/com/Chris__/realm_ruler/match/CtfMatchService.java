@@ -5,6 +5,9 @@ import com.Chris__.realm_ruler.modes.CtfMode;
 import com.Chris__.realm_ruler.targeting.TargetingService;
 
 import java.util.Map;
+import java.util.HashMap;
+import java.util.HashSet;
+import java.util.Locale;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ThreadLocalRandom;
@@ -72,6 +75,10 @@ public final class CtfMatchService {
     }
 
     public JoinLobbyResult joinLobby(String uuid) {
+        return joinLobby(uuid, null);
+    }
+
+    public JoinLobbyResult joinLobby(String uuid, Team requestedTeam) {
         if (uuid == null || uuid.isBlank() || targetingService == null) {
             return new JoinLobbyResult(JoinStatus.NOT_READY, null, 0);
         }
@@ -82,11 +89,25 @@ public final class CtfMatchService {
             return new JoinLobbyResult(JoinStatus.MATCH_RUNNING, team, waitingUuids.size());
         }
 
-        Team team = lobbyTeamByUuid.computeIfAbsent(uuid, k -> randomTeam());
+        Team team = (requestedTeam != null) ? requestedTeam : lobbyTeamByUuid.computeIfAbsent(uuid, k -> randomTeam());
+        lobbyTeamByUuid.put(uuid, team);
 
         boolean added = waitingUuids.add(uuid);
         JoinStatus status = added ? JoinStatus.JOINED : JoinStatus.ALREADY_WAITING;
         return new JoinLobbyResult(status, team, waitingUuids.size());
+    }
+
+    public Team lobbyTeamFor(String uuid) {
+        if (uuid == null || uuid.isBlank()) return null;
+        return lobbyTeamByUuid.get(uuid);
+    }
+
+    public boolean leaveLobby(String uuid) {
+        if (uuid == null || uuid.isBlank() || targetingService == null) return false;
+        if (targetingService.isMatchTimerRunning()) return false;
+        boolean removed = waitingUuids.remove(uuid);
+        lobbyTeamByUuid.remove(uuid);
+        return removed;
     }
 
     public LobbyHudState lobbyHudStateFor(String uuid) {
@@ -127,6 +148,25 @@ public final class CtfMatchService {
         return StartResult.STARTED;
     }
 
+    public boolean stopCaptureTheFlag() {
+        if (targetingService == null) return false;
+        if (!targetingService.isMatchTimerRunning()) return false;
+        targetingService.queueTimerStop();
+        return true;
+    }
+
+    public void endMatch() {
+        matchTeamByUuid.clear();
+    }
+
+    public Map<String, Team> getActiveMatchTeams() {
+        return new HashMap<>(matchTeamByUuid);
+    }
+
+    public Set<String> getActiveMatchUuids() {
+        return new HashSet<>(matchTeamByUuid.keySet());
+    }
+
     public boolean isRunning() {
         return targetingService != null && targetingService.isMatchTimerRunning();
     }
@@ -138,5 +178,17 @@ public final class CtfMatchService {
     private static Team randomTeam() {
         Team[] all = Team.values();
         return all[ThreadLocalRandom.current().nextInt(all.length)];
+    }
+
+    public static Team parseTeam(String input) {
+        if (input == null) return null;
+        String s = input.trim().toLowerCase(Locale.ROOT);
+        return switch (s) {
+            case "red" -> Team.RED;
+            case "blue" -> Team.BLUE;
+            case "yellow" -> Team.YELLOW;
+            case "white" -> Team.WHITE;
+            default -> null;
+        };
     }
 }

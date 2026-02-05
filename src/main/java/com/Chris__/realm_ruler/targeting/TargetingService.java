@@ -92,6 +92,9 @@ public final class TargetingService {
     // Optional per-player lobby HUD state provider (wired by plugin / match services).
     private volatile Function<String, LobbyHudState> lobbyHudStateProvider = null;
 
+    // Optional callback fired when the global match timer transitions from running -> stopped.
+    private volatile Runnable matchTimerEndedCallback = null;
+
 
     // -------------------------------------------------------------------------
     // UseBlock fallback remembered location
@@ -125,6 +128,10 @@ public final class TargetingService {
         this.lobbyHudStateProvider = provider;
     }
 
+    public void setMatchTimerEndedCallback(Runnable callback) {
+        this.matchTimerEndedCallback = callback;
+    }
+
     private void tickGlobalMatchTimerOncePerSlice() {
         long now = System.nanoTime();
 
@@ -137,6 +144,8 @@ public final class TargetingService {
         long last = lastGlobalTimerUpdateNanos.getAndSet(now);
         float dt = (last == 0L) ? 0f : (float) ((now - last) / 1_000_000_000.0);
 
+        boolean wasRunning = matchTimer.isRunning();
+
         // Apply queued actions on the tick thread
         TimerAction a;
         while ((a = timerActions.poll()) != null) {
@@ -146,6 +155,18 @@ public final class TargetingService {
 
         if (dt > 0f) {
             matchTimer.tick(dt);
+        }
+
+        boolean isRunning = matchTimer.isRunning();
+        if (wasRunning && !isRunning) {
+            Runnable cb = matchTimerEndedCallback;
+            if (cb != null) {
+                try {
+                    cb.run();
+                } catch (Throwable t) {
+                    logger.atWarning().withCause(t).log("[RR] matchTimerEndedCallback failed");
+                }
+            }
         }
     }
 

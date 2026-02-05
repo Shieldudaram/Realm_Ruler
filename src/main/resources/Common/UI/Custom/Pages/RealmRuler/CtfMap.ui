@@ -1,0 +1,48 @@
+Group #RealmRulerCtfMapPage {
+  Anchor: (Top: 0, Bottom: 0, Left: 0, Right: 0);
+  LayoutMode: Center;
+
+  // Dim the game behind the overlay
+  Group #Backdrop {
+    Anchor: (Top: 0, Bottom: 0, Left: 0, Right: 0);
+    Background: #000000(0.35);
+  }
+
+  // Center window
+  Group #MapWindow {
+    Anchor: (Width: 960, Height: 640);
+    LayoutMode: Top;
+    Padding: (Horizontal: 16, Vertical: 16);
+    Background: #0b0f18(0.95);
+
+    Label #TitleLabel {
+      Anchor: (Height: 32);
+      Style: LabelStyle(FontSize: 24, Alignment: Center);
+      Text: "Capture the Flag Map";
+    }
+
+    Group #MapFrame {
+      Anchor: (Top: 12, Width: 928, Height: 560);
+      Background: #000000(0.35);
+      Padding: (Horizontal: 8, Vertical: 8);
+      LayoutMode: Center;
+
+      Group #MapImage {
+        Anchor: (Width: 912, Height: 544);
+        Background: (TexturePath: "ctf_map.png");
+
+        // Future hook: marker widgets get attached under this group
+        Group #Markers {
+          Anchor: (Top: 0, Bottom: 0, Left: 0, Right: 0);
+        }
+      }
+    }
+
+    Label #CloseHint {
+      Anchor: (Top: 10, Height: 20);
+      Style: LabelStyle(FontSize: 14, Alignment: Center);
+      Text: "Press Esc to close";
+    }
+  }
+}
+
