@@ -163,6 +163,17 @@ public final class CtfMatchService {
         return new HashMap<>(matchTeamByUuid);
     }
 
+    public Map<String, Team> getLobbyWaitingTeamsSnapshot() {
+        Map<String, Team> snapshot = new HashMap<>();
+        for (String uuid : waitingUuids) {
+            Team team = lobbyTeamByUuid.get(uuid);
+            if (team != null) {
+                snapshot.put(uuid, team);
+            }
+        }
+        return snapshot;
+    }
+
     public Set<String> getActiveMatchUuids() {
         return new HashSet<>(matchTeamByUuid.keySet());
     }

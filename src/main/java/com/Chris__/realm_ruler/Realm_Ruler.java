@@ -208,7 +208,7 @@ public class Realm_Ruler extends JavaPlugin {
                 new ExampleCommand(this.getName(), this.getManifest().getVersion().toString())
 
         );
-        this.getCommandRegistry().registerCommand(new RealmRulerCommand(this.ctfMatchService, this.simpleClaimsCtfBridge));
+        this.getCommandRegistry().registerCommand(new RealmRulerCommand(this.ctfMatchService, this.simpleClaimsCtfBridge, this.targetingService));
 
         // ---------------------------------------------------------------------
         // 2) Fallback event registration (UseBlockEvent.Pre)

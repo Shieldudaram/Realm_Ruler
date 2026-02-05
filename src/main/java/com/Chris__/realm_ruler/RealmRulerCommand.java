@@ -2,14 +2,21 @@ package com.Chris__.realm_ruler;
 
 import com.Chris__.realm_ruler.integration.SimpleClaimsCtfBridge;
 import com.Chris__.realm_ruler.match.CtfMatchService;
+import com.Chris__.realm_ruler.targeting.TargetingService;
+import com.hypixel.hytale.math.util.ChunkUtil;
 import com.hypixel.hytale.protocol.GameMode;
 import com.hypixel.hytale.server.core.Message;
 import com.hypixel.hytale.server.core.command.system.CommandContext;
 import com.hypixel.hytale.server.core.command.system.basecommands.CommandBase;
 
 import javax.annotation.Nonnull;
+import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.HashSet;
+import java.util.List;
 import java.util.Map;
+import java.util.Set;
+import java.util.concurrent.ThreadLocalRandom;
 
 public final class RealmRulerCommand extends CommandBase {
 
@@ -22,16 +29,20 @@ public final class RealmRulerCommand extends CommandBase {
     private static final Message MSG_PLAYERS_ONLY =
             Message.raw("[RealmRuler] Players only.");
 
+    private static final double SPAWN_JITTER_RADIUS_BLOCKS = 3.0d;
+
     private final CtfMatchService matchService;
     private final SimpleClaimsCtfBridge simpleClaims;
+    private final TargetingService targetingService;
 
-    public RealmRulerCommand(CtfMatchService matchService, SimpleClaimsCtfBridge simpleClaims) {
+    public RealmRulerCommand(CtfMatchService matchService, SimpleClaimsCtfBridge simpleClaims, TargetingService targetingService) {
         super("RealmRuler", "Controls Realm Ruler minigames.");
         this.setAllowsExtraArguments(true); // we parse ctx.getInputString() ourselves
         this.addAliases("rr");
         this.setPermissionGroup(GameMode.Adventure); // allow anyone (low barrier)
         this.matchService = matchService;
         this.simpleClaims = simpleClaims;
+        this.targetingService = targetingService;
     }
 
     @Override
@@ -83,6 +94,16 @@ public final class RealmRulerCommand extends CommandBase {
                         if (simpleClaims != null) {
                             simpleClaims.setTeam(uuid, teamName);
                         }
+
+                        // Teleport them back to their team spawn on reconnect
+                        if (simpleClaims != null && targetingService != null) {
+                            var spawn = simpleClaims.getTeamSpawn(teamName);
+                            if (spawn != null) {
+                                queueTeleportWithJitter(uuid, spawn);
+                            } else {
+                                ctx.sendMessage(Message.raw("[RealmRuler] Team spawn not set for: " + teamName + ". Ask an admin to run: /sc " + teamName.toLowerCase(java.util.Locale.ROOT) + " spawn"));
+                            }
+                        }
                     }
                     ctx.sendMessage(Message.raw("[RealmRuler] CaptureTheFlag match already running (remaining: " + formatSeconds(matchService.getRemainingSeconds()) + "). Team: " + teamName));
                     return;
@@ -122,6 +143,27 @@ public final class RealmRulerCommand extends CommandBase {
             }
 
             if ("start".equalsIgnoreCase(action)) {
+                // Preflight: ensure spawns exist for active lobby teams before starting.
+                if (simpleClaims != null && simpleClaims.isAvailable()) {
+                    Map<String, CtfMatchService.Team> lobby = matchService.getLobbyWaitingTeamsSnapshot();
+                    Set<CtfMatchService.Team> activeTeams = new HashSet<>(lobby.values());
+                    activeTeams.remove(null);
+
+                    List<String> missing = new ArrayList<>();
+                    for (CtfMatchService.Team team : activeTeams) {
+                        if (team == null) continue;
+                        if (simpleClaims.getTeamSpawn(team.displayName()) == null) {
+                            missing.add(team.displayName());
+                        }
+                    }
+
+                    if (!missing.isEmpty()) {
+                        ctx.sendMessage(Message.raw("[RealmRuler] Missing spawns for: " + String.join(", ", missing) +
+                                ". Set with: /sc red spawn, /sc blue spawn, /sc yellow spawn, /sc white spawn"));
+                        return;
+                    }
+                }
+
                 CtfMatchService.StartResult res = matchService.startCaptureTheFlag();
                 if (res == CtfMatchService.StartResult.STARTED) {
                     if (simpleClaims != null) {
@@ -132,6 +174,16 @@ public final class RealmRulerCommand extends CommandBase {
                         }
                         simpleClaims.ensureParties();
                         simpleClaims.applyTeams(teamNameByUuid);
+
+                        // Teleport players to their team spawns (jittered within the spawn chunk).
+                        if (targetingService != null) {
+                            for (Map.Entry<String, CtfMatchService.Team> e : matchService.getActiveMatchTeams().entrySet()) {
+                                if (e.getKey() == null || e.getValue() == null) continue;
+                                var spawn = simpleClaims.getTeamSpawn(e.getValue().displayName());
+                                if (spawn == null) continue; // should be prevented by preflight
+                                queueTeleportWithJitter(e.getKey(), spawn);
+                            }
+                        }
                     }
                     ctx.sendMessage(Message.raw("[RealmRuler] Started CaptureTheFlag match timer: 15:00"));
                     return;
@@ -189,5 +241,30 @@ public final class RealmRulerCommand extends CommandBase {
     private static String safeTeamName(CtfMatchService.JoinLobbyResult jr) {
         if (jr == null || jr.team() == null) return "<unknown>";
         return jr.team().displayName();
+    }
+
+    private void queueTeleportWithJitter(String uuid, SimpleClaimsCtfBridge.TeamSpawn spawn) {
+        if (uuid == null || uuid.isBlank() || spawn == null) return;
+        if (targetingService == null) return;
+
+        int chunkX = ChunkUtil.chunkCoordinate((int) spawn.x());
+        int chunkZ = ChunkUtil.chunkCoordinate((int) spawn.z());
+
+        double minX = ChunkUtil.minBlock(chunkX) + 0.5d;
+        double maxX = ChunkUtil.maxBlock(chunkX) + 0.5d;
+        double minZ = ChunkUtil.minBlock(chunkZ) + 0.5d;
+        double maxZ = ChunkUtil.maxBlock(chunkZ) + 0.5d;
+
+        double jx = ThreadLocalRandom.current().nextDouble(-SPAWN_JITTER_RADIUS_BLOCKS, SPAWN_JITTER_RADIUS_BLOCKS);
+        double jz = ThreadLocalRandom.current().nextDouble(-SPAWN_JITTER_RADIUS_BLOCKS, SPAWN_JITTER_RADIUS_BLOCKS);
+
+        double x2 = clamp(spawn.x() + jx, minX, maxX);
+        double z2 = clamp(spawn.z() + jz, minZ, maxZ);
+
+        targetingService.queueTeleport(uuid, spawn.world(), x2, spawn.y(), z2);
+    }
+
+    private static double clamp(double v, double min, double max) {
+        return Math.max(min, Math.min(max, v));
     }
 }

@@ -5,8 +5,8 @@ import com.hypixel.hytale.server.core.plugin.PluginManager;
 
 import javax.annotation.Nullable;
 import java.lang.reflect.Method;
-import java.util.Locale;
 import java.util.Map;
+import java.util.Locale;
 import java.util.UUID;
 
 public final class SimpleClaimsCtfBridge {
@@ -18,8 +18,12 @@ public final class SimpleClaimsCtfBridge {
     private Method setPlayerCtfTeam;
     private Method clearPlayerCtfTeam;
     private Method clearAllCtfTeams;
+    private Method getCtfTeamSpawn;
 
     private boolean loggedMissing = false;
+
+    public record TeamSpawn(String world, double x, double y, double z) {
+    }
 
     public SimpleClaimsCtfBridge(HytaleLogger logger) {
         this.logger = logger;
@@ -90,6 +94,26 @@ public final class SimpleClaimsCtfBridge {
         }
     }
 
+    public @Nullable TeamSpawn getTeamSpawn(String teamName) {
+        if (!ensureLoaded()) return null;
+        if (getCtfTeamSpawn == null) return null;
+        if (teamName == null || teamName.isBlank()) return null;
+        try {
+            Object res = getCtfTeamSpawn.invoke(simpleClaimsPlugin, teamName);
+            if (!(res instanceof Map<?, ?> map)) return null;
+            Object world = map.get("world");
+            Object x = map.get("x");
+            Object y = map.get("y");
+            Object z = map.get("z");
+            if (!(world instanceof String w) || w.isBlank()) return null;
+            if (!(x instanceof Number nx) || !(y instanceof Number ny) || !(z instanceof Number nz)) return null;
+            return new TeamSpawn(w, nx.doubleValue(), ny.doubleValue(), nz.doubleValue());
+        } catch (Throwable t) {
+            logger.atWarning().withCause(t).log("[RR-SC] Failed to get team spawn. team=%s", teamName);
+            return null;
+        }
+    }
+
     private boolean ensureLoaded() {
         if (simpleClaimsPlugin != null) return true;
 
@@ -113,12 +137,19 @@ public final class SimpleClaimsCtfBridge {
             Method setTeam = plugin.getClass().getMethod("rrSetPlayerCtfTeam", UUID.class, String.class);
             Method clearTeam = plugin.getClass().getMethod("rrClearPlayerCtfTeam", UUID.class);
             Method clearAll = plugin.getClass().getMethod("rrClearAllCtfTeams");
+            Method getSpawn = null;
+            try {
+                getSpawn = plugin.getClass().getMethod("rrGetCtfTeamSpawn", String.class);
+            } catch (Throwable ignored) {
+                getSpawn = null;
+            }
 
             this.simpleClaimsPlugin = plugin;
             this.ensureCtfParties = ensure;
             this.setPlayerCtfTeam = setTeam;
             this.clearPlayerCtfTeam = clearTeam;
             this.clearAllCtfTeams = clearAll;
+            this.getCtfTeamSpawn = getSpawn;
             logger.atInfo().log("[RR-SC] SimpleClaims bridge ready. plugin=%s", plugin.getClass().getName());
             return true;
         } catch (Throwable t) {
@@ -171,4 +202,3 @@ public final class SimpleClaimsCtfBridge {
         return null;
     }
 }
-

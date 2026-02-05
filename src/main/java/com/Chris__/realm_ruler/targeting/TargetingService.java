@@ -10,16 +10,21 @@ import java.util.concurrent.atomic.AtomicLong;
 import com.hypixel.hytale.component.ArchetypeChunk;
 import com.hypixel.hytale.component.CommandBuffer;
 import com.hypixel.hytale.component.Holder;
+import com.hypixel.hytale.component.Ref;
 import com.hypixel.hytale.component.Store;
 import com.hypixel.hytale.component.query.Query;
 import com.hypixel.hytale.component.system.tick.EntityTickingSystem;
 import com.hypixel.hytale.logger.HytaleLogger;
 import com.hypixel.hytale.math.util.ChunkUtil;
 import com.hypixel.hytale.math.vector.Vector3i;
+import com.hypixel.hytale.math.vector.Vector3d;
+import com.hypixel.hytale.math.vector.Vector3f;
 import com.hypixel.hytale.server.core.asset.type.blocktype.config.BlockType;
 import com.hypixel.hytale.server.core.entity.EntityUtils;
 import com.hypixel.hytale.server.core.entity.entities.Player;
+import com.hypixel.hytale.server.core.modules.entity.teleport.Teleport;
 import com.hypixel.hytale.server.core.universe.PlayerRef;
+import com.hypixel.hytale.server.core.universe.Universe;
 import com.hypixel.hytale.server.core.universe.world.World;
 import com.hypixel.hytale.server.core.universe.world.chunk.WorldChunk;
 import com.hypixel.hytale.server.core.universe.world.storage.EntityStore;
@@ -95,6 +100,12 @@ public final class TargetingService {
     // Optional callback fired when the global match timer transitions from running -> stopped.
     private volatile Runnable matchTimerEndedCallback = null;
 
+    // Pending teleports (applied on tick thread)
+    private record PendingTeleport(String worldName, double x, double y, double z) {
+    }
+
+    private final Map<String, PendingTeleport> pendingTeleports = new ConcurrentHashMap<>();
+
 
     // -------------------------------------------------------------------------
     // UseBlock fallback remembered location
@@ -130,6 +141,15 @@ public final class TargetingService {
 
     public void setMatchTimerEndedCallback(Runnable callback) {
         this.matchTimerEndedCallback = callback;
+    }
+
+    public void queueTeleport(String uuid, String worldName, double x, double y, double z) {
+        if (uuid == null || uuid.isBlank()) return;
+        if (worldName == null || worldName.isBlank()) return;
+        pendingTeleports.put(uuid, new PendingTeleport(worldName, x, y, z));
+        if (RrDebugFlags.verbose()) {
+            logger.atInfo().log("[RR] queued teleport uuid=%s world=%s pos=%.2f,%.2f,%.2f", uuid, worldName, x, y, z);
+        }
     }
 
     private void tickGlobalMatchTimerOncePerSlice() {
@@ -432,6 +452,53 @@ public final class TargetingService {
 
                 // Keep existing behavior: refresh player cache every tick
                 playerByUuid.put(uuid, player);
+
+                // Apply pending teleports on the tick thread (schedule component write via world executor)
+                PendingTeleport pending = pendingTeleports.get(uuid);
+                if (pending != null) {
+                    World tpWorld = Universe.get().getWorlds().get(pending.worldName());
+                    if (tpWorld == null) {
+                        logger.atWarning().log("[RR] Teleport world not found: %s", pending.worldName());
+                        pendingTeleports.remove(uuid);
+                    } else {
+                        Ref<EntityStore> ref = chunk.getReferenceTo(entityId);
+                        if (ref == null || !ref.isValid()) {
+                            if (RrDebugFlags.verbose()) {
+                                logger.atInfo().log("[RR] teleport skipped (invalid ref) uuid=%s", uuid);
+                            }
+                            pendingTeleports.remove(uuid);
+                        } else {
+                            World current = player.getWorld();
+                            try {
+                                if (RrDebugFlags.verbose()) {
+                                    logger.atInfo().log("[RR] scheduling teleport uuid=%s -> world=%s", uuid, pending.worldName());
+                                }
+
+                                current.execute(() -> {
+                                    try {
+                                        store.putComponent(ref, Teleport.getComponentType(), new Teleport(
+                                                tpWorld,
+                                                new Vector3d(pending.x(), pending.y(), pending.z()),
+                                                new Vector3f()
+                                        ));
+                                        if (RrDebugFlags.verbose()) {
+                                            logger.atInfo().log("[RR] applied teleport uuid=%s -> world=%s", uuid, pending.worldName());
+                                        }
+                                    } catch (Throwable t) {
+                                        logger.atWarning().withCause(t).log("[RR] teleport apply failed uuid=%s -> world=%s", uuid, pending.worldName());
+                                    }
+                                });
+
+                                // Only remove after we've successfully scheduled it.
+                                pendingTeleports.remove(uuid);
+                            } catch (Throwable t) {
+                                logger.atWarning().withCause(t).log("[RR] Failed to schedule teleport uuid=%s -> world=%s", uuid, pending.worldName());
+                                // Keep pending so we can retry on the next tick.
+                            }
+                        }
+                    }
+                }
+
                 tickGlobalMatchTimerOncePerSlice();          // ticks the shared timer (only once per slice)
                 LobbyHudState lobbyState = null;
                 Function<String, LobbyHudState> provider = lobbyHudStateProvider;
