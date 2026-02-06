@@ -2,6 +2,7 @@ package com.Chris__.realm_ruler.targeting;
 
 import com.Chris__.realm_ruler.core.LobbyHudState;
 import com.Chris__.realm_ruler.core.RrDebugFlags;
+import com.Chris__.realm_ruler.ui.CtfFlagsHudState;
 import com.Chris__.realm_ruler.ui.GlobalMatchTimerService;
 import com.Chris__.realm_ruler.ui.LobbyHudService;
 import com.Chris__.realm_ruler.ui.TimerAction;
@@ -38,6 +39,7 @@ import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.function.Function;
+import java.util.function.Supplier;
 
 import static com.Chris__.realm_ruler.targeting.TargetingModels.*;
 
@@ -141,6 +143,10 @@ public final class TargetingService {
 
     public void setMatchTimerEndedCallback(Runnable callback) {
         this.matchTimerEndedCallback = callback;
+    }
+
+    public void setFlagsHudStateProvider(Supplier<CtfFlagsHudState> provider) {
+        matchTimer.setFlagsHudStateProvider(provider);
     }
 
     public void queueTeleport(String uuid, String worldName, double x, double y, double z) {

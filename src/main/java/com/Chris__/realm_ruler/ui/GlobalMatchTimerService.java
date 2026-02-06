@@ -6,6 +6,7 @@ import com.hypixel.hytale.server.core.universe.PlayerRef;
 
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.function.Supplier;
 
 /**
  * One authoritative match timer shared by everyone.
@@ -20,6 +21,9 @@ public final class GlobalMatchTimerService {
     private final Map<String, GameTimerHud> hudByUuid = new ConcurrentHashMap<>();
     private final Map<String, EmptyHud> emptyHudByUuid = new ConcurrentHashMap<>();
     private final Map<String, Integer> lastShownSecondsByUuid = new ConcurrentHashMap<>();
+    private final Map<String, CtfFlagsHudState> lastShownFlagsByUuid = new ConcurrentHashMap<>();
+
+    private volatile Supplier<CtfFlagsHudState> flagsHudStateProvider = null;
 
     private boolean running = false;
     private int remainingSeconds = 0;
@@ -30,6 +34,7 @@ public final class GlobalMatchTimerService {
         this.secondAccumulator = 0f;
         this.running = (this.remainingSeconds > 0);
         this.lastShownSecondsByUuid.clear(); // force refresh for all players
+        this.lastShownFlagsByUuid.clear(); // force refresh for all players
     }
 
     public void stop() {
@@ -37,6 +42,7 @@ public final class GlobalMatchTimerService {
         this.remainingSeconds = 0;
         this.secondAccumulator = 0f;
         this.lastShownSecondsByUuid.clear(); // force hide refresh
+        this.lastShownFlagsByUuid.clear(); // force hide refresh
     }
 
     /** dt is in seconds. */
@@ -75,11 +81,18 @@ public final class GlobalMatchTimerService {
             return;
         }
 
+        Supplier<CtfFlagsHudState> flagsProvider = flagsHudStateProvider;
+        CtfFlagsHudState flags = (flagsProvider == null) ? null : flagsProvider.get();
+
         int lastShown = lastShownSecondsByUuid.getOrDefault(uuid, -1);
-        if (lastShown != remainingSeconds || current != hud) {
+        CtfFlagsHudState lastFlags = lastShownFlagsByUuid.get(uuid);
+        boolean flagsChanged = (flags == null) ? (lastFlags != null) : !flags.equals(lastFlags);
+
+        if (lastShown != remainingSeconds || current != hud || flagsChanged) {
             // IMPORTANT: HudManager#setCustomHud no-ops if the same hud instance is already set.
             // For updates, we must call hud.show() to re-send UI commands.
             hud.showSeconds(remainingSeconds);
+            hud.setFlagsState(flags);
 
             if (current != hud) {
                 player.getHudManager().setCustomHud(playerRef, hud); // initial set (calls hud.show())
@@ -88,6 +101,7 @@ public final class GlobalMatchTimerService {
             }
 
             lastShownSecondsByUuid.put(uuid, remainingSeconds);
+            lastShownFlagsByUuid.put(uuid, flags);
         }
     }
 
@@ -97,5 +111,10 @@ public final class GlobalMatchTimerService {
 
     public int getRemainingSeconds() {
         return remainingSeconds;
+    }
+
+    public void setFlagsHudStateProvider(Supplier<CtfFlagsHudState> provider) {
+        this.flagsHudStateProvider = provider;
+        this.lastShownFlagsByUuid.clear(); // force refresh
     }
 }

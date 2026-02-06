@@ -19,6 +19,7 @@ public final class SimpleClaimsCtfBridge {
     private Method clearPlayerCtfTeam;
     private Method clearAllCtfTeams;
     private Method getCtfTeamSpawn;
+    private Method getCtfTeamForChunk;
 
     private boolean loggedMissing = false;
 
@@ -114,6 +115,21 @@ public final class SimpleClaimsCtfBridge {
         }
     }
 
+    public @Nullable String getTeamForChunk(String worldName, int chunkX, int chunkZ) {
+        if (!ensureLoaded()) return null;
+        if (getCtfTeamForChunk == null) return null;
+        if (worldName == null || worldName.isBlank()) return null;
+        try {
+            Object res = getCtfTeamForChunk.invoke(simpleClaimsPlugin, worldName, chunkX, chunkZ);
+            if (res == null) return null;
+            String s = String.valueOf(res).trim();
+            return s.isEmpty() ? null : s;
+        } catch (Throwable t) {
+            logger.atWarning().withCause(t).log("[RR-SC] Failed to get team for chunk. world=%s chunk=%d,%d", worldName, chunkX, chunkZ);
+            return null;
+        }
+    }
+
     private boolean ensureLoaded() {
         if (simpleClaimsPlugin != null) return true;
 
@@ -143,6 +159,12 @@ public final class SimpleClaimsCtfBridge {
             } catch (Throwable ignored) {
                 getSpawn = null;
             }
+            Method getTeamForChunk = null;
+            try {
+                getTeamForChunk = plugin.getClass().getMethod("rrGetCtfTeamForChunk", String.class, int.class, int.class);
+            } catch (Throwable ignored) {
+                getTeamForChunk = null;
+            }
 
             this.simpleClaimsPlugin = plugin;
             this.ensureCtfParties = ensure;
@@ -150,6 +172,7 @@ public final class SimpleClaimsCtfBridge {
             this.clearPlayerCtfTeam = clearTeam;
             this.clearAllCtfTeams = clearAll;
             this.getCtfTeamSpawn = getSpawn;
+            this.getCtfTeamForChunk = getTeamForChunk;
             logger.atInfo().log("[RR-SC] SimpleClaims bridge ready. plugin=%s", plugin.getClass().getName());
             return true;
         } catch (Throwable t) {

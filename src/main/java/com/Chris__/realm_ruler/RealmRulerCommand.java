@@ -1,8 +1,11 @@
 package com.Chris__.realm_ruler;
 
 import com.Chris__.realm_ruler.integration.SimpleClaimsCtfBridge;
+import com.Chris__.realm_ruler.match.CtfFlagStateService;
 import com.Chris__.realm_ruler.match.CtfMatchService;
+import com.Chris__.realm_ruler.match.CtfPointsRepository;
 import com.Chris__.realm_ruler.targeting.TargetingService;
+import com.Chris__.realm_ruler.ui.pages.ctf.CtfShopUiService;
 import com.Chris__.realm_ruler.util.SpawnTeleportUtil;
 import com.hypixel.hytale.protocol.GameMode;
 import com.hypixel.hytale.server.core.Message;
@@ -20,7 +23,7 @@ import java.util.Set;
 public final class RealmRulerCommand extends CommandBase {
 
     private static final Message MSG_USAGE =
-            Message.raw("Usage: /rr ctf <join [random|red|blue|yellow|white]|leave|start|stop>");
+            Message.raw("Usage: /rr ctf <join [random|red|blue|yellow|white]|leave|start [minutes]|stop|points|shop>");
 
     private static final Message MSG_NOT_READY =
             Message.raw("[RealmRuler] Not ready yet (plugin still starting?).");
@@ -33,8 +36,16 @@ public final class RealmRulerCommand extends CommandBase {
     private final CtfMatchService matchService;
     private final SimpleClaimsCtfBridge simpleClaims;
     private final TargetingService targetingService;
+    private final CtfFlagStateService flagStateService;
+    private final CtfPointsRepository pointsRepository;
+    private final CtfShopUiService shopUiService;
 
-    public RealmRulerCommand(CtfMatchService matchService, SimpleClaimsCtfBridge simpleClaims, TargetingService targetingService) {
+    public RealmRulerCommand(CtfMatchService matchService,
+                             SimpleClaimsCtfBridge simpleClaims,
+                             TargetingService targetingService,
+                             CtfFlagStateService flagStateService,
+                             CtfPointsRepository pointsRepository,
+                             CtfShopUiService shopUiService) {
         super("RealmRuler", "Controls Realm Ruler minigames.");
         this.setAllowsExtraArguments(true); // we parse ctx.getInputString() ourselves
         this.addAliases("rr");
@@ -42,6 +53,9 @@ public final class RealmRulerCommand extends CommandBase {
         this.matchService = matchService;
         this.simpleClaims = simpleClaims;
         this.targetingService = targetingService;
+        this.flagStateService = flagStateService;
+        this.pointsRepository = pointsRepository;
+        this.shopUiService = shopUiService;
     }
 
     @Override
@@ -142,6 +156,24 @@ public final class RealmRulerCommand extends CommandBase {
             }
 
             if ("start".equalsIgnoreCase(action)) {
+                int minutes = 15;
+                if (args.length >= 4) {
+                    try {
+                        minutes = Integer.parseInt(args[3].trim());
+                    } catch (Throwable ignored) {
+                        ctx.sendMessage(MSG_USAGE);
+                        return;
+                    }
+                }
+
+                if (minutes <= 0) {
+                    ctx.sendMessage(MSG_USAGE);
+                    return;
+                }
+
+                long secondsLong = minutes * 60L;
+                int seconds = (secondsLong > Integer.MAX_VALUE) ? Integer.MAX_VALUE : (int) secondsLong;
+
                 // Preflight: ensure spawns exist for active lobby teams before starting.
                 if (simpleClaims != null && simpleClaims.isAvailable()) {
                     Map<String, CtfMatchService.Team> lobby = matchService.getLobbyWaitingTeamsSnapshot();
@@ -163,8 +195,12 @@ public final class RealmRulerCommand extends CommandBase {
                     }
                 }
 
-                CtfMatchService.StartResult res = matchService.startCaptureTheFlag();
+                CtfMatchService.StartResult res = matchService.startCaptureTheFlag(seconds);
                 if (res == CtfMatchService.StartResult.STARTED) {
+                    if (flagStateService != null) {
+                        flagStateService.resetForNewMatch();
+                    }
+
                     if (simpleClaims != null) {
                         Map<String, String> teamNameByUuid = new HashMap<>();
                         for (Map.Entry<String, CtfMatchService.Team> e : matchService.getActiveMatchTeams().entrySet()) {
@@ -184,7 +220,7 @@ public final class RealmRulerCommand extends CommandBase {
                             }
                         }
                     }
-                    ctx.sendMessage(Message.raw("[RealmRuler] Started CaptureTheFlag match timer: 15:00"));
+                    ctx.sendMessage(Message.raw("[RealmRuler] Started CaptureTheFlag match timer: " + formatSeconds(seconds)));
                     return;
                 }
 
@@ -204,10 +240,31 @@ public final class RealmRulerCommand extends CommandBase {
                 }
 
                 matchService.stopCaptureTheFlag();
-                if (simpleClaims != null) {
-                    simpleClaims.clearTeams(matchService.getActiveMatchUuids());
+                ctx.sendMessage(Message.raw("[RealmRuler] Stopping CaptureTheFlag match..."));
+                return;
+            }
+
+            if ("points".equalsIgnoreCase(action)) {
+                String uuid = (ctx.sender() == null || ctx.sender().getUuid() == null) ? null : ctx.sender().getUuid().toString();
+                if (uuid == null || uuid.isBlank()) {
+                    ctx.sendMessage(MSG_PLAYERS_ONLY);
+                    return;
                 }
-                ctx.sendMessage(Message.raw("[RealmRuler] Stopped CaptureTheFlag match."));
+                int points = (pointsRepository == null) ? 0 : pointsRepository.getPoints(uuid);
+                ctx.sendMessage(Message.raw("[RealmRuler] CTF points: " + points));
+                return;
+            }
+
+            if ("shop".equalsIgnoreCase(action)) {
+                String uuid = (ctx.sender() == null || ctx.sender().getUuid() == null) ? null : ctx.sender().getUuid().toString();
+                if (uuid == null || uuid.isBlank()) {
+                    ctx.sendMessage(MSG_PLAYERS_ONLY);
+                    return;
+                }
+                if (shopUiService != null) {
+                    shopUiService.requestOpen(uuid);
+                }
+                ctx.sendMessage(Message.raw("[RealmRuler] Opening CTF shop..."));
                 return;
             }
 

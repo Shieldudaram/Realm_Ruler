@@ -65,6 +65,7 @@ public final class CtfMatchService {
     private final Map<String, Team> lobbyTeamByUuid = new ConcurrentHashMap<>();
     private final Map<String, Team> matchTeamByUuid = new ConcurrentHashMap<>();
     private final Set<String> waitingUuids = ConcurrentHashMap.newKeySet();
+    private volatile boolean stopRequested = false;
 
     public CtfMatchService(TargetingService targetingService, CtfMode ctfMode) {
         this.targetingService = targetingService;
@@ -143,6 +144,7 @@ public final class CtfMatchService {
         if (targetingService.isMatchTimerRunning()) return StartResult.ALREADY_RUNNING;
 
         ctfMode.resetMatch();
+        stopRequested = false;
 
         // Move lobby assignments into the active match, then clear lobby so teams reroll next match.
         matchTeamByUuid.clear();
@@ -161,12 +163,19 @@ public final class CtfMatchService {
     public boolean stopCaptureTheFlag() {
         if (targetingService == null) return false;
         if (!targetingService.isMatchTimerRunning()) return false;
+        stopRequested = true;
         targetingService.queueTimerStop();
         return true;
     }
 
     public void endMatch() {
         matchTeamByUuid.clear();
+    }
+
+    public boolean consumeStopRequested() {
+        boolean v = stopRequested;
+        stopRequested = false;
+        return v;
     }
 
     public Map<String, Team> getActiveMatchTeams() {

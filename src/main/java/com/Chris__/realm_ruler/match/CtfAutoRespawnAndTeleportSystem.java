@@ -10,6 +10,7 @@ import com.hypixel.hytale.component.Store;
 import com.hypixel.hytale.component.query.Query;
 import com.hypixel.hytale.component.system.RefChangeSystem;
 import com.hypixel.hytale.logger.HytaleLogger;
+import com.hypixel.hytale.protocol.packets.interface_.Page;
 import com.hypixel.hytale.server.core.entity.entities.Player;
 import com.hypixel.hytale.server.core.modules.entity.component.TransformComponent;
 import com.hypixel.hytale.server.core.modules.entity.damage.DeathComponent;
@@ -79,16 +80,23 @@ public final class CtfAutoRespawnAndTeleportSystem extends RefChangeSystem<Entit
         }
 
         try {
-            var currentWorld = player.getWorld();
-            if (currentWorld == null) return;
-            currentWorld.execute(() -> {
+            commandBuffer.run(store2 -> {
                 try {
-                    DeathComponent.respawn(store, ref);
+                    DeathComponent.respawn(store2, ref);
                     if (RrDebugFlags.verbose()) {
                         logger.atInfo().log("[RR] CTF respawn requested. uuid=%s", uuidStr);
                     }
                 } catch (Throwable t) {
                     logger.atWarning().withCause(t).log("[RR] CTF auto-respawn failed. uuid=%s", uuidStr);
+                }
+
+                // Best-effort: force-close any opened death/respawn page.
+                try {
+                    player.getPageManager().setPage(ref, store2, Page.None);
+                } catch (Throwable t) {
+                    if (RrDebugFlags.verbose()) {
+                        logger.atWarning().withCause(t).log("[RR] Failed to close death page. uuid=%s", uuidStr);
+                    }
                 }
             });
         } catch (Throwable t) {

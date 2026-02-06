@@ -1,0 +1,81 @@
+Group #CtfFlagsHud {
+  Anchor: (Top: 20, Right: 20, Width: 260, Height: 152);
+  LayoutMode: Top;
+
+  Group #FlagsPanel {
+    Background: #000000(0.2);
+    Anchor: (Width: 260, Height: 152);
+    Padding: (Horizontal: 12, Vertical: 10);
+    LayoutMode: Top;
+
+    Label #FlagsTitle {
+      Anchor: (Height: 20);
+      Style: (FontSize: 16, Alignment: Center);
+      Text: "Flags";
+    }
+
+    Group #RedRow {
+      Anchor: (Top: 8, Height: 24);
+      LayoutMode: Left;
+
+      Label #RedFlagStatus {
+        Anchor: (Width: 220, Height: 24);
+        Style: (FontSize: 14, Alignment: Start);
+        Text: "";
+      }
+
+      Group #RedFlagIcon {
+        Anchor: (Left: 8, Width: 16, Height: 16);
+        Background: #d32f2f(1.0);
+      }
+    }
+
+    Group #BlueRow {
+      Anchor: (Height: 24);
+      LayoutMode: Left;
+
+      Label #BlueFlagStatus {
+        Anchor: (Width: 220, Height: 24);
+        Style: (FontSize: 14, Alignment: Start);
+        Text: "";
+      }
+
+      Group #BlueFlagIcon {
+        Anchor: (Left: 8, Width: 16, Height: 16);
+        Background: #1976d2(1.0);
+      }
+    }
+
+    Group #YellowRow {
+      Anchor: (Height: 24);
+      LayoutMode: Left;
+
+      Label #YellowFlagStatus {
+        Anchor: (Width: 220, Height: 24);
+        Style: (FontSize: 14, Alignment: Start);
+        Text: "";
+      }
+
+      Group #YellowFlagIcon {
+        Anchor: (Left: 8, Width: 16, Height: 16);
+        Background: #fbc02d(1.0);
+      }
+    }
+
+    Group #WhiteRow {
+      Anchor: (Height: 24);
+      LayoutMode: Left;
+
+      Label #WhiteFlagStatus {
+        Anchor: (Width: 220, Height: 24);
+        Style: (FontSize: 14, Alignment: Start);
+        Text: "";
+      }
+
+      Group #WhiteFlagIcon {
+        Anchor: (Left: 8, Width: 16, Height: 16);
+        Background: #eeeeee(1.0);
+      }
+    }
+  }
+}

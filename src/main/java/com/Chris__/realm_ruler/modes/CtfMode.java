@@ -168,6 +168,9 @@ public class CtfMode implements RealmMode {
 
                 // Sync
                 p.sendInventory();
+
+                // Flag tracker (HUD + scoring)
+                plugin.rrCtfOnFlagDeposited(uuid, heldId, loc);
             });
             return;
         }
@@ -214,6 +217,9 @@ public class CtfMode implements RealmMode {
                 plugin.rrSwapStandAt(loc, CtfRules.STAND_EMPTY);
 
                 p.sendInventory();
+
+                // Flag tracker (HUD + scoring)
+                plugin.rrCtfOnFlagWithdrawn(uuid, p.getDisplayName(), stored.getItemId(), loc);
             });
             return;
         }

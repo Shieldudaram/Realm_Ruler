@@ -24,13 +24,13 @@ Group #TimerHud {
       Background: (TexturePath: "TimerInset.png", Border: 14);
 
       Label #TimerTitle {
-        Style: LabelStyle(FontSize: 16, Alignment: Center);
+        Style: (FontSize: 16, Alignment: Center);
         Anchor: (Width: 364, Height: 18);
         Text: "Capture The Flag";
       }
 
       Label #TimerLabel {
-        Style: LabelStyle(FontSize: 40, Alignment: Center);
+        Style: (FontSize: 40, Alignment: Center);
         Anchor: (Top: 2, Width: 364, Height: 56);
         Text: "15:00";
       }

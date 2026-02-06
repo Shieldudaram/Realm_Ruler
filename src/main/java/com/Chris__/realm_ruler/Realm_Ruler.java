@@ -25,7 +25,12 @@ import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 import com.Chris__.realm_ruler.match.CtfMatchService;
 import com.Chris__.realm_ruler.match.CtfAutoRespawnAndTeleportSystem;
+import com.Chris__.realm_ruler.match.CtfFlagStateService;
+import com.Chris__.realm_ruler.match.CtfMatchEndService;
+import com.Chris__.realm_ruler.match.CtfPointsRepository;
+import com.Chris__.realm_ruler.match.CtfShopConfigRepository;
 import com.Chris__.realm_ruler.integration.SimpleClaimsCtfBridge;
+import com.Chris__.realm_ruler.ui.pages.ctf.CtfShopUiService;
 import javax.annotation.Nonnull;
 import java.lang.reflect.Method;
 import java.util.Locale;
@@ -90,6 +95,11 @@ public class Realm_Ruler extends JavaPlugin {
     private TargetingService targetingService;
     private CtfMatchService ctfMatchService;
     private SimpleClaimsCtfBridge simpleClaimsCtfBridge;
+    private CtfFlagStateService ctfFlagStateService;
+    private CtfPointsRepository ctfPointsRepository;
+    private CtfMatchEndService ctfMatchEndService;
+    private CtfShopConfigRepository ctfShopConfigRepository;
+    private CtfShopUiService ctfShopUiService;
     private final PlayerInteractAdapter pi = new PlayerInteractAdapter();
 
     private void setupModes() {
@@ -185,13 +195,29 @@ public class Realm_Ruler extends JavaPlugin {
         this.ctfMatchService = new CtfMatchService(this.targetingService, this.ctfMode);
         this.targetingService.setLobbyHudStateProvider(this.ctfMatchService::lobbyHudStateFor);
         this.simpleClaimsCtfBridge = new SimpleClaimsCtfBridge(LOGGER);
+        this.ctfFlagStateService = new CtfFlagStateService(this.ctfMatchService, this.simpleClaimsCtfBridge, LOGGER);
+        this.targetingService.setFlagsHudStateProvider(this.ctfFlagStateService::snapshotHudState);
+        this.ctfPointsRepository = new CtfPointsRepository(this.getDataDirectory(), LOGGER);
+        this.ctfShopConfigRepository = new CtfShopConfigRepository(this.getDataDirectory(), LOGGER);
+        this.ctfShopUiService = new CtfShopUiService(this.ctfPointsRepository, this.ctfShopConfigRepository, this::rrCreateItemStackById);
+        this.ctfMatchEndService = new CtfMatchEndService(
+                this.ctfMatchService,
+                this.simpleClaimsCtfBridge,
+                this.ctfFlagStateService,
+                this.ctfPointsRepository,
+                this.standSwapService,
+                this.playerByUuid,
+                LOGGER
+        );
         this.targetingService.setMatchTimerEndedCallback(() -> {
             CtfMatchService ms = ctfMatchService;
             if (ms == null) return;
-            if (simpleClaimsCtfBridge != null) {
-                simpleClaimsCtfBridge.clearTeams(ms.getActiveMatchUuids());
-            }
-            ms.endMatch();
+            CtfMatchEndService mes = ctfMatchEndService;
+            if (mes == null) return;
+            CtfMatchEndService.EndReason reason = ms.consumeStopRequested()
+                    ? CtfMatchEndService.EndReason.STOPPED
+                    : CtfMatchEndService.EndReason.TIME_EXPIRED;
+            mes.endMatch(reason);
         });
 
 
@@ -209,7 +235,14 @@ public class Realm_Ruler extends JavaPlugin {
                 new ExampleCommand(this.getName(), this.getManifest().getVersion().toString())
 
         );
-        this.getCommandRegistry().registerCommand(new RealmRulerCommand(this.ctfMatchService, this.simpleClaimsCtfBridge, this.targetingService));
+        this.getCommandRegistry().registerCommand(new RealmRulerCommand(
+                this.ctfMatchService,
+                this.simpleClaimsCtfBridge,
+                this.targetingService,
+                this.ctfFlagStateService,
+                this.ctfPointsRepository,
+                this.ctfShopUiService
+        ));
 
         // ---------------------------------------------------------------------
         // 2) Fallback event registration (UseBlockEvent.Pre)
@@ -263,6 +296,12 @@ public class Realm_Ruler extends JavaPlugin {
                 LOGGER
         ));
         LOGGER.atInfo().log("Registered CtfAutoRespawnAndTeleportSystem.");
+
+        // Shop UI open service (PageManager).
+        if (ctfShopUiService != null) {
+            this.getEntityStoreRegistry().registerSystem(ctfShopUiService.createSystem());
+            LOGGER.atInfo().log("Registered CtfShopUiService system.");
+        }
 
         // ---------------------------------------------------------------------
         // 4) Primary interaction stream: PlayerInteractLib subscription
@@ -590,6 +629,24 @@ public class Realm_Ruler extends JavaPlugin {
 
     public Player rrResolvePlayer(String uuid) {
         return playerByUuid.get(uuid);
+    }
+
+    public void rrCtfOnFlagDeposited(String uuid, String flagItemId, TargetingModels.BlockLocation loc) {
+        if (ctfFlagStateService == null) return;
+        if (uuid == null || uuid.isBlank()) return;
+        if (flagItemId == null || flagItemId.isBlank()) return;
+        if (loc == null || loc.world == null) return;
+        String worldName = loc.world.getName();
+        ctfFlagStateService.onDeposited(uuid, flagItemId, worldName, loc.x, loc.y, loc.z);
+    }
+
+    public void rrCtfOnFlagWithdrawn(String uuid, String holderName, String flagItemId, TargetingModels.BlockLocation loc) {
+        if (ctfFlagStateService == null) return;
+        if (uuid == null || uuid.isBlank()) return;
+        if (flagItemId == null || flagItemId.isBlank()) return;
+        if (loc == null || loc.world == null) return;
+        String worldName = loc.world.getName();
+        ctfFlagStateService.onWithdrawn(uuid, holderName, flagItemId, worldName, loc.x, loc.y, loc.z);
     }
 
     public void handleCtfAction(Object action) {

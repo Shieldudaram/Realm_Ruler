@@ -17,7 +17,7 @@ Group #RealmRulerCtfMapPage {
 
     Label #TitleLabel {
       Anchor: (Height: 32);
-      Style: LabelStyle(FontSize: 24, Alignment: Center);
+      Style: (FontSize: 24, Alignment: Center);
       Text: "Capture the Flag Map";
     }
 
@@ -40,9 +40,8 @@ Group #RealmRulerCtfMapPage {
 
     Label #CloseHint {
       Anchor: (Top: 10, Height: 20);
-      Style: LabelStyle(FontSize: 14, Alignment: Center);
+      Style: (FontSize: 14, Alignment: Center);
       Text: "Press Esc to close";
     }
   }
 }
-
