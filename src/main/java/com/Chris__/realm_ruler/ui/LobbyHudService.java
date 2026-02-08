@@ -1,34 +1,39 @@
 package com.Chris__.realm_ruler.ui;
 
 import com.Chris__.realm_ruler.core.LobbyHudState;
+import com.Chris__.realm_ruler.integration.MultipleHudBridge;
 import com.hypixel.hytale.server.core.entity.entities.Player;
-import com.hypixel.hytale.server.core.entity.entities.player.hud.CustomUIHud;
 import com.hypixel.hytale.server.core.universe.PlayerRef;
 
 import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 
 public final class LobbyHudService {
+    private static final String HUD_SLOT_ID = "RealmRuler_LobbyHud";
 
     private record HudKey(String teamName, int waitingCount) {
     }
 
+    private final MultipleHudBridge multipleHudBridge;
     private final Map<String, LobbyHud> hudByUuid = new ConcurrentHashMap<>();
-    private final Map<String, EmptyHud> emptyHudByUuid = new ConcurrentHashMap<>();
+    private final Set<String> shownHudByUuid = ConcurrentHashMap.newKeySet();
     private final Map<String, HudKey> lastShownByUuid = new ConcurrentHashMap<>();
+
+    public LobbyHudService(MultipleHudBridge multipleHudBridge) {
+        this.multipleHudBridge = multipleHudBridge;
+    }
 
     public void renderForPlayer(String uuid, Player player, PlayerRef playerRef, LobbyHudState state) {
         if (uuid == null || uuid.isEmpty() || player == null || playerRef == null) return;
 
         LobbyHud hud = hudByUuid.computeIfAbsent(uuid, k -> new LobbyHud(playerRef));
-        EmptyHud emptyHud = emptyHudByUuid.computeIfAbsent(uuid, k -> new EmptyHud(playerRef));
-        CustomUIHud current = player.getHudManager().getCustomHud();
 
         boolean visible = state != null && state.visible();
         if (!visible) {
-            if (current == hud) {
+            if (shownHudByUuid.remove(uuid)) {
                 hud.hide();
-                player.getHudManager().setCustomHud(playerRef, emptyHud);
+                multipleHudBridge.hideCustomHud(player, playerRef, HUD_SLOT_ID);
             }
             lastShownByUuid.remove(uuid);
             return;
@@ -39,16 +44,14 @@ public final class LobbyHudService {
 
         HudKey desired = new HudKey(teamName, waitingCount);
         HudKey last = lastShownByUuid.get(uuid);
-        if (!desired.equals(last) || current != hud) {
+        boolean isCurrentlyShown = shownHudByUuid.contains(uuid);
+        if (!desired.equals(last) || !isCurrentlyShown) {
             hud.show(teamName, waitingCount);
 
-            if (current != hud) {
-                player.getHudManager().setCustomHud(playerRef, hud); // initial set (calls hud.show())
-            } else {
-                hud.show(); // force refresh (clear+rebuild)
+            if (multipleHudBridge.setCustomHud(player, playerRef, HUD_SLOT_ID, hud)) {
+                shownHudByUuid.add(uuid);
+                lastShownByUuid.put(uuid, desired);
             }
-
-            lastShownByUuid.put(uuid, desired);
         }
     }
 }

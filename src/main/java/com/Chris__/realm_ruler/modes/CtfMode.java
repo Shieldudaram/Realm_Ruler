@@ -2,6 +2,8 @@ package com.Chris__.realm_ruler.modes;
 
 import com.Chris__.realm_ruler.Realm_Ruler;
 import com.Chris__.realm_ruler.core.RealmMode;
+import com.Chris__.realm_ruler.match.CtfFlagStateService;
+import com.Chris__.realm_ruler.match.CtfMatchService;
 import com.Chris__.realm_ruler.modes.ctf.CtfRules;
 import com.Chris__.realm_ruler.modes.ctf.CtfState;
 import com.hypixel.hytale.logger.HytaleLogger;
@@ -35,6 +37,12 @@ public class CtfMode implements RealmMode {
 
     private static final Message MSG_NEED_EMPTY_HAND =
             Message.raw("Your hand must be empty to take the flag.");
+    private static final Message MSG_CTF_ONLY =
+            Message.raw("[RealmRuler] Only active CTF participants can take flags.");
+    private static final Message MSG_OWN_FLAG =
+            Message.raw("[RealmRuler] You cannot take your own team's flag.");
+    private static final Message MSG_ONE_FLAG_ONLY =
+            Message.raw("[RealmRuler] You can only carry one flag.");
 
     private final Realm_Ruler plugin;
     private final HytaleLogger logger;
@@ -139,6 +147,12 @@ public class CtfMode implements RealmMode {
                 Player p = plugin.rrResolvePlayer(uuid);
                 if (p == null) return;
 
+                if (!plugin.rrIsActiveCtfParticipant(uuid)) {
+                    p.sendMessage(MSG_CTF_ONLY);
+                    tryPlayDenySound(p);
+                    return;
+                }
+
                 Inventory inv = p.getInventory();
                 if (inv == null) return;
 
@@ -181,6 +195,26 @@ public class CtfMode implements RealmMode {
                 Player p = plugin.rrResolvePlayer(uuid);
                 if (p == null) return;
 
+                if (!plugin.rrIsActiveCtfParticipant(uuid)) {
+                    p.sendMessage(MSG_CTF_ONLY);
+                    tryPlayDenySound(p);
+                    return;
+                }
+
+                CtfMatchService.Team standFlagTeam = CtfFlagStateService.flagTeamFromStandId(clicked);
+                CtfMatchService.Team playerTeam = plugin.rrActiveMatchTeamFor(uuid);
+                if (standFlagTeam != null && playerTeam != null && standFlagTeam == playerTeam) {
+                    p.sendMessage(MSG_OWN_FLAG);
+                    tryPlayDenySound(p);
+                    return;
+                }
+
+                if (plugin.rrCtfIsCarryingAnyFlag(uuid)) {
+                    p.sendMessage(MSG_ONE_FLAG_ONLY);
+                    tryPlayDenySound(p);
+                    return;
+                }
+
                 Inventory inv = p.getInventory();
                 if (inv == null) return;
 
@@ -219,7 +253,7 @@ public class CtfMode implements RealmMode {
                 p.sendInventory();
 
                 // Flag tracker (HUD + scoring)
-                plugin.rrCtfOnFlagWithdrawn(uuid, p.getDisplayName(), stored.getItemId(), loc);
+                plugin.rrCtfOnFlagWithdrawn(uuid, p.getDisplayName(), stored.getItemId(), loc, (byte) (slot & 0xFF));
             });
             return;
         }

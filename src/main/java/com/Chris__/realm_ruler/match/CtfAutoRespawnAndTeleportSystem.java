@@ -10,8 +10,10 @@ import com.hypixel.hytale.component.Store;
 import com.hypixel.hytale.component.query.Query;
 import com.hypixel.hytale.component.system.RefChangeSystem;
 import com.hypixel.hytale.logger.HytaleLogger;
+import com.hypixel.hytale.server.core.entity.ItemUtils;
 import com.hypixel.hytale.protocol.packets.interface_.Page;
 import com.hypixel.hytale.server.core.entity.entities.Player;
+import com.hypixel.hytale.server.core.inventory.ItemStack;
 import com.hypixel.hytale.server.core.modules.entity.component.TransformComponent;
 import com.hypixel.hytale.server.core.modules.entity.damage.DeathComponent;
 import com.hypixel.hytale.server.core.universe.PlayerRef;
@@ -22,6 +24,7 @@ public final class CtfAutoRespawnAndTeleportSystem extends RefChangeSystem<Entit
     private static final double SPAWN_JITTER_RADIUS_BLOCKS = 3.0d;
 
     private final CtfMatchService matchService;
+    private final CtfFlagStateService flagStateService;
     private final SimpleClaimsCtfBridge simpleClaims;
     private final TargetingService targetingService;
     private final HytaleLogger logger;
@@ -29,10 +32,12 @@ public final class CtfAutoRespawnAndTeleportSystem extends RefChangeSystem<Entit
     private boolean warnedMissingSimpleClaims = false;
 
     public CtfAutoRespawnAndTeleportSystem(CtfMatchService matchService,
-                                          SimpleClaimsCtfBridge simpleClaims,
-                                          TargetingService targetingService,
-                                          HytaleLogger logger) {
+                                           CtfFlagStateService flagStateService,
+                                           SimpleClaimsCtfBridge simpleClaims,
+                                           TargetingService targetingService,
+                                           HytaleLogger logger) {
         this.matchService = matchService;
+        this.flagStateService = flagStateService;
         this.simpleClaims = simpleClaims;
         this.targetingService = targetingService;
         this.logger = logger;
@@ -66,6 +71,8 @@ public final class CtfAutoRespawnAndTeleportSystem extends RefChangeSystem<Entit
 
         String uuidStr = playerRef.getUuid().toString();
         if (!matchService.isActiveMatchParticipant(uuidStr)) return;
+
+        dropCarriedFlagOnDeath(ref, store, player, uuidStr);
 
         // Best-effort: suppress death menu + auto-respawn.
         try {
@@ -160,5 +167,36 @@ public final class CtfAutoRespawnAndTeleportSystem extends RefChangeSystem<Entit
                 spawn.z(),
                 SPAWN_JITTER_RADIUS_BLOCKS
         );
+    }
+
+    private void dropCarriedFlagOnDeath(Ref<EntityStore> ref,
+                                        Store<EntityStore> store,
+                                        Player player,
+                                        String uuid) {
+        if (ref == null || store == null || player == null || uuid == null || uuid.isBlank()) return;
+        if (flagStateService == null) return;
+
+        CtfMatchService.Team carriedFlag = flagStateService.carriedFlagFor(uuid);
+        if (carriedFlag == null) return;
+
+        TransformComponent transform = store.getComponent(ref, TransformComponent.getComponentType());
+        if (transform == null || transform.getPosition() == null) return;
+        if (player.getWorld() == null) return;
+
+        String worldName = player.getWorld().getName();
+        double x = transform.getPosition().getX();
+        double y = transform.getPosition().getY();
+        double z = transform.getPosition().getZ();
+
+        ItemStack dropStack = flagStateService.removeOneFlagFromPlayer(player, carriedFlag);
+        if (dropStack != null) {
+            try {
+                ItemUtils.dropItem(ref, dropStack, store);
+            } catch (Throwable t) {
+                logger.atWarning().withCause(t).log("[RR-CTF] Failed to drop carrier flag on death. uuid=%s", uuid);
+            }
+        }
+
+        flagStateService.markCarrierDropped(uuid, worldName, x, y, z);
     }
 }

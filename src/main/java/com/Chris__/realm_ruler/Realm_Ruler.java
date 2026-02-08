@@ -1,6 +1,7 @@
 package com.Chris__.realm_ruler;
 
 import com.hypixel.hytale.server.core.entity.entities.Player;
+import com.hypixel.hytale.server.core.entity.ItemUtils;
 import com.hypixel.hytale.server.core.universe.world.World;
 import com.Chris__.realm_ruler.core.ModeManager;
 import com.Chris__.realm_ruler.core.RrDebugFlags;
@@ -17,7 +18,11 @@ import com.hypixel.hytale.server.core.Message;
 import com.hypixel.hytale.server.core.asset.type.blocktype.config.BlockType;
 import com.hypixel.hytale.server.core.entity.InteractionContext;
 import com.hypixel.hytale.server.core.event.events.ecs.UseBlockEvent;
+import com.hypixel.hytale.server.core.event.events.entity.LivingEntityInventoryChangeEvent;
+import com.hypixel.hytale.server.core.inventory.Inventory;
 import com.hypixel.hytale.server.core.inventory.ItemStack;
+import com.hypixel.hytale.server.core.inventory.container.ItemContainer;
+import com.hypixel.hytale.server.core.modules.entity.item.ItemComponent;
 import com.hypixel.hytale.server.core.plugin.JavaPlugin;
 import com.hypixel.hytale.server.core.plugin.JavaPluginInit;
 import com.hypixel.hytale.server.core.plugin.PluginManager;
@@ -25,16 +30,25 @@ import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 import com.Chris__.realm_ruler.match.CtfMatchService;
 import com.Chris__.realm_ruler.match.CtfAutoRespawnAndTeleportSystem;
+import com.Chris__.realm_ruler.match.CtfCarrierDropBlockSystem;
+import com.Chris__.realm_ruler.match.CtfCarrierSlotLockSystem;
 import com.Chris__.realm_ruler.match.CtfFlagStateService;
 import com.Chris__.realm_ruler.match.CtfMatchEndService;
 import com.Chris__.realm_ruler.match.CtfPointsRepository;
 import com.Chris__.realm_ruler.match.CtfShopConfigRepository;
+import com.Chris__.realm_ruler.match.CtfStandRegistryRepository;
+import com.Chris__.realm_ruler.integration.MultipleHudBridge;
 import com.Chris__.realm_ruler.integration.SimpleClaimsCtfBridge;
 import com.Chris__.realm_ruler.ui.pages.ctf.CtfShopUiService;
+import com.hypixel.hytale.math.util.ChunkUtil;
+import com.hypixel.hytale.math.vector.Transform;
 import javax.annotation.Nonnull;
 import java.lang.reflect.Method;
 import java.util.Locale;
 import java.util.concurrent.Flow;
+import com.hypixel.hytale.server.core.event.events.player.PlayerDisconnectEvent;
+import com.hypixel.hytale.server.core.universe.PlayerRef;
+import com.hypixel.hytale.server.core.universe.Universe;
 
 /**
  * ─────────────────────────────────────────────────────────────────────────────
@@ -96,10 +110,12 @@ public class Realm_Ruler extends JavaPlugin {
     private CtfMatchService ctfMatchService;
     private SimpleClaimsCtfBridge simpleClaimsCtfBridge;
     private CtfFlagStateService ctfFlagStateService;
+    private CtfStandRegistryRepository ctfStandRegistryRepository;
     private CtfPointsRepository ctfPointsRepository;
     private CtfMatchEndService ctfMatchEndService;
     private CtfShopConfigRepository ctfShopConfigRepository;
     private CtfShopUiService ctfShopUiService;
+    private MultipleHudBridge multipleHudBridge;
     private final PlayerInteractAdapter pi = new PlayerInteractAdapter();
 
     private void setupModes() {
@@ -191,11 +207,26 @@ public class Realm_Ruler extends JavaPlugin {
         // ---------------------------------------------------------------------
 
         LOGGER.atInfo().log("Setting up Realm Ruler %s", this.getName());
-        this.targetingService = new TargetingService(LOGGER, tickQueue, playerByUuid);
+        this.multipleHudBridge = new MultipleHudBridge(LOGGER);
+        try {
+            this.multipleHudBridge.requireReadyOrThrow();
+        } catch (IllegalStateException e) {
+            LOGGER.atSevere().withCause(e).log("[RR-HUD] MultipleHUD integration failed. Aborting setup.");
+            throw e;
+        }
+
+        this.targetingService = new TargetingService(LOGGER, tickQueue, playerByUuid, this.multipleHudBridge);
         this.ctfMatchService = new CtfMatchService(this.targetingService, this.ctfMode);
         this.targetingService.setLobbyHudStateProvider(this.ctfMatchService::lobbyHudStateFor);
         this.simpleClaimsCtfBridge = new SimpleClaimsCtfBridge(LOGGER);
-        this.ctfFlagStateService = new CtfFlagStateService(this.ctfMatchService, this.simpleClaimsCtfBridge, LOGGER);
+        this.ctfStandRegistryRepository = new CtfStandRegistryRepository(this.getDataDirectory(), LOGGER);
+        this.ctfFlagStateService = new CtfFlagStateService(
+                this.ctfMatchService,
+                this.simpleClaimsCtfBridge,
+                this.ctfStandRegistryRepository,
+                this::rrCreateItemStackById,
+                LOGGER
+        );
         this.targetingService.setFlagsHudStateProvider(this.ctfFlagStateService::snapshotHudState);
         this.ctfPointsRepository = new CtfPointsRepository(this.getDataDirectory(), LOGGER);
         this.ctfShopConfigRepository = new CtfShopConfigRepository(this.getDataDirectory(), LOGGER);
@@ -206,6 +237,7 @@ public class Realm_Ruler extends JavaPlugin {
                 this.ctfFlagStateService,
                 this.ctfPointsRepository,
                 this.standSwapService,
+                this.targetingService,
                 this.playerByUuid,
                 LOGGER
         );
@@ -218,6 +250,13 @@ public class Realm_Ruler extends JavaPlugin {
                     ? CtfMatchEndService.EndReason.STOPPED
                     : CtfMatchEndService.EndReason.TIME_EXPIRED;
             mes.endMatch(reason);
+        });
+        this.targetingService.setPerSliceCallback(() -> {
+            CtfMatchService ms = ctfMatchService;
+            CtfFlagStateService fs = ctfFlagStateService;
+            if (ms == null || fs == null) return;
+            if (!ms.isRunning()) return;
+            fs.processDroppedFlagTimeouts(standSwapService);
         });
 
 
@@ -240,6 +279,7 @@ public class Realm_Ruler extends JavaPlugin {
                 this.simpleClaimsCtfBridge,
                 this.targetingService,
                 this.ctfFlagStateService,
+                this.ctfStandRegistryRepository,
                 this.ctfPointsRepository,
                 this.ctfShopUiService
         ));
@@ -263,6 +303,11 @@ public class Realm_Ruler extends JavaPlugin {
         } else {
             LOGGER.atInfo().log("UseBlockEvent.Pre fallback is disabled (ENABLE_USEBLOCK_FALLBACK=false).");
         }
+
+        this.getEventRegistry().register(PlayerDisconnectEvent.class, this::onPlayerDisconnect);
+        LOGGER.atInfo().log("Registered PlayerDisconnectEvent listener (HUD warning reset).");
+        this.getEventRegistry().registerGlobal(LivingEntityInventoryChangeEvent.class, this::onLivingEntityInventoryChange);
+        LOGGER.atInfo().log("Registered LivingEntityInventoryChangeEvent listener (CTF flag pickup rules).");
 
 
         // ---------------------------------------------------------------------
@@ -291,11 +336,15 @@ public class Realm_Ruler extends JavaPlugin {
         // Auto-respawn + teleport back to team spawn during CTF matches.
         this.getEntityStoreRegistry().registerSystem(new CtfAutoRespawnAndTeleportSystem(
                 this.ctfMatchService,
+                this.ctfFlagStateService,
                 this.simpleClaimsCtfBridge,
                 this.targetingService,
                 LOGGER
         ));
         LOGGER.atInfo().log("Registered CtfAutoRespawnAndTeleportSystem.");
+        this.getEntityStoreRegistry().registerSystem(new CtfCarrierSlotLockSystem(this.ctfMatchService, this.ctfFlagStateService));
+        this.getEntityStoreRegistry().registerSystem(new CtfCarrierDropBlockSystem(this.ctfMatchService, this.ctfFlagStateService));
+        LOGGER.atInfo().log("Registered CTF carrier slot/drop enforcement systems.");
 
         // Shop UI open service (PageManager).
         if (ctfShopUiService != null) {
@@ -386,6 +435,186 @@ public class Realm_Ruler extends JavaPlugin {
             rrTryCancelEvent(event);
 
         }
+    }
+
+    private void onPlayerDisconnect(PlayerDisconnectEvent event) {
+        if (event == null) return;
+        PlayerRef playerRef = event.getPlayerRef();
+        if (playerRef == null || playerRef.getUuid() == null) return;
+
+        String uuid = playerRef.getUuid().toString();
+        if (uuid.isBlank()) return;
+
+        if (multipleHudBridge != null) {
+            try {
+                multipleHudBridge.clearWarnedPlayer(uuid);
+            } catch (Throwable ignored) {
+            }
+        }
+
+        handleCarrierDisconnect(playerRef, uuid);
+    }
+
+    private void onLivingEntityInventoryChange(LivingEntityInventoryChangeEvent event) {
+        if (event == null) return;
+        if (ctfMatchService == null || ctfFlagStateService == null) return;
+        if (!ctfMatchService.isRunning()) return;
+        if (!(event.getEntity() instanceof Player player)) return;
+        if (player.getUuid() == null) return;
+
+        String uuid = player.getUuid().toString();
+
+        Inventory inv = player.getInventory();
+        if (inv == null) return;
+
+        enforceCarrierSlotIntegrity(player, uuid, inv);
+
+        for (CtfMatchService.Team flagTeam : CtfMatchService.Team.values()) {
+            if (!ctfFlagStateService.isFlagDropped(flagTeam)) continue;
+            String flagItemId = CtfFlagStateService.flagItemIdForTeam(flagTeam);
+            if (flagItemId == null) continue;
+
+            InventorySlot slot = findFirstFlagSlot(inv, flagItemId);
+            if (slot == null) continue;
+
+            applyDroppedFlagPickupRules(player, uuid, flagTeam, flagItemId, slot);
+        }
+    }
+
+    private void handleCarrierDisconnect(PlayerRef playerRef, String uuid) {
+        if (playerRef == null || uuid == null || uuid.isBlank()) return;
+        if (ctfMatchService == null || ctfFlagStateService == null) return;
+        if (!ctfMatchService.isRunning()) return;
+        if (!ctfMatchService.isActiveMatchParticipant(uuid)) return;
+
+        CtfMatchService.Team carriedFlag = ctfFlagStateService.carriedFlagFor(uuid);
+        if (carriedFlag == null) return;
+
+        Player player = null;
+        try {
+            player = playerRef.getComponent(Player.getComponentType());
+        } catch (Throwable ignored) {
+            player = null;
+        }
+
+        ItemStack dropStack = null;
+        if (player != null) {
+            dropStack = ctfFlagStateService.removeOneFlagFromPlayer(player, carriedFlag);
+        }
+        if (dropStack == null) {
+            String flagItemId = CtfFlagStateService.flagItemIdForTeam(carriedFlag);
+            if (flagItemId != null) {
+                dropStack = rrCreateItemStackById(flagItemId, 1);
+            }
+        }
+
+        String worldName = null;
+        double x = 0;
+        double y = 0;
+        double z = 0;
+        boolean havePosition = false;
+
+        try {
+            Transform transform = playerRef.getTransform();
+            if (transform != null && transform.getPosition() != null) {
+                x = transform.getPosition().getX();
+                y = transform.getPosition().getY();
+                z = transform.getPosition().getZ();
+                havePosition = true;
+            }
+        } catch (Throwable ignored) {
+        }
+
+        try {
+            if (playerRef.getWorldUuid() != null) {
+                World world = Universe.get().getWorld(playerRef.getWorldUuid());
+                if (world != null) {
+                    worldName = world.getName();
+                }
+            }
+        } catch (Throwable ignored) {
+        }
+
+        if (worldName == null || worldName.isBlank() || !havePosition) {
+            TargetingService.PlayerLocationSnapshot snapshot = (targetingService == null) ? null : targetingService.getLatestPlayerLocation(uuid);
+            if (snapshot != null && snapshot.isValid()) {
+                worldName = snapshot.worldName();
+                x = snapshot.x();
+                y = snapshot.y();
+                z = snapshot.z();
+                havePosition = true;
+            }
+        }
+
+        if (dropStack != null) {
+            boolean dropped = false;
+
+            if (player != null) {
+                dropped = dropItemNearPlayer(player, dropStack);
+            }
+
+            if (!dropped) {
+                try {
+                    if (playerRef.getReference() != null && playerRef.getReference().isValid() && playerRef.getWorldUuid() != null) {
+                        World world = Universe.get().getWorld(playerRef.getWorldUuid());
+                        if (world != null) {
+                            ItemUtils.dropItem(playerRef.getReference(), dropStack, world.getEntityStore().getStore());
+                            dropped = true;
+                        }
+                    }
+                } catch (Throwable t) {
+                    LOGGER.atWarning().withCause(t).log("[RR-CTF] Failed to drop carrier flag on disconnect. uuid=%s", uuid);
+                }
+            }
+
+            if (!dropped && havePosition && worldName != null && !worldName.isBlank()) {
+                World world = Universe.get().getWorld(worldName);
+                if (world != null) {
+                    try {
+                        ItemComponent.generateItemDrop(world.getEntityStore().getStore(), dropStack, new com.hypixel.hytale.math.vector.Vector3d(x, y, z), new com.hypixel.hytale.math.vector.Vector3f(0f, 0f, 0f), 0f, 0f, 0f);
+                    } catch (Throwable t) {
+                        LOGGER.atWarning().withCause(t).log("[RR-CTF] Failed fallback drop generation on disconnect. uuid=%s", uuid);
+                    }
+                }
+            }
+        }
+
+        if (havePosition && worldName != null && !worldName.isBlank()) {
+            ctfFlagStateService.markCarrierDropped(uuid, worldName, x, y, z);
+        }
+    }
+
+    private void enforceCarrierSlotIntegrity(Player player, String uuid, Inventory inv) {
+        if (player == null || uuid == null || uuid.isBlank() || inv == null) return;
+        if (ctfFlagStateService == null) return;
+
+        CtfMatchService.Team carriedFlag = ctfFlagStateService.carriedFlagFor(uuid);
+        Byte lockedSlot = ctfFlagStateService.lockedHotbarSlotForCarrier(uuid);
+        if (carriedFlag == null || lockedSlot == null) return;
+
+        String flagItemId = CtfFlagStateService.flagItemIdForTeam(carriedFlag);
+        if (flagItemId == null) return;
+
+        ItemContainer hotbar = inv.getHotbar();
+        if (hotbar == null) return;
+
+        short slot = (short) (lockedSlot & 0xFF);
+        ItemStack inLockedSlot = hotbar.getItemStack(slot);
+        if (inLockedSlot != null && flagItemId.equals(inLockedSlot.getItemId())) {
+            inv.setActiveHotbarSlot((byte) (lockedSlot & 0xFF));
+            return;
+        }
+
+        InventorySlot found = findFirstFlagSlot(inv, flagItemId);
+        if (found == null) return;
+
+        found.container().removeItemStackFromSlot(found.slot(), 1);
+        ItemStack movedFlag = rrCreateItemStackById(flagItemId, 1);
+        if (movedFlag == null) return;
+
+        hotbar.setItemStackForSlot(slot, movedFlag);
+        inv.setActiveHotbarSlot((byte) (lockedSlot & 0xFF));
+        player.sendInventory();
     }
 
     /**
@@ -631,6 +860,21 @@ public class Realm_Ruler extends JavaPlugin {
         return playerByUuid.get(uuid);
     }
 
+    public boolean rrIsActiveCtfParticipant(String uuid) {
+        if (ctfMatchService == null || uuid == null || uuid.isBlank()) return false;
+        return ctfMatchService.isActiveMatchParticipant(uuid);
+    }
+
+    public CtfMatchService.Team rrActiveMatchTeamFor(String uuid) {
+        if (ctfMatchService == null || uuid == null || uuid.isBlank()) return null;
+        return ctfMatchService.activeMatchTeamFor(uuid);
+    }
+
+    public boolean rrCtfIsCarryingAnyFlag(String uuid) {
+        if (ctfFlagStateService == null || uuid == null || uuid.isBlank()) return false;
+        return ctfFlagStateService.isCarryingAnyFlag(uuid);
+    }
+
     public void rrCtfOnFlagDeposited(String uuid, String flagItemId, TargetingModels.BlockLocation loc) {
         if (ctfFlagStateService == null) return;
         if (uuid == null || uuid.isBlank()) return;
@@ -640,13 +884,17 @@ public class Realm_Ruler extends JavaPlugin {
         ctfFlagStateService.onDeposited(uuid, flagItemId, worldName, loc.x, loc.y, loc.z);
     }
 
-    public void rrCtfOnFlagWithdrawn(String uuid, String holderName, String flagItemId, TargetingModels.BlockLocation loc) {
+    public void rrCtfOnFlagWithdrawn(String uuid,
+                                     String holderName,
+                                     String flagItemId,
+                                     TargetingModels.BlockLocation loc,
+                                     byte lockedHotbarSlot) {
         if (ctfFlagStateService == null) return;
         if (uuid == null || uuid.isBlank()) return;
         if (flagItemId == null || flagItemId.isBlank()) return;
         if (loc == null || loc.world == null) return;
         String worldName = loc.world.getName();
-        ctfFlagStateService.onWithdrawn(uuid, holderName, flagItemId, worldName, loc.x, loc.y, loc.z);
+        ctfFlagStateService.onWithdrawn(uuid, holderName, flagItemId, worldName, loc.x, loc.y, loc.z, lockedHotbarSlot);
     }
 
     public void handleCtfAction(Object action) {
@@ -879,6 +1127,150 @@ public class Realm_Ruler extends JavaPlugin {
                 targetingService.rememberPendingStandLocation(new BlockLocation(world, x, y, z));
             }
         } catch (Throwable ignored) {}
+    }
+
+    private record InventorySlot(ItemContainer container, short slot, boolean hotbar) {
+    }
+
+    private void applyDroppedFlagPickupRules(Player player,
+                                             String uuid,
+                                             CtfMatchService.Team flagTeam,
+                                             String flagItemId,
+                                             InventorySlot pickupSlot) {
+        if (player == null || uuid == null || uuid.isBlank()) return;
+        if (flagTeam == null || flagItemId == null || flagItemId.isBlank()) return;
+        if (pickupSlot == null || pickupSlot.container() == null) return;
+        if (ctfFlagStateService == null || ctfMatchService == null) return;
+
+        CtfMatchService.Team playerTeam = ctfMatchService.activeMatchTeamFor(uuid);
+
+        // Non-participants cannot take dropped CTF flags.
+        if (playerTeam == null) {
+            removeOneFlagFromSlotAndDrop(player, pickupSlot, flagItemId);
+            return;
+        }
+
+        // Same-team pickup should immediately return the flag to its home stand.
+        if (playerTeam == flagTeam) {
+            removeOneFlagFromSlot(player, pickupSlot);
+            boolean returned = ctfFlagStateService.tryReturnDroppedFlagToHome(flagTeam, standSwapService);
+            if (!returned) {
+                dropItemNearPlayer(player, rrCreateItemStackById(flagItemId, 1));
+            }
+            return;
+        }
+
+        // One-flag-per-player invariant.
+        if (ctfFlagStateService.isCarryingAnyFlag(uuid)) {
+            removeOneFlagFromSlotAndDrop(player, pickupSlot, flagItemId);
+            return;
+        }
+
+        Inventory inv = player.getInventory();
+        if (inv == null) return;
+        ItemContainer hotbar = inv.getHotbar();
+        if (hotbar == null) return;
+
+        byte targetHotbarSlot;
+        if (pickupSlot.hotbar()) {
+            targetHotbarSlot = (byte) (pickupSlot.slot() & 0xFF);
+        } else {
+            Byte emptyHotbarSlot = findFirstEmptyHotbarSlot(inv);
+            if (emptyHotbarSlot == null) {
+                removeOneFlagFromSlotAndDrop(player, pickupSlot, flagItemId);
+                return;
+            }
+            targetHotbarSlot = emptyHotbarSlot;
+
+            pickupSlot.container().removeItemStackFromSlot(pickupSlot.slot(), 1);
+            ItemStack movedFlag = rrCreateItemStackById(flagItemId, 1);
+            if (movedFlag == null) {
+                dropItemNearPlayer(player, rrCreateItemStackById(flagItemId, 1));
+                return;
+            }
+            hotbar.setItemStackForSlot((short) (targetHotbarSlot & 0xFF), movedFlag);
+        }
+
+        inv.setActiveHotbarSlot(targetHotbarSlot);
+        player.sendInventory();
+        ctfFlagStateService.assignFlagCarrier(flagTeam, uuid, player.getDisplayName(), targetHotbarSlot);
+    }
+
+    private void removeOneFlagFromSlotAndDrop(Player player, InventorySlot slot, String flagItemId) {
+        if (player == null || slot == null || slot.container() == null) return;
+        removeOneFlagFromSlot(player, slot);
+        dropItemNearPlayer(player, rrCreateItemStackById(flagItemId, 1));
+    }
+
+    private void removeOneFlagFromSlot(Player player, InventorySlot slot) {
+        if (player == null || slot == null || slot.container() == null) return;
+        slot.container().removeItemStackFromSlot(slot.slot(), 1);
+        player.sendInventory();
+    }
+
+    private InventorySlot findFirstFlagSlot(Inventory inv, String flagItemId) {
+        if (inv == null || flagItemId == null || flagItemId.isBlank()) return null;
+
+        InventorySlot inHotbar = findFirstFlagSlotInContainer(inv.getHotbar(), flagItemId, true);
+        if (inHotbar != null) return inHotbar;
+
+        InventorySlot inStorage = findFirstFlagSlotInContainer(inv.getStorage(), flagItemId, false);
+        if (inStorage != null) return inStorage;
+
+        InventorySlot inBackpack = findFirstFlagSlotInContainer(inv.getBackpack(), flagItemId, false);
+        if (inBackpack != null) return inBackpack;
+
+        InventorySlot inTools = findFirstFlagSlotInContainer(inv.getTools(), flagItemId, false);
+        if (inTools != null) return inTools;
+
+        InventorySlot inUtility = findFirstFlagSlotInContainer(inv.getUtility(), flagItemId, false);
+        if (inUtility != null) return inUtility;
+
+        return findFirstFlagSlotInContainer(inv.getArmor(), flagItemId, false);
+    }
+
+    private InventorySlot findFirstFlagSlotInContainer(ItemContainer container, String flagItemId, boolean hotbar) {
+        if (container == null || flagItemId == null || flagItemId.isBlank()) return null;
+
+        final short[] found = new short[]{-1};
+        container.forEach((slot, stack) -> {
+            if (found[0] >= 0) return;
+            if (stack == null) return;
+            if (!flagItemId.equals(stack.getItemId())) return;
+            found[0] = slot;
+        });
+
+        if (found[0] < 0) return null;
+        return new InventorySlot(container, found[0], hotbar);
+    }
+
+    private static Byte findFirstEmptyHotbarSlot(Inventory inv) {
+        if (inv == null) return null;
+        ItemContainer hotbar = inv.getHotbar();
+        if (hotbar == null) return null;
+
+        short capacity = hotbar.getCapacity();
+        for (short slot = 0; slot < capacity; slot++) {
+            ItemStack stack = hotbar.getItemStack(slot);
+            if (stack == null || stack.getQuantity() <= 0) {
+                return (byte) (slot & 0xFF);
+            }
+        }
+        return null;
+    }
+
+    private boolean dropItemNearPlayer(Player player, ItemStack stack) {
+        if (player == null || stack == null) return false;
+        if (player.getReference() == null || !player.getReference().isValid()) return false;
+        if (player.getWorld() == null) return false;
+
+        try {
+            ItemUtils.dropItem(player.getReference(), stack, player.getWorld().getEntityStore().getStore());
+            return true;
+        } catch (Throwable t) {
+            LOGGER.atWarning().withCause(t).log("[RR-CTF] Failed to drop item near player. uuid=%s", player.getUuid());
+            return false;
+        }
     }
 
     /**

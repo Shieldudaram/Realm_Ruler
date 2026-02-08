@@ -4,13 +4,17 @@ import com.Chris__.realm_ruler.integration.SimpleClaimsCtfBridge;
 import com.Chris__.realm_ruler.match.CtfFlagStateService;
 import com.Chris__.realm_ruler.match.CtfMatchService;
 import com.Chris__.realm_ruler.match.CtfPointsRepository;
+import com.Chris__.realm_ruler.match.CtfStandRegistryRepository;
 import com.Chris__.realm_ruler.targeting.TargetingService;
 import com.Chris__.realm_ruler.ui.pages.ctf.CtfShopUiService;
 import com.Chris__.realm_ruler.util.SpawnTeleportUtil;
+import com.hypixel.hytale.math.util.ChunkUtil;
 import com.hypixel.hytale.protocol.GameMode;
 import com.hypixel.hytale.server.core.Message;
 import com.hypixel.hytale.server.core.command.system.CommandContext;
 import com.hypixel.hytale.server.core.command.system.basecommands.CommandBase;
+import com.hypixel.hytale.server.core.universe.Universe;
+import com.hypixel.hytale.server.core.universe.world.World;
 
 import javax.annotation.Nonnull;
 import java.util.ArrayList;
@@ -23,13 +27,15 @@ import java.util.Set;
 public final class RealmRulerCommand extends CommandBase {
 
     private static final Message MSG_USAGE =
-            Message.raw("Usage: /rr ctf <join [random|red|blue|yellow|white]|leave|start [minutes]|stop|points|shop>");
+            Message.raw("Usage: /rr ctf <join [random|red|blue|yellow|white]|leave|start [minutes]|stop|points|shop|stand <add|remove|list|primary> ...>");
 
     private static final Message MSG_NOT_READY =
             Message.raw("[RealmRuler] Not ready yet (plugin still starting?).");
 
     private static final Message MSG_PLAYERS_ONLY =
             Message.raw("[RealmRuler] Players only.");
+    private static final Message MSG_NO_STAND_PERMISSION =
+            Message.raw("[RealmRuler] Missing permission: realmruler.ctf.stand.manage");
 
     private static final double SPAWN_JITTER_RADIUS_BLOCKS = 3.0d;
 
@@ -37,6 +43,7 @@ public final class RealmRulerCommand extends CommandBase {
     private final SimpleClaimsCtfBridge simpleClaims;
     private final TargetingService targetingService;
     private final CtfFlagStateService flagStateService;
+    private final CtfStandRegistryRepository standRegistry;
     private final CtfPointsRepository pointsRepository;
     private final CtfShopUiService shopUiService;
 
@@ -44,6 +51,7 @@ public final class RealmRulerCommand extends CommandBase {
                              SimpleClaimsCtfBridge simpleClaims,
                              TargetingService targetingService,
                              CtfFlagStateService flagStateService,
+                             CtfStandRegistryRepository standRegistry,
                              CtfPointsRepository pointsRepository,
                              CtfShopUiService shopUiService) {
         super("RealmRuler", "Controls Realm Ruler minigames.");
@@ -54,6 +62,7 @@ public final class RealmRulerCommand extends CommandBase {
         this.simpleClaims = simpleClaims;
         this.targetingService = targetingService;
         this.flagStateService = flagStateService;
+        this.standRegistry = standRegistry;
         this.pointsRepository = pointsRepository;
         this.shopUiService = shopUiService;
     }
@@ -133,6 +142,11 @@ public final class RealmRulerCommand extends CommandBase {
                 }
 
                 ctx.sendMessage(Message.raw("[RealmRuler] Joined CaptureTheFlag lobby. Team: " + safeTeamName(jr) + " (waiting: " + jr.waitingCount() + ")"));
+                return;
+            }
+
+            if ("stand".equalsIgnoreCase(action)) {
+                handleStandCommand(ctx, args);
                 return;
             }
 
@@ -297,5 +311,129 @@ public final class RealmRulerCommand extends CommandBase {
     private static String safeTeamName(CtfMatchService.JoinLobbyResult jr) {
         if (jr == null || jr.team() == null) return "<unknown>";
         return jr.team().displayName();
+    }
+
+    private void handleStandCommand(CommandContext ctx, String[] args) {
+        if (standRegistry == null) {
+            ctx.sendMessage(MSG_NOT_READY);
+            return;
+        }
+
+        if (ctx.sender() == null || !ctx.sender().hasPermission("realmruler.ctf.stand.manage")) {
+            ctx.sendMessage(MSG_NO_STAND_PERMISSION);
+            return;
+        }
+
+        if (args.length < 4) {
+            ctx.sendMessage(MSG_USAGE);
+            return;
+        }
+
+        String standAction = args[3];
+
+        if ("list".equalsIgnoreCase(standAction)) {
+            if (args.length < 5) {
+                ctx.sendMessage(MSG_USAGE);
+                return;
+            }
+
+            CtfMatchService.Team team = CtfMatchService.parseTeam(args[4]);
+            if (team == null) {
+                ctx.sendMessage(MSG_USAGE);
+                return;
+            }
+
+            List<CtfStandRegistryRepository.StandLocation> stands = standRegistry.getOrderedStands(team);
+            if (stands.isEmpty()) {
+                ctx.sendMessage(Message.raw("[RealmRuler] No registered stands for " + team.displayName() + "."));
+                return;
+            }
+
+            StringBuilder sb = new StringBuilder();
+            sb.append("[RealmRuler] ").append(team.displayName()).append(" stands: ");
+            for (int index = 0; index < stands.size(); index++) {
+                CtfStandRegistryRepository.StandLocation stand = stands.get(index);
+                if (index > 0) sb.append(" | ");
+                if (index == 0) sb.append("Primary ");
+                else sb.append("Fallback ").append(index).append(" ");
+                sb.append(stand.worldName()).append(" ").append(stand.x()).append(" ").append(stand.y()).append(" ").append(stand.z());
+            }
+            ctx.sendMessage(Message.raw(sb.toString()));
+            return;
+        }
+
+        if (!"add".equalsIgnoreCase(standAction)
+                && !"remove".equalsIgnoreCase(standAction)
+                && !"primary".equalsIgnoreCase(standAction)) {
+            ctx.sendMessage(MSG_USAGE);
+            return;
+        }
+
+        if (args.length < 9) {
+            ctx.sendMessage(MSG_USAGE);
+            return;
+        }
+
+        CtfMatchService.Team team = CtfMatchService.parseTeam(args[4]);
+        if (team == null) {
+            ctx.sendMessage(MSG_USAGE);
+            return;
+        }
+
+        String worldName = args[5];
+        Integer x = parseInt(args[6]);
+        Integer y = parseInt(args[7]);
+        Integer z = parseInt(args[8]);
+        if (x == null || y == null || z == null) {
+            ctx.sendMessage(MSG_USAGE);
+            return;
+        }
+
+        World world = Universe.get().getWorld(worldName);
+        if (world == null) {
+            ctx.sendMessage(Message.raw("[RealmRuler] World not found: " + worldName));
+            return;
+        }
+
+        if (simpleClaims != null && simpleClaims.isAvailable()) {
+            int chunkX = ChunkUtil.chunkCoordinate(x);
+            int chunkZ = ChunkUtil.chunkCoordinate(z);
+            String ownerTeam = simpleClaims.getTeamForChunk(worldName, chunkX, chunkZ);
+            if (ownerTeam == null || !ownerTeam.equalsIgnoreCase(team.displayName())) {
+                ctx.sendMessage(Message.raw("[RealmRuler] Stand location must be inside " + team.displayName() + " team-claimed chunks."));
+                return;
+            }
+        }
+
+        CtfStandRegistryRepository.StandLocation stand = new CtfStandRegistryRepository.StandLocation(worldName, x, y, z);
+        if ("add".equalsIgnoreCase(standAction)) {
+            boolean added = standRegistry.addStand(team, stand);
+            ctx.sendMessage(added
+                    ? Message.raw("[RealmRuler] Added stand for " + team.displayName() + ": " + worldName + " " + x + " " + y + " " + z)
+                    : Message.raw("[RealmRuler] Stand already registered for " + team.displayName() + "."));
+            return;
+        }
+
+        if ("remove".equalsIgnoreCase(standAction)) {
+            boolean removed = standRegistry.removeStand(team, stand);
+            ctx.sendMessage(removed
+                    ? Message.raw("[RealmRuler] Removed stand for " + team.displayName() + ": " + worldName + " " + x + " " + y + " " + z)
+                    : Message.raw("[RealmRuler] Stand not found for " + team.displayName() + "."));
+            return;
+        }
+
+        boolean primarySet = standRegistry.setPrimaryStand(team, stand);
+        ctx.sendMessage(primarySet
+                ? Message.raw("[RealmRuler] Updated primary stand for " + team.displayName() + ".")
+                : Message.raw("[RealmRuler] Stand not found; add it first before setting primary."));
+    }
+
+    private static Integer parseInt(String raw) {
+        if (raw == null || raw.isBlank()) return null;
+        try {
+            return Integer.parseInt(raw.trim());
+        } catch (Throwable ignored) {
+            return null;
+        }
     }
 }
