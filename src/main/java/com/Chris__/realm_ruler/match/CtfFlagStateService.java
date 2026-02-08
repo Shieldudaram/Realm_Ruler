@@ -18,8 +18,10 @@ import javax.annotation.Nullable;
 import java.util.ArrayList;
 import java.util.EnumMap;
 import java.util.HashMap;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.function.BiFunction;
 
 public final class CtfFlagStateService {
@@ -57,6 +59,8 @@ public final class CtfFlagStateService {
     private final Map<CtfMatchService.Team, FlagState> stateByFlag = new EnumMap<>(CtfMatchService.Team.class);
     private final Map<String, CtfMatchService.Team> carrierFlagByUuid = new HashMap<>();
     private final Map<String, Byte> lockedSlotByUuid = new HashMap<>();
+    private final Map<CtfMatchService.Team, CtfStandRegistryRepository.StandLocation> lastKnownHomeStandByFlag =
+            new EnumMap<>(CtfMatchService.Team.class);
 
     public CtfFlagStateService(CtfMatchService matchService,
                                SimpleClaimsCtfBridge simpleClaims,
@@ -134,7 +138,9 @@ public final class CtfFlagStateService {
         if (simpleClaims != null && simpleClaims.isAvailable()) {
             int chunkX = ChunkUtil.chunkCoordinate(x);
             int chunkZ = ChunkUtil.chunkCoordinate(z);
-            baseTeamName = simpleClaims.getTeamForChunk(worldName, chunkX, chunkZ);
+            String rawOwner = simpleClaims.getTeamForChunk(worldName, chunkX, chunkZ);
+            CtfMatchService.Team parsedOwner = CtfMatchService.parseTeamLoose(rawOwner);
+            baseTeamName = (parsedOwner == null) ? null : parsedOwner.displayName();
         }
 
         synchronized (lock) {
@@ -163,6 +169,8 @@ public final class CtfFlagStateService {
                     worldName,
                     x, y, z);
         }
+
+        rememberHomeStandInteraction(flag, worldName, x, y, z);
     }
 
     public void assignFlagCarrier(CtfMatchService.Team flagTeam,
@@ -186,10 +194,37 @@ public final class CtfFlagStateService {
         if (carrierUuid == null || carrierUuid.isBlank()) return false;
         if (worldName == null || worldName.isBlank()) return false;
 
+        CtfMatchService.Team flagTeam;
         synchronized (lock) {
-            CtfMatchService.Team flagTeam = carrierFlagByUuid.remove(carrierUuid);
-            lockedSlotByUuid.remove(carrierUuid);
-            if (flagTeam == null) return false;
+            flagTeam = carrierFlagByUuid.get(carrierUuid);
+        }
+        if (flagTeam == null) return false;
+        return markFlagDropped(flagTeam, carrierUuid, worldName, x, y, z);
+    }
+
+    public boolean markFlagDropped(CtfMatchService.Team flagTeam,
+                                   @Nullable String carrierUuid,
+                                   String worldName,
+                                   double x,
+                                   double y,
+                                   double z) {
+        if (flagTeam == null) return false;
+        if (worldName == null || worldName.isBlank()) return false;
+
+        synchronized (lock) {
+            if (carrierUuid != null && !carrierUuid.isBlank()) {
+                CtfMatchService.Team current = carrierFlagByUuid.get(carrierUuid);
+                if (current == flagTeam) {
+                    carrierFlagByUuid.remove(carrierUuid);
+                }
+                lockedSlotByUuid.remove(carrierUuid);
+            }
+
+            FlagState currentState = stateByFlag.get(flagTeam);
+            if (currentState instanceof FlagState.Held held) {
+                carrierFlagByUuid.remove(held.holderUuid());
+                lockedSlotByUuid.remove(held.holderUuid());
+            }
 
             long now = System.nanoTime();
             stateByFlag.put(flagTeam, new FlagState.Dropped(worldName, x, y, z, now, now + DROP_AUTO_RETURN_DELAY_NANOS));
@@ -288,8 +323,9 @@ public final class CtfFlagStateService {
             }
         }
 
-        CtfStandRegistryRepository.StandLocation destination = resolveValidHomeStand(flagTeam);
-        if (destination == null) return false;
+        ResolvedHomeStand resolved = resolveValidHomeStandWithSource(flagTeam);
+        if (resolved == null || resolved.location() == null) return false;
+        CtfStandRegistryRepository.StandLocation destination = resolved.location();
 
         World world = Universe.get().getWorld(destination.worldName());
         if (world == null) return false;
@@ -307,6 +343,17 @@ public final class CtfFlagStateService {
                             new StandLocation(destination.worldName(), destination.x(), destination.y(), destination.z()),
                             flagTeam.displayName()
                     ));
+            lastKnownHomeStandByFlag.put(flagTeam, destination);
+        }
+
+        if (RrDebugFlags.verbose()) {
+            logger.atInfo().log("[RR-CTF] dropped flag returned flag=%s source=%s @ %s(%d,%d,%d)",
+                    flagTeam.displayName(),
+                    resolved.source(),
+                    destination.worldName(),
+                    destination.x(),
+                    destination.y(),
+                    destination.z());
         }
 
         return true;
@@ -340,7 +387,87 @@ public final class CtfFlagStateService {
                         now + DROP_RETRY_DELAY_NANOS
                 ));
             }
+
+            if (RrDebugFlags.verbose()) {
+                logger.atInfo().log("[RR-CTF] dropped flag return retry scheduled flag=%s world=%s x=%.2f y=%.2f z=%.2f",
+                        flagTeam.displayName(),
+                        dropped.worldName(),
+                        dropped.x(),
+                        dropped.y(),
+                        dropped.z());
+            }
         }
+    }
+
+    public boolean rememberHomeStandInteraction(CtfMatchService.Team team,
+                                                @Nullable World world,
+                                                int x,
+                                                int y,
+                                                int z) {
+        if (world == null) return false;
+        return rememberHomeStandInteraction(team, world.getName(), x, y, z);
+    }
+
+    public boolean rememberHomeStandInteraction(CtfMatchService.Team team,
+                                                @Nullable String worldName,
+                                                int x,
+                                                int y,
+                                                int z) {
+        if (team == null || worldName == null || worldName.isBlank()) return false;
+
+        CtfStandRegistryRepository.StandLocation candidate = new CtfStandRegistryRepository.StandLocation(worldName, x, y, z);
+        boolean validCandidate = isValidHomeStandCandidate(team, candidate);
+        if (RrDebugFlags.verbose()) {
+            logger.atInfo().log("[RR-CTF] stand-remember team=%s world=%s x=%d y=%d z=%d decision=%s",
+                    team.displayName(),
+                    worldName,
+                    x,
+                    y,
+                    z,
+                    validCandidate ? "accepted" : "rejected");
+        }
+        if (!validCandidate) return false;
+
+        if (standRegistry != null) {
+            standRegistry.addStand(team, candidate);
+        }
+
+        synchronized (lock) {
+            lastKnownHomeStandByFlag.put(team, candidate);
+        }
+
+        if (RrDebugFlags.verbose()) {
+            logger.atInfo().log("[RR-CTF] remembered home stand team=%s @ %s(%d,%d,%d)",
+                    team.displayName(),
+                    worldName,
+                    x,
+                    y,
+                    z);
+        }
+        return true;
+    }
+
+    public List<CtfMatchService.Team> missingHomeTeams(Set<CtfMatchService.Team> teams) {
+        return new ArrayList<>(missingHomeTeamReasons(teams).keySet());
+    }
+
+    public Map<CtfMatchService.Team, String> missingHomeTeamReasons(Set<CtfMatchService.Team> teams) {
+        Map<CtfMatchService.Team, String> out = new LinkedHashMap<>();
+        if (teams == null || teams.isEmpty()) return out;
+
+        for (CtfMatchService.Team team : teams) {
+            if (team == null) continue;
+            String reason = missingHomeReason(team);
+            if (reason != null) {
+                out.put(team, reason);
+            }
+        }
+        return out;
+    }
+
+    public @Nullable CtfStandRegistryRepository.StandLocation resolveHomeStandLocation(CtfMatchService.Team flagTeam) {
+        ResolvedHomeStand resolved = resolveValidHomeStandWithSource(flagTeam);
+        return (resolved == null) ? null : resolved.location();
     }
 
     public CtfFlagsHudState snapshotHudState() {
@@ -446,31 +573,115 @@ public final class CtfFlagStateService {
         };
     }
 
-    private CtfStandRegistryRepository.StandLocation resolveValidHomeStand(CtfMatchService.Team flagTeam) {
-        if (standRegistry == null || flagTeam == null) return null;
+    private record ResolvedHomeStand(CtfStandRegistryRepository.StandLocation location, String source) {
+    }
 
-        List<CtfStandRegistryRepository.StandLocation> candidates = standRegistry.getOrderedStands(flagTeam);
-        if (candidates.isEmpty()) return null;
+    private enum CandidateValidation {
+        VALID,
+        INVALID_LOCATION,
+        WORLD_MISSING,
+        OWNER_UNKNOWN,
+        OWNER_MISMATCH
+    }
 
-        for (CtfStandRegistryRepository.StandLocation candidate : candidates) {
-            if (candidate == null || !candidate.isValid()) continue;
+    private @Nullable ResolvedHomeStand resolveValidHomeStandWithSource(CtfMatchService.Team flagTeam) {
+        if (flagTeam == null) return null;
 
-            World world = Universe.get().getWorld(candidate.worldName());
-            if (world == null) continue;
-
-            if (simpleClaims != null && simpleClaims.isAvailable()) {
-                int chunkX = ChunkUtil.chunkCoordinate(candidate.x());
-                int chunkZ = ChunkUtil.chunkCoordinate(candidate.z());
-                String ownerTeam = simpleClaims.getTeamForChunk(candidate.worldName(), chunkX, chunkZ);
-                if (ownerTeam == null || !ownerTeam.equalsIgnoreCase(flagTeam.displayName())) {
-                    continue;
-                }
+        if (standRegistry != null) {
+            List<CtfStandRegistryRepository.StandLocation> candidates = standRegistry.getOrderedStands(flagTeam);
+            for (CtfStandRegistryRepository.StandLocation candidate : candidates) {
+                if (!isValidHomeStandCandidate(flagTeam, candidate)) continue;
+                return new ResolvedHomeStand(candidate, "registry");
             }
+        }
 
-            return candidate;
+        CtfStandRegistryRepository.StandLocation lastKnown;
+        synchronized (lock) {
+            lastKnown = lastKnownHomeStandByFlag.get(flagTeam);
+        }
+        if (isValidHomeStandCandidate(flagTeam, lastKnown)) {
+            return new ResolvedHomeStand(lastKnown, "last-known");
         }
 
         return null;
+    }
+
+    private @Nullable String missingHomeReason(CtfMatchService.Team team) {
+        if (team == null) return "no stand recorded";
+        if (resolveValidHomeStandWithSource(team) != null) return null;
+
+        boolean hasRecorded = false;
+        boolean ownerMismatch = false;
+        boolean ownerUnknown = false;
+        boolean worldInvalid = false;
+        boolean invalidLocation = false;
+
+        if (standRegistry != null) {
+            for (CtfStandRegistryRepository.StandLocation candidate : standRegistry.getOrderedStands(team)) {
+                if (candidate == null) continue;
+                hasRecorded = true;
+                CandidateValidation validation = validateHomeStandCandidate(team, candidate);
+                ownerMismatch |= (validation == CandidateValidation.OWNER_MISMATCH);
+                ownerUnknown |= (validation == CandidateValidation.OWNER_UNKNOWN);
+                worldInvalid |= (validation == CandidateValidation.WORLD_MISSING);
+                invalidLocation |= (validation == CandidateValidation.INVALID_LOCATION);
+            }
+        }
+
+        CtfStandRegistryRepository.StandLocation lastKnown;
+        synchronized (lock) {
+            lastKnown = lastKnownHomeStandByFlag.get(team);
+        }
+        if (lastKnown != null) {
+            hasRecorded = true;
+            CandidateValidation validation = validateHomeStandCandidate(team, lastKnown);
+            ownerMismatch |= (validation == CandidateValidation.OWNER_MISMATCH);
+            ownerUnknown |= (validation == CandidateValidation.OWNER_UNKNOWN);
+            worldInvalid |= (validation == CandidateValidation.WORLD_MISSING);
+            invalidLocation |= (validation == CandidateValidation.INVALID_LOCATION);
+        }
+
+        if (!hasRecorded) return "no stand recorded";
+        if (ownerMismatch || ownerUnknown) return "stand recorded but chunk owner parse mismatch";
+        if (worldInvalid || invalidLocation) return "world/stand invalid";
+        return "stand recorded but currently unusable";
+    }
+
+    private boolean isValidHomeStandCandidate(CtfMatchService.Team flagTeam,
+                                              @Nullable CtfStandRegistryRepository.StandLocation candidate) {
+        return validateHomeStandCandidate(flagTeam, candidate) == CandidateValidation.VALID;
+    }
+
+    private CandidateValidation validateHomeStandCandidate(CtfMatchService.Team flagTeam,
+                                                           @Nullable CtfStandRegistryRepository.StandLocation candidate) {
+        if (flagTeam == null || candidate == null || !candidate.isValid()) return CandidateValidation.INVALID_LOCATION;
+
+        World world = Universe.get().getWorld(candidate.worldName());
+        if (world == null) return CandidateValidation.WORLD_MISSING;
+
+        if (simpleClaims != null && simpleClaims.isAvailable()) {
+            int chunkX = ChunkUtil.chunkCoordinate(candidate.x());
+            int chunkZ = ChunkUtil.chunkCoordinate(candidate.z());
+            String ownerTeamRaw = simpleClaims.getTeamForChunk(candidate.worldName(), chunkX, chunkZ);
+            CtfMatchService.Team ownerTeam = CtfMatchService.parseTeamLoose(ownerTeamRaw);
+            boolean valid = (ownerTeam == flagTeam);
+
+            if (RrDebugFlags.verbose()) {
+                logger.atInfo().log("[RR-CTF] stand-validate expected=%s world=%s chunk=%d,%d ownerRaw=%s ownerParsed=%s decision=%s",
+                        flagTeam.displayName(),
+                        candidate.worldName(),
+                        chunkX,
+                        chunkZ,
+                        (ownerTeamRaw == null ? "<null>" : ownerTeamRaw),
+                        (ownerTeam == null ? "<null>" : ownerTeam.displayName()),
+                        valid ? "accepted" : "rejected");
+            }
+
+            if (ownerTeam == null) return CandidateValidation.OWNER_UNKNOWN;
+            if (ownerTeam != flagTeam) return CandidateValidation.OWNER_MISMATCH;
+        }
+
+        return CandidateValidation.VALID;
     }
 
     private String formatForHud(CtfMatchService.Team flagTeam) {

@@ -119,6 +119,9 @@ public class CtfMode implements RealmMode {
         // IMPORTANT: Key format matches existing behavior for now.
         final String key = CtfState.standKey(plugin.rrWorldKey(loc.world), loc.x, loc.y, loc.z);
 
+        // Pre-match setup path: anyone can tap stands to register home stands from chunk ownership.
+        maybeRegisterStandFromChunkOwner(loc);
+
         // "Occupied" is derived from BOTH:
         // - runtime state (preferred when present)
         // - world block variant (survives reconnects/restarts)
@@ -201,28 +204,24 @@ public class CtfMode implements RealmMode {
                     return;
                 }
 
-                CtfMatchService.Team standFlagTeam = CtfFlagStateService.flagTeamFromStandId(clicked);
-                if (standFlagTeam == null) {
-                    ItemStack storedFlag = state.peekFlag(key);
-                    if (storedFlag != null) {
-                        standFlagTeam = CtfFlagStateService.flagTeamFromItemId(storedFlag.getItemId());
-                    }
-                }
+                CtfMatchService.Team standFlagTeam = resolveStandFlagTeam(clicked, key);
 
                 CtfMatchService.Team playerTeam = plugin.rrActiveMatchTeamFor(uuid);
-                String chunkOwnerTeam = plugin.rrCtfChunkOwnerTeam(loc.world, loc.x, loc.z);
+                String chunkOwnerRaw = plugin.rrCtfChunkOwnerTeam(loc.world, loc.x, loc.z);
+                CtfMatchService.Team chunkOwnerTeam = plugin.rrCtfChunkOwnerTeamParsed(loc.world, loc.x, loc.z);
                 boolean blockOwnFlagInOwnChunk = standFlagTeam != null
                         && playerTeam != null
                         && standFlagTeam == playerTeam
                         && chunkOwnerTeam != null
-                        && chunkOwnerTeam.equalsIgnoreCase(playerTeam.displayName());
+                        && chunkOwnerTeam == playerTeam;
 
                 if (plugin.rrVerbose()) {
-                    logger.atInfo().log("[RR-CTF] withdraw-guard uuid=%s playerTeam=%s flagTeam=%s chunkOwner=%s blocked=%s",
+                    logger.atInfo().log("[RR-CTF] withdraw-guard uuid=%s playerTeam=%s flagTeam=%s chunkOwnerRaw=%s chunkOwnerParsed=%s blocked=%s",
                             uuid,
                             (playerTeam == null ? "<null>" : playerTeam.displayName()),
                             (standFlagTeam == null ? "<null>" : standFlagTeam.displayName()),
-                            (chunkOwnerTeam == null ? "<null>" : chunkOwnerTeam),
+                            (chunkOwnerRaw == null ? "<null>" : chunkOwnerRaw),
+                            (chunkOwnerTeam == null ? "<null>" : chunkOwnerTeam.displayName()),
                             blockOwnFlagInOwnChunk);
                 }
 
@@ -282,6 +281,45 @@ public class CtfMode implements RealmMode {
         }
 
         // Otherwise: do nothing. (No auto-swaps and no UI logic here.)
+    }
+
+    private CtfMatchService.Team resolveStandFlagTeam(String standId, String standKey) {
+        CtfMatchService.Team standTeam = CtfFlagStateService.flagTeamFromStandId(standId);
+        if (standTeam != null) return standTeam;
+
+        ItemStack storedFlag = state.peekFlag(standKey);
+        if (storedFlag == null) return null;
+        return CtfFlagStateService.flagTeamFromItemId(storedFlag.getItemId());
+    }
+
+    private void maybeRegisterStandFromChunkOwner(BlockLocation loc) {
+        if (loc == null || loc.world == null) return;
+
+        String rawOwnerTeam = plugin.rrCtfChunkOwnerTeam(loc.world, loc.x, loc.z);
+        CtfMatchService.Team parsedOwnerTeam = plugin.rrCtfChunkOwnerTeamParsed(loc.world, loc.x, loc.z);
+        if (parsedOwnerTeam == null) {
+            if (plugin.rrVerbose() && rawOwnerTeam != null && !rawOwnerTeam.isBlank()) {
+                logger.atInfo().log("[RR-CTF] stand-register skipped rawOwner=%s parsed=<null> @ %s(%d,%d,%d)",
+                        rawOwnerTeam,
+                        String.valueOf(loc.world.getName()),
+                        loc.x,
+                        loc.y,
+                        loc.z);
+            }
+            return;
+        }
+
+        boolean remembered = plugin.rrCtfRememberHomeStand(parsedOwnerTeam, loc.world, loc.x, loc.y, loc.z);
+        if (plugin.rrVerbose()) {
+            logger.atInfo().log("[RR-CTF] stand-register rawOwner=%s parsed=%s decision=%s @ %s(%d,%d,%d)",
+                    (rawOwnerTeam == null ? "<null>" : rawOwnerTeam),
+                    parsedOwnerTeam.displayName(),
+                    remembered ? "accepted" : "rejected",
+                    String.valueOf(loc.world.getName()),
+                    loc.x,
+                    loc.y,
+                    loc.z);
+        }
     }
 
     private static String flagIdForStand(String standId) {

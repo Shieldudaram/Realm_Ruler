@@ -264,4 +264,31 @@ public final class CtfMatchService {
             default -> null;
         };
     }
+
+    public static Team parseTeamLoose(String raw) {
+        if (raw == null || raw.isBlank()) return null;
+        String normalized = raw
+                .replaceAll("§.", " ")
+                .replaceAll("\\p{Cntrl}", " ")
+                .toLowerCase(Locale.ROOT)
+                .replaceAll("[^a-z]+", " ")
+                .trim();
+        if (normalized.isEmpty()) return null;
+
+        Team found = null;
+        for (String token : normalized.split("\\s+")) {
+            Team parsed = parseTeam(token);
+            if (parsed == null) continue;
+            if (found != null && found != parsed) {
+                return null;
+            }
+            found = parsed;
+        }
+        return found;
+    }
+
+    public static String canonicalTeamDisplayName(String raw) {
+        Team parsed = parseTeamLoose(raw);
+        return (parsed == null) ? null : parsed.displayName();
+    }
 }

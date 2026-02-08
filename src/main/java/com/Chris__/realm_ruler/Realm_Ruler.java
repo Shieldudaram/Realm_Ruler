@@ -363,6 +363,7 @@ public class Realm_Ruler extends JavaPlugin {
                 this.ctfFlagStateService,
                 this.simpleClaimsCtfBridge,
                 this.targetingService,
+                this.standSwapService,
                 LOGGER
         ));
         LOGGER.atInfo().log("Registered CtfAutoRespawnAndTeleportSystem.");
@@ -572,9 +573,19 @@ public class Realm_Ruler extends JavaPlugin {
             }
         }
 
-        if (dropStack != null) {
-            boolean dropped = false;
+        if (worldName == null || worldName.isBlank() || !havePosition) {
+            CtfStandRegistryRepository.StandLocation home = ctfFlagStateService.resolveHomeStandLocation(carriedFlag);
+            if (home != null && home.isValid()) {
+                worldName = home.worldName();
+                x = home.x();
+                y = home.y();
+                z = home.z();
+                havePosition = true;
+            }
+        }
 
+        boolean dropped = false;
+        if (dropStack != null) {
             if (player != null) {
                 dropped = dropItemNearPlayer(player, dropStack);
             }
@@ -605,8 +616,31 @@ public class Realm_Ruler extends JavaPlugin {
             }
         }
 
+        boolean markedDropped = false;
         if (havePosition && worldName != null && !worldName.isBlank()) {
-            ctfFlagStateService.markCarrierDropped(uuid, worldName, x, y, z);
+            markedDropped = ctfFlagStateService.markCarrierDropped(uuid, worldName, x, y, z);
+            if (!markedDropped) {
+                markedDropped = ctfFlagStateService.markFlagDropped(carriedFlag, uuid, worldName, x, y, z);
+            }
+        }
+
+        if (!dropped) {
+            boolean returnedNow = markedDropped
+                    && standSwapService != null
+                    && ctfFlagStateService.tryReturnDroppedFlagToHome(carriedFlag, standSwapService);
+            if (rrVerbose()) {
+                LOGGER.atInfo().log("[RR-CTF] disconnect flag recovery uuid=%s dropped=%s immediateReturn=%s markedDropped=%s",
+                        uuid,
+                        dropped,
+                        returnedNow,
+                        markedDropped);
+            }
+        }
+
+        if (!markedDropped) {
+            LOGGER.atWarning().log("[RR-CTF] Unable to place dropped flag state after disconnect. uuid=%s flag=%s",
+                    uuid,
+                    carriedFlag.displayName());
         }
     }
 
@@ -912,9 +946,20 @@ public class Realm_Ruler extends JavaPlugin {
         return normalized.isEmpty() ? null : normalized;
     }
 
+    public CtfMatchService.Team rrCtfChunkOwnerTeamParsed(World world, int blockX, int blockZ) {
+        String rawOwner = rrCtfChunkOwnerTeam(world, blockX, blockZ);
+        return CtfMatchService.parseTeamLoose(rawOwner);
+    }
+
     public boolean rrCtfIsCarryingAnyFlag(String uuid) {
         if (ctfFlagStateService == null || uuid == null || uuid.isBlank()) return false;
         return ctfFlagStateService.isCarryingAnyFlag(uuid);
+    }
+
+    public boolean rrCtfRememberHomeStand(CtfMatchService.Team team, World world, int x, int y, int z) {
+        if (ctfFlagStateService == null) return false;
+        if (team == null || world == null) return false;
+        return ctfFlagStateService.rememberHomeStandInteraction(team, world, x, y, z);
     }
 
     public void rrCtfOnFlagDeposited(String uuid, String flagItemId, TargetingModels.BlockLocation loc) {

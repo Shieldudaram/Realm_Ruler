@@ -205,12 +205,30 @@ public final class RealmRulerCommand extends CommandBase {
                 long secondsLong = minutes * 60L;
                 int seconds = (secondsLong > Integer.MAX_VALUE) ? Integer.MAX_VALUE : (int) secondsLong;
 
+                Map<String, CtfMatchService.Team> lobby = matchService.getLobbyWaitingTeamsSnapshot();
+                Set<CtfMatchService.Team> activeTeams = new HashSet<>(lobby.values());
+                activeTeams.remove(null);
+
+                if (flagStateService != null) {
+                    Map<CtfMatchService.Team, String> missingReasons = flagStateService.missingHomeTeamReasons(activeTeams);
+                    if (!missingReasons.isEmpty()) {
+                        List<String> detail = new ArrayList<>();
+                        for (Map.Entry<CtfMatchService.Team, String> entry : missingReasons.entrySet()) {
+                            CtfMatchService.Team team = entry.getKey();
+                            if (team == null) continue;
+                            String reason = (entry.getValue() == null || entry.getValue().isBlank())
+                                    ? "unknown reason"
+                                    : entry.getValue();
+                            detail.add(team.displayName() + " (" + reason + ")");
+                        }
+                        ctx.sendMessage(Message.raw("[RealmRuler] Missing valid home stands for: " + String.join(", ", detail)
+                                + ". Interact with each team's stand in its own claimed chunk or register with /rr ctf stand add <team> <world> <x> <y> <z>."));
+                        return;
+                    }
+                }
+
                 // Preflight: ensure spawns exist for active lobby teams before starting.
                 if (simpleClaims != null && simpleClaims.isAvailable()) {
-                    Map<String, CtfMatchService.Team> lobby = matchService.getLobbyWaitingTeamsSnapshot();
-                    Set<CtfMatchService.Team> activeTeams = new HashSet<>(lobby.values());
-                    activeTeams.remove(null);
-
                     List<String> missing = new ArrayList<>();
                     for (CtfMatchService.Team team : activeTeams) {
                         if (team == null) continue;
@@ -718,9 +736,17 @@ public final class RealmRulerCommand extends CommandBase {
         if (simpleClaims != null && simpleClaims.isAvailable()) {
             int chunkX = ChunkUtil.chunkCoordinate(x);
             int chunkZ = ChunkUtil.chunkCoordinate(z);
-            String ownerTeam = simpleClaims.getTeamForChunk(worldName, chunkX, chunkZ);
-            if (ownerTeam == null || !ownerTeam.equalsIgnoreCase(team.displayName())) {
-                ctx.sendMessage(Message.raw("[RealmRuler] Stand location must be inside " + team.displayName() + " team-claimed chunks."));
+            String ownerTeamRaw = simpleClaims.getTeamForChunk(worldName, chunkX, chunkZ);
+            CtfMatchService.Team ownerTeamParsed = CtfMatchService.parseTeamLoose(ownerTeamRaw);
+            if (ownerTeamParsed != team) {
+                String parsedName = (ownerTeamParsed == null) ? "<null>" : ownerTeamParsed.displayName();
+                String rawName = (ownerTeamRaw == null || ownerTeamRaw.isBlank()) ? "<null>" : ownerTeamRaw;
+                ctx.sendMessage(Message.raw("[RealmRuler] Stand location must be inside " + team.displayName()
+                        + " team-claimed chunks. world=" + worldName
+                        + " chunk=" + chunkX + "," + chunkZ
+                        + " ownerRaw=" + rawName
+                        + " ownerParsed=" + parsedName
+                        + " expected=" + team.displayName()));
                 return;
             }
         }
