@@ -22,7 +22,6 @@ import com.hypixel.hytale.server.core.event.events.entity.LivingEntityInventoryC
 import com.hypixel.hytale.server.core.inventory.Inventory;
 import com.hypixel.hytale.server.core.inventory.ItemStack;
 import com.hypixel.hytale.server.core.inventory.container.ItemContainer;
-import com.hypixel.hytale.server.core.modules.entity.item.ItemComponent;
 import com.hypixel.hytale.server.core.plugin.JavaPlugin;
 import com.hypixel.hytale.server.core.plugin.JavaPluginInit;
 import com.hypixel.hytale.server.core.plugin.PluginManager;
@@ -524,15 +523,21 @@ public class Realm_Ruler extends JavaPlugin {
             player = null;
         }
 
-        ItemStack dropStack = null;
         if (player != null) {
-            dropStack = ctfFlagStateService.removeOneFlagFromPlayer(player, carriedFlag);
+            ctfFlagStateService.removeOneFlagFromPlayer(player, carriedFlag);
         }
-        if (dropStack == null) {
-            String flagItemId = CtfFlagStateService.flagItemIdForTeam(carriedFlag);
-            if (flagItemId != null) {
-                dropStack = rrCreateItemStackById(flagItemId, 1);
+
+        boolean returnedNow = standSwapService != null && ctfFlagStateService.forceReturnFlagToStand(
+                carriedFlag,
+                standSwapService,
+                CtfFlagStateService.ReturnResolutionMode.STRICT_THEN_SOFT
+        );
+        if (returnedNow) {
+            if (rrVerbose()) {
+                LOGGER.atInfo().log("[RR-CTF] disconnect flag recovery uuid=%s immediateReturn=true markedDropped=false",
+                        uuid);
             }
+            return;
         }
 
         String worldName = null;
@@ -584,38 +589,6 @@ public class Realm_Ruler extends JavaPlugin {
             }
         }
 
-        boolean dropped = false;
-        if (dropStack != null) {
-            if (player != null) {
-                dropped = dropItemNearPlayer(player, dropStack);
-            }
-
-            if (!dropped) {
-                try {
-                    if (playerRef.getReference() != null && playerRef.getReference().isValid() && playerRef.getWorldUuid() != null) {
-                        World world = Universe.get().getWorld(playerRef.getWorldUuid());
-                        if (world != null) {
-                            ItemUtils.dropItem(playerRef.getReference(), dropStack, world.getEntityStore().getStore());
-                            dropped = true;
-                        }
-                    }
-                } catch (Throwable t) {
-                    LOGGER.atWarning().withCause(t).log("[RR-CTF] Failed to drop carrier flag on disconnect. uuid=%s", uuid);
-                }
-            }
-
-            if (!dropped && havePosition && worldName != null && !worldName.isBlank()) {
-                World world = Universe.get().getWorld(worldName);
-                if (world != null) {
-                    try {
-                        ItemComponent.generateItemDrop(world.getEntityStore().getStore(), dropStack, new com.hypixel.hytale.math.vector.Vector3d(x, y, z), new com.hypixel.hytale.math.vector.Vector3f(0f, 0f, 0f), 0f, 0f, 0f);
-                    } catch (Throwable t) {
-                        LOGGER.atWarning().withCause(t).log("[RR-CTF] Failed fallback drop generation on disconnect. uuid=%s", uuid);
-                    }
-                }
-            }
-        }
-
         boolean markedDropped = false;
         if (havePosition && worldName != null && !worldName.isBlank()) {
             markedDropped = ctfFlagStateService.markCarrierDropped(uuid, worldName, x, y, z);
@@ -624,21 +597,21 @@ public class Realm_Ruler extends JavaPlugin {
             }
         }
 
-        if (!dropped) {
-            boolean returnedNow = markedDropped
-                    && standSwapService != null
-                    && ctfFlagStateService.tryReturnDroppedFlagToHome(carriedFlag, standSwapService);
-            if (rrVerbose()) {
-                LOGGER.atInfo().log("[RR-CTF] disconnect flag recovery uuid=%s dropped=%s immediateReturn=%s markedDropped=%s",
-                        uuid,
-                        dropped,
-                        returnedNow,
-                        markedDropped);
+        if (!markedDropped) {
+            CtfStandRegistryRepository.StandLocation home = ctfFlagStateService.resolveHomeStandLocation(carriedFlag);
+            if (home != null && home.isValid()) {
+                markedDropped = ctfFlagStateService.markFlagDropped(carriedFlag, uuid, home.worldName(), home.x(), home.y(), home.z());
             }
         }
 
+        if (rrVerbose()) {
+            LOGGER.atInfo().log("[RR-CTF] disconnect flag recovery uuid=%s immediateReturn=false markedDropped=%s",
+                    uuid,
+                    markedDropped);
+        }
+
         if (!markedDropped) {
-            LOGGER.atWarning().log("[RR-CTF] Unable to place dropped flag state after disconnect. uuid=%s flag=%s",
+            LOGGER.atWarning().log("[RR-CTF] Unable to recover flag after disconnect. uuid=%s flag=%s immediateReturn=false markedDropped=false",
                     uuid,
                     carriedFlag.displayName());
         }

@@ -11,12 +11,8 @@ import com.hypixel.hytale.component.Store;
 import com.hypixel.hytale.component.query.Query;
 import com.hypixel.hytale.component.system.RefChangeSystem;
 import com.hypixel.hytale.logger.HytaleLogger;
-import com.hypixel.hytale.server.core.entity.ItemUtils;
 import com.hypixel.hytale.protocol.packets.interface_.Page;
 import com.hypixel.hytale.server.core.entity.entities.Player;
-import com.hypixel.hytale.server.core.inventory.ItemStack;
-import com.hypixel.hytale.server.core.modules.entity.item.ItemComponent;
-import com.hypixel.hytale.server.core.universe.Universe;
 import com.hypixel.hytale.server.core.modules.entity.component.TransformComponent;
 import com.hypixel.hytale.server.core.modules.entity.damage.DeathComponent;
 import com.hypixel.hytale.server.core.universe.PlayerRef;
@@ -185,6 +181,21 @@ public final class CtfAutoRespawnAndTeleportSystem extends RefChangeSystem<Entit
         CtfMatchService.Team carriedFlag = flagStateService.carriedFlagFor(uuid);
         if (carriedFlag == null) return;
 
+        // Policy: death recovery is reset-first, not drop-first.
+        flagStateService.removeOneFlagFromPlayer(player, carriedFlag);
+
+        boolean returnedNow = standSwapService != null && flagStateService.forceReturnFlagToStand(
+                carriedFlag,
+                standSwapService,
+                CtfFlagStateService.ReturnResolutionMode.STRICT_THEN_SOFT
+        );
+        if (returnedNow) {
+            if (RrDebugFlags.verbose()) {
+                logger.atInfo().log("[RR-CTF] death flag recovery uuid=%s immediateReturn=true markedDropped=false", uuid);
+            }
+            return;
+        }
+
         String worldName = null;
         double x = 0;
         double y = 0;
@@ -222,35 +233,6 @@ public final class CtfAutoRespawnAndTeleportSystem extends RefChangeSystem<Entit
             }
         }
 
-        ItemStack dropStack = flagStateService.removeOneFlagFromPlayer(player, carriedFlag);
-        boolean dropped = false;
-        if (dropStack != null) {
-            try {
-                ItemUtils.dropItem(ref, dropStack, store);
-                dropped = true;
-            } catch (Throwable t) {
-                logger.atWarning().withCause(t).log("[RR-CTF] Failed primary death drop. uuid=%s", uuid);
-            }
-
-            if (!dropped && havePosition && worldName != null && !worldName.isBlank()) {
-                try {
-                    var world = Universe.get().getWorld(worldName);
-                    if (world != null) {
-                        ItemComponent.generateItemDrop(
-                                world.getEntityStore().getStore(),
-                                dropStack,
-                                new com.hypixel.hytale.math.vector.Vector3d(x, y, z),
-                                new com.hypixel.hytale.math.vector.Vector3f(0f, 0f, 0f),
-                                0f, 0f, 0f
-                        );
-                        dropped = true;
-                    }
-                } catch (Throwable t) {
-                    logger.atWarning().withCause(t).log("[RR-CTF] Failed fallback death drop generation. uuid=%s", uuid);
-                }
-            }
-        }
-
         boolean markedDropped = false;
         if (havePosition && worldName != null && !worldName.isBlank()) {
             markedDropped = flagStateService.markCarrierDropped(uuid, worldName, x, y, z);
@@ -259,20 +241,23 @@ public final class CtfAutoRespawnAndTeleportSystem extends RefChangeSystem<Entit
             }
         }
 
-        if (!dropped) {
-            boolean returnedNow = markedDropped && standSwapService != null
-                    && flagStateService.tryReturnDroppedFlagToHome(carriedFlag, standSwapService);
-            if (RrDebugFlags.verbose()) {
-                logger.atInfo().log("[RR-CTF] death flag recovery uuid=%s dropped=%s immediateReturn=%s markedDropped=%s",
-                        uuid,
-                        dropped,
-                        returnedNow,
-                        markedDropped);
+        if (!markedDropped) {
+            CtfStandRegistryRepository.StandLocation home = flagStateService.resolveHomeStandLocation(carriedFlag);
+            if (home != null && home.isValid()) {
+                markedDropped = flagStateService.markFlagDropped(carriedFlag, uuid, home.worldName(), home.x(), home.y(), home.z());
             }
         }
 
+        if (RrDebugFlags.verbose()) {
+            logger.atInfo().log("[RR-CTF] death flag recovery uuid=%s immediateReturn=false markedDropped=%s",
+                    uuid,
+                    markedDropped);
+        }
+
         if (!markedDropped) {
-            logger.atWarning().log("[RR-CTF] Unable to place dropped flag state after death. uuid=%s flag=%s", uuid, carriedFlag.displayName());
+            logger.atWarning().log("[RR-CTF] Unable to recover flag after death. uuid=%s flag=%s immediateReturn=false markedDropped=false",
+                    uuid,
+                    carriedFlag.displayName());
         }
     }
 }

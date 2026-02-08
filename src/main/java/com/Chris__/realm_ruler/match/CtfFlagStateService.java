@@ -45,6 +45,12 @@ public final class CtfFlagStateService {
     public record StandLocation(String worldName, int x, int y, int z) {
     }
 
+    public enum ReturnResolutionMode {
+        STRICT,
+        SOFT,
+        STRICT_THEN_SOFT
+    }
+
     private static final long DROP_AUTO_RETURN_DELAY_NANOS = 30_000_000_000L;
     private static final long DROP_RETRY_DELAY_NANOS = 5_000_000_000L;
 
@@ -323,40 +329,100 @@ public final class CtfFlagStateService {
             }
         }
 
-        ResolvedHomeStand resolved = resolveValidHomeStandWithSource(flagTeam);
-        if (resolved == null || resolved.location() == null) return false;
-        CtfStandRegistryRepository.StandLocation destination = resolved.location();
+        return forceReturnFlagToStand(flagTeam, standSwapService, ReturnResolutionMode.STRICT_THEN_SOFT);
+    }
 
-        World world = Universe.get().getWorld(destination.worldName());
-        if (world == null) return false;
+    public boolean forceReturnFlagToStand(CtfMatchService.Team flagTeam,
+                                          StandSwapService standSwapService,
+                                          ReturnResolutionMode mode) {
+        if (flagTeam == null || standSwapService == null) return false;
+        ReturnResolutionMode effectiveMode = (mode == null) ? ReturnResolutionMode.STRICT_THEN_SOFT : mode;
+
+        FlagState originalState;
+        synchronized (lock) {
+            originalState = stateByFlag.get(flagTeam);
+        }
 
         String standId = standIdForTeam(flagTeam);
         if (standId == null) return false;
 
-        if (!standSwapService.swapStand(world, destination.x(), destination.y(), destination.z(), standId)) {
-            return false;
-        }
+        for (ResolvedHomeStand resolved : resolveReturnStandCandidates(flagTeam, effectiveMode)) {
+            CtfStandRegistryRepository.StandLocation destination = resolved.location();
+            if (destination == null) continue;
 
-        synchronized (lock) {
-            stateByFlag.put(flagTeam,
-                    new FlagState.InStand(
-                            new StandLocation(destination.worldName(), destination.x(), destination.y(), destination.z()),
-                            flagTeam.displayName()
-                    ));
-            lastKnownHomeStandByFlag.put(flagTeam, destination);
+            World world = Universe.get().getWorld(destination.worldName());
+            if (world == null) continue;
+
+            if (!standSwapService.swapStand(world, destination.x(), destination.y(), destination.z(), standId)) {
+                continue;
+            }
+
+            if (originalState instanceof FlagState.InStand oldInStand) {
+                StandLocation previousLocation = oldInStand.location();
+                if (previousLocation != null && !sameLocation(previousLocation, destination)) {
+                    World previousWorld = Universe.get().getWorld(previousLocation.worldName());
+                    if (previousWorld != null) {
+                        standSwapService.swapStand(previousWorld,
+                                previousLocation.x(),
+                                previousLocation.y(),
+                                previousLocation.z(),
+                                CtfRules.STAND_EMPTY);
+                    }
+                }
+            }
+
+            synchronized (lock) {
+                FlagState currentState = stateByFlag.get(flagTeam);
+                if (currentState instanceof FlagState.Held held) {
+                    carrierFlagByUuid.remove(held.holderUuid());
+                    lockedSlotByUuid.remove(held.holderUuid());
+                }
+
+                if (originalState instanceof FlagState.Held held) {
+                    carrierFlagByUuid.remove(held.holderUuid());
+                    lockedSlotByUuid.remove(held.holderUuid());
+                }
+
+                stateByFlag.put(flagTeam,
+                        new FlagState.InStand(
+                                new StandLocation(destination.worldName(), destination.x(), destination.y(), destination.z()),
+                                flagTeam.displayName()
+                        ));
+                lastKnownHomeStandByFlag.put(flagTeam, destination);
+            }
+
+            if (RrDebugFlags.verbose()) {
+                logger.atInfo().log("[RR-CTF] force-return success flag=%s source=%s mode=%s @ %s(%d,%d,%d)",
+                        flagTeam.displayName(),
+                        resolved.source(),
+                        effectiveMode.name(),
+                        destination.worldName(),
+                        destination.x(),
+                        destination.y(),
+                        destination.z());
+            }
+
+            return true;
         }
 
         if (RrDebugFlags.verbose()) {
-            logger.atInfo().log("[RR-CTF] dropped flag returned flag=%s source=%s @ %s(%d,%d,%d)",
-                    flagTeam.displayName(),
-                    resolved.source(),
-                    destination.worldName(),
-                    destination.x(),
-                    destination.y(),
-                    destination.z());
+            logger.atInfo().log("[RR-CTF] force-return failed flag=%s mode=%s", flagTeam.displayName(), effectiveMode.name());
         }
+        return false;
+    }
 
-        return true;
+    public boolean forceReturnAllFlagsToTeamStands(StandSwapService standSwapService) {
+        if (standSwapService == null) return false;
+
+        boolean allReturned = true;
+        for (CtfMatchService.Team flagTeam : CtfMatchService.Team.values()) {
+            boolean returned = forceReturnFlagToStand(flagTeam, standSwapService, ReturnResolutionMode.STRICT_THEN_SOFT);
+            if (!returned) {
+                allReturned = false;
+                logger.atWarning().log("[RR-CTF] Failed to force-return flag at match end. flag=%s", flagTeam.displayName());
+            }
+        }
+        return allReturned;
     }
 
     public void processDroppedFlagTimeouts(StandSwapService standSwapService) {
@@ -466,7 +532,7 @@ public final class CtfFlagStateService {
     }
 
     public @Nullable CtfStandRegistryRepository.StandLocation resolveHomeStandLocation(CtfMatchService.Team flagTeam) {
-        ResolvedHomeStand resolved = resolveValidHomeStandWithSource(flagTeam);
+        ResolvedHomeStand resolved = resolveValidHomeStandWithSource(flagTeam, ReturnResolutionMode.STRICT_THEN_SOFT);
         return (resolved == null) ? null : resolved.location();
     }
 
@@ -584,14 +650,41 @@ public final class CtfFlagStateService {
         OWNER_MISMATCH
     }
 
-    private @Nullable ResolvedHomeStand resolveValidHomeStandWithSource(CtfMatchService.Team flagTeam) {
+    private @Nullable ResolvedHomeStand resolveValidHomeStandWithSource(CtfMatchService.Team flagTeam,
+                                                                         ReturnResolutionMode mode) {
         if (flagTeam == null) return null;
+        for (ResolvedHomeStand candidate : resolveReturnStandCandidates(flagTeam, mode)) {
+            return candidate;
+        }
+        return null;
+    }
+
+    private List<ResolvedHomeStand> resolveReturnStandCandidates(CtfMatchService.Team flagTeam,
+                                                                 ReturnResolutionMode mode) {
+        List<ResolvedHomeStand> out = new ArrayList<>();
+        if (flagTeam == null || mode == null) return out;
+
+        switch (mode) {
+            case STRICT -> addCandidatesForMode(flagTeam, ReturnResolutionMode.STRICT, out);
+            case SOFT -> addCandidatesForMode(flagTeam, ReturnResolutionMode.SOFT, out);
+            case STRICT_THEN_SOFT -> {
+                addCandidatesForMode(flagTeam, ReturnResolutionMode.STRICT, out);
+                addCandidatesForMode(flagTeam, ReturnResolutionMode.SOFT, out);
+            }
+        }
+        return out;
+    }
+
+    private void addCandidatesForMode(CtfMatchService.Team flagTeam,
+                                      ReturnResolutionMode mode,
+                                      List<ResolvedHomeStand> out) {
+        if (flagTeam == null || mode == null || out == null) return;
 
         if (standRegistry != null) {
             List<CtfStandRegistryRepository.StandLocation> candidates = standRegistry.getOrderedStands(flagTeam);
             for (CtfStandRegistryRepository.StandLocation candidate : candidates) {
-                if (!isValidHomeStandCandidate(flagTeam, candidate)) continue;
-                return new ResolvedHomeStand(candidate, "registry");
+                if (!isCandidateAccepted(flagTeam, candidate, mode)) continue;
+                addUniqueResolved(out, candidate, "registry-" + mode.name().toLowerCase());
             }
         }
 
@@ -599,16 +692,25 @@ public final class CtfFlagStateService {
         synchronized (lock) {
             lastKnown = lastKnownHomeStandByFlag.get(flagTeam);
         }
-        if (isValidHomeStandCandidate(flagTeam, lastKnown)) {
-            return new ResolvedHomeStand(lastKnown, "last-known");
+        if (isCandidateAccepted(flagTeam, lastKnown, mode)) {
+            addUniqueResolved(out, lastKnown, "last-known-" + mode.name().toLowerCase());
         }
+    }
 
-        return null;
+    private static void addUniqueResolved(List<ResolvedHomeStand> out,
+                                          CtfStandRegistryRepository.StandLocation candidate,
+                                          String source) {
+        if (out == null || candidate == null) return;
+        for (ResolvedHomeStand existing : out) {
+            if (existing == null || existing.location() == null) continue;
+            if (existing.location().sameAs(candidate)) return;
+        }
+        out.add(new ResolvedHomeStand(candidate, source));
     }
 
     private @Nullable String missingHomeReason(CtfMatchService.Team team) {
         if (team == null) return "no stand recorded";
-        if (resolveValidHomeStandWithSource(team) != null) return null;
+        if (resolveValidHomeStandWithSource(team, ReturnResolutionMode.STRICT_THEN_SOFT) != null) return null;
 
         boolean hasRecorded = false;
         boolean ownerMismatch = false;
@@ -642,14 +744,37 @@ public final class CtfFlagStateService {
         }
 
         if (!hasRecorded) return "no stand recorded";
-        if (ownerMismatch || ownerUnknown) return "stand recorded but chunk owner parse mismatch";
         if (worldInvalid || invalidLocation) return "world/stand invalid";
+        if (ownerMismatch || ownerUnknown) return "stand recorded but chunk owner parse mismatch";
         return "stand recorded but currently unusable";
+    }
+
+    private boolean isCandidateAccepted(CtfMatchService.Team flagTeam,
+                                        @Nullable CtfStandRegistryRepository.StandLocation candidate,
+                                        ReturnResolutionMode mode) {
+        if (mode == ReturnResolutionMode.STRICT_THEN_SOFT) return false;
+        CandidateValidation validation = validateHomeStandCandidate(flagTeam, candidate);
+        return switch (mode) {
+            case STRICT -> validation == CandidateValidation.VALID;
+            case SOFT -> validation == CandidateValidation.VALID
+                    || validation == CandidateValidation.OWNER_UNKNOWN
+                    || validation == CandidateValidation.OWNER_MISMATCH;
+            case STRICT_THEN_SOFT -> false;
+        };
     }
 
     private boolean isValidHomeStandCandidate(CtfMatchService.Team flagTeam,
                                               @Nullable CtfStandRegistryRepository.StandLocation candidate) {
-        return validateHomeStandCandidate(flagTeam, candidate) == CandidateValidation.VALID;
+        return isCandidateAccepted(flagTeam, candidate, ReturnResolutionMode.STRICT);
+    }
+
+    private static boolean sameLocation(StandLocation current,
+                                        CtfStandRegistryRepository.StandLocation target) {
+        if (current == null || target == null) return false;
+        return current.worldName().equals(target.worldName())
+                && current.x() == target.x()
+                && current.y() == target.y()
+                && current.z() == target.z();
     }
 
     private CandidateValidation validateHomeStandCandidate(CtfMatchService.Team flagTeam,

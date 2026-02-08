@@ -90,6 +90,10 @@ public final class CtfMatchEndService {
 
         // Cleanup: remove flags from players + reset captured stands.
         flagStateService.cleanupAfterMatch(standSwapService, playerByUuid, matchUuids);
+        boolean flagsReset = flagStateService.forceReturnAllFlagsToTeamStands(standSwapService);
+        if (!flagsReset) {
+            logger.atWarning().log("[RR-CTF] Match ended but one or more flags failed to reset to team stands.");
+        }
 
         // Clear SimpleClaims temporary team access.
         if (simpleClaims != null && simpleClaims.isAvailable()) {
