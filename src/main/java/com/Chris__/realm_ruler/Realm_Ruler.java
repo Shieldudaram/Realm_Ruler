@@ -39,6 +39,12 @@ import com.Chris__.realm_ruler.match.CtfShopConfigRepository;
 import com.Chris__.realm_ruler.match.CtfStandRegistryRepository;
 import com.Chris__.realm_ruler.integration.MultipleHudBridge;
 import com.Chris__.realm_ruler.integration.SimpleClaimsCtfBridge;
+import com.Chris__.realm_ruler.npc.NpcArenaRepository;
+import com.Chris__.realm_ruler.npc.NpcLifecycleSystem;
+import com.Chris__.realm_ruler.npc.NpcSpawnAdapter;
+import com.Chris__.realm_ruler.npc.NpcSpawnAdapterCommandBridge;
+import com.Chris__.realm_ruler.npc.NpcSpawnAdapterFallback;
+import com.Chris__.realm_ruler.npc.NpcTestService;
 import com.Chris__.realm_ruler.ui.pages.ctf.CtfShopUiService;
 import com.hypixel.hytale.math.util.ChunkUtil;
 import com.hypixel.hytale.math.vector.Transform;
@@ -115,6 +121,8 @@ public class Realm_Ruler extends JavaPlugin {
     private CtfMatchEndService ctfMatchEndService;
     private CtfShopConfigRepository ctfShopConfigRepository;
     private CtfShopUiService ctfShopUiService;
+    private NpcArenaRepository npcArenaRepository;
+    private NpcTestService npcTestService;
     private MultipleHudBridge multipleHudBridge;
     private final PlayerInteractAdapter pi = new PlayerInteractAdapter();
 
@@ -231,6 +239,15 @@ public class Realm_Ruler extends JavaPlugin {
         this.ctfPointsRepository = new CtfPointsRepository(this.getDataDirectory(), LOGGER);
         this.ctfShopConfigRepository = new CtfShopConfigRepository(this.getDataDirectory(), LOGGER);
         this.ctfShopUiService = new CtfShopUiService(this.ctfPointsRepository, this.ctfShopConfigRepository, this::rrCreateItemStackById);
+        this.npcArenaRepository = new NpcArenaRepository(this.getDataDirectory(), LOGGER);
+        NpcSpawnAdapter npcCommandBridgeAdapter = new NpcSpawnAdapterCommandBridge(LOGGER);
+        NpcSpawnAdapter npcFallbackAdapter = new NpcSpawnAdapterFallback(LOGGER);
+        this.npcTestService = new NpcTestService(
+                this.npcArenaRepository,
+                npcCommandBridgeAdapter,
+                npcFallbackAdapter,
+                LOGGER
+        );
         this.ctfMatchEndService = new CtfMatchEndService(
                 this.ctfMatchService,
                 this.simpleClaimsCtfBridge,
@@ -252,6 +269,11 @@ public class Realm_Ruler extends JavaPlugin {
             mes.endMatch(reason);
         });
         this.targetingService.setPerSliceCallback(() -> {
+            NpcTestService nts = npcTestService;
+            if (nts != null) {
+                nts.processRespawns();
+            }
+
             CtfMatchService ms = ctfMatchService;
             CtfFlagStateService fs = ctfFlagStateService;
             if (ms == null || fs == null) return;
@@ -281,7 +303,9 @@ public class Realm_Ruler extends JavaPlugin {
                 this.ctfFlagStateService,
                 this.ctfStandRegistryRepository,
                 this.ctfPointsRepository,
-                this.ctfShopUiService
+                this.ctfShopUiService,
+                this.npcArenaRepository,
+                this.npcTestService
         ));
 
         // ---------------------------------------------------------------------
@@ -345,6 +369,8 @@ public class Realm_Ruler extends JavaPlugin {
         this.getEntityStoreRegistry().registerSystem(new CtfCarrierSlotLockSystem(this.ctfMatchService, this.ctfFlagStateService));
         this.getEntityStoreRegistry().registerSystem(new CtfCarrierDropBlockSystem(this.ctfMatchService, this.ctfFlagStateService));
         LOGGER.atInfo().log("Registered CTF carrier slot/drop enforcement systems.");
+        this.getEntityStoreRegistry().registerSystem(new NpcLifecycleSystem(this.npcTestService));
+        LOGGER.atInfo().log("Registered NpcLifecycleSystem.");
 
         // Shop UI open service (PageManager).
         if (ctfShopUiService != null) {

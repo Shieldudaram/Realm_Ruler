@@ -5,6 +5,8 @@ import com.Chris__.realm_ruler.match.CtfFlagStateService;
 import com.Chris__.realm_ruler.match.CtfMatchService;
 import com.Chris__.realm_ruler.match.CtfPointsRepository;
 import com.Chris__.realm_ruler.match.CtfStandRegistryRepository;
+import com.Chris__.realm_ruler.npc.NpcArenaRepository;
+import com.Chris__.realm_ruler.npc.NpcTestService;
 import com.Chris__.realm_ruler.targeting.TargetingService;
 import com.Chris__.realm_ruler.ui.pages.ctf.CtfShopUiService;
 import com.Chris__.realm_ruler.util.SpawnTeleportUtil;
@@ -27,7 +29,7 @@ import java.util.Set;
 public final class RealmRulerCommand extends CommandBase {
 
     private static final Message MSG_USAGE =
-            Message.raw("Usage: /rr ctf <join [random|red|blue|yellow|white]|leave|start [minutes]|stop|points|shop|stand <add|remove|list|primary> ...>");
+            Message.raw("Usage: /rr ctf <join [random|red|blue|yellow|white]|leave|start [minutes]|stop|points|shop|stand <add|remove|list|primary> ...> | /rr npc <arena|spawn|despawn|clear>");
 
     private static final Message MSG_NOT_READY =
             Message.raw("[RealmRuler] Not ready yet (plugin still starting?).");
@@ -36,6 +38,10 @@ public final class RealmRulerCommand extends CommandBase {
             Message.raw("[RealmRuler] Players only.");
     private static final Message MSG_NO_STAND_PERMISSION =
             Message.raw("[RealmRuler] Missing permission: realmruler.ctf.stand.manage");
+    private static final Message MSG_NO_NPC_PERMISSION =
+            Message.raw("[RealmRuler] Missing permission: realmruler.npc.manage");
+    private static final Message MSG_NPC_USAGE =
+            Message.raw("Usage: /rr npc arena <create|pos1|pos2|info|list|delete> ... | /rr npc <spawn|despawn> <arenaId> <npcName> | /rr npc clear [arenaId]");
 
     private static final double SPAWN_JITTER_RADIUS_BLOCKS = 3.0d;
 
@@ -46,6 +52,8 @@ public final class RealmRulerCommand extends CommandBase {
     private final CtfStandRegistryRepository standRegistry;
     private final CtfPointsRepository pointsRepository;
     private final CtfShopUiService shopUiService;
+    private final NpcArenaRepository npcArenaRepository;
+    private final NpcTestService npcTestService;
 
     public RealmRulerCommand(CtfMatchService matchService,
                              SimpleClaimsCtfBridge simpleClaims,
@@ -53,7 +61,9 @@ public final class RealmRulerCommand extends CommandBase {
                              CtfFlagStateService flagStateService,
                              CtfStandRegistryRepository standRegistry,
                              CtfPointsRepository pointsRepository,
-                             CtfShopUiService shopUiService) {
+                             CtfShopUiService shopUiService,
+                             NpcArenaRepository npcArenaRepository,
+                             NpcTestService npcTestService) {
         super("RealmRuler", "Controls Realm Ruler minigames.");
         this.setAllowsExtraArguments(true); // we parse ctx.getInputString() ourselves
         this.addAliases("rr");
@@ -65,20 +75,27 @@ public final class RealmRulerCommand extends CommandBase {
         this.standRegistry = standRegistry;
         this.pointsRepository = pointsRepository;
         this.shopUiService = shopUiService;
+        this.npcArenaRepository = npcArenaRepository;
+        this.npcTestService = npcTestService;
     }
 
     @Override
     protected void executeSync(@Nonnull CommandContext ctx) {
         String[] args = splitArgs(ctx.getInputString());
-        if (args.length < 3) {
+        if (args.length < 2) {
             ctx.sendMessage(MSG_USAGE);
             return;
         }
 
         String sub = args[1];
-        String action = args[2];
 
         if (isCtf(sub)) {
+            if (args.length < 3) {
+                ctx.sendMessage(MSG_USAGE);
+                return;
+            }
+            String action = args[2];
+
             if (matchService == null) {
                 ctx.sendMessage(MSG_NOT_READY);
                 return;
@@ -286,6 +303,11 @@ public final class RealmRulerCommand extends CommandBase {
             return;
         }
 
+        if (isNpc(sub)) {
+            handleNpcCommand(ctx, args);
+            return;
+        }
+
         ctx.sendMessage(MSG_USAGE);
     }
 
@@ -308,9 +330,307 @@ public final class RealmRulerCommand extends CommandBase {
         return "ctf".equalsIgnoreCase(s) || "capturetheflag".equalsIgnoreCase(s);
     }
 
+    private static boolean isNpc(String s) {
+        if (s == null) return false;
+        return "npc".equalsIgnoreCase(s) || "npcs".equalsIgnoreCase(s);
+    }
+
     private static String safeTeamName(CtfMatchService.JoinLobbyResult jr) {
         if (jr == null || jr.team() == null) return "<unknown>";
         return jr.team().displayName();
+    }
+
+    private void handleNpcCommand(CommandContext ctx, String[] args) {
+        if (npcArenaRepository == null || npcTestService == null || targetingService == null) {
+            ctx.sendMessage(MSG_NOT_READY);
+            return;
+        }
+        if (ctx.sender() == null || !ctx.sender().hasPermission("realmruler.npc.manage")) {
+            ctx.sendMessage(MSG_NO_NPC_PERMISSION);
+            return;
+        }
+        if (args.length < 3) {
+            ctx.sendMessage(MSG_NPC_USAGE);
+            return;
+        }
+
+        String action = args[2];
+        if ("arena".equalsIgnoreCase(action)) {
+            handleNpcArenaCommand(ctx, args);
+            return;
+        }
+
+        if ("spawn".equalsIgnoreCase(action)) {
+            if (args.length < 5) {
+                ctx.sendMessage(MSG_NPC_USAGE);
+                return;
+            }
+
+            String arenaId = NpcArenaRepository.normalizeId(args[3]);
+            String npcName = NpcTestService.normalizeNpcName(args[4]);
+            if (arenaId == null || npcName == null) {
+                ctx.sendMessage(Message.raw("[RealmRuler] Invalid arenaId or npcName. Allowed: [a-z0-9_-]"));
+                return;
+            }
+
+            NpcArenaRepository.ArenaDefinition arena = npcArenaRepository.getArena(arenaId);
+            if (arena == null) {
+                ctx.sendMessage(Message.raw("[RealmRuler] Arena not found: " + arenaId));
+                return;
+            }
+            if (!arena.hasBounds()) {
+                ctx.sendMessage(Message.raw("[RealmRuler] Arena bounds are not set. Run /rr npc arena pos1 " + arenaId + " and pos2."));
+                return;
+            }
+
+            String senderUuid = senderUuid(ctx);
+            if (senderUuid == null) {
+                ctx.sendMessage(MSG_PLAYERS_ONLY);
+                return;
+            }
+
+            TargetingService.PlayerLocationSnapshot snapshot = snapshotForSender(ctx);
+            if (snapshot == null || !snapshot.isValid()) {
+                ctx.sendMessage(Message.raw("[RealmRuler] Could not resolve your current position. Try moving and run again."));
+                return;
+            }
+            if (!arena.worldName().equals(snapshot.worldName())) {
+                ctx.sendMessage(Message.raw("[RealmRuler] You must be in arena world: " + arena.worldName()));
+                return;
+            }
+            if (!arena.contains(snapshot.worldName(), snapshot.x(), snapshot.y(), snapshot.z())) {
+                ctx.sendMessage(Message.raw("[RealmRuler] You must stand inside the arena bounds to spawn NPCs."));
+                return;
+            }
+
+            NpcTestService.ServiceResult result = npcTestService.spawn(
+                    arenaId,
+                    npcName,
+                    senderUuid,
+                    new NpcTestService.SpawnTransform(
+                            snapshot.worldName(),
+                            snapshot.x(),
+                            snapshot.y(),
+                            snapshot.z(),
+                            snapshot.pitch(),
+                            snapshot.yaw(),
+                            snapshot.roll()
+                    )
+            );
+            ctx.sendMessage(Message.raw("[RealmRuler] " + result.message()));
+            return;
+        }
+
+        if ("despawn".equalsIgnoreCase(action)) {
+            if (args.length < 5) {
+                ctx.sendMessage(MSG_NPC_USAGE);
+                return;
+            }
+
+            String arenaId = NpcArenaRepository.normalizeId(args[3]);
+            String npcName = NpcTestService.normalizeNpcName(args[4]);
+            if (arenaId == null || npcName == null) {
+                ctx.sendMessage(Message.raw("[RealmRuler] Invalid arenaId or npcName. Allowed: [a-z0-9_-]"));
+                return;
+            }
+
+            NpcTestService.ServiceResult result = npcTestService.despawn(arenaId, npcName);
+            ctx.sendMessage(Message.raw("[RealmRuler] " + result.message()));
+            return;
+        }
+
+        if ("clear".equalsIgnoreCase(action)) {
+            if (args.length >= 4) {
+                String arenaId = NpcArenaRepository.normalizeId(args[3]);
+                if (arenaId == null) {
+                    ctx.sendMessage(Message.raw("[RealmRuler] Invalid arenaId. Allowed: [a-z0-9_-]"));
+                    return;
+                }
+                int removed = npcTestService.clearArena(arenaId);
+                ctx.sendMessage(Message.raw("[RealmRuler] Cleared " + removed + " NPC(s) in arena '" + arenaId + "'."));
+                return;
+            }
+
+            int removed = npcTestService.clearAll();
+            ctx.sendMessage(Message.raw("[RealmRuler] Cleared " + removed + " NPC(s) across all arenas."));
+            return;
+        }
+
+        ctx.sendMessage(MSG_NPC_USAGE);
+    }
+
+    private void handleNpcArenaCommand(CommandContext ctx, String[] args) {
+        if (args.length < 4) {
+            ctx.sendMessage(MSG_NPC_USAGE);
+            return;
+        }
+
+        String arenaAction = args[3];
+        if ("list".equalsIgnoreCase(arenaAction)) {
+            List<NpcArenaRepository.ArenaDefinition> arenas = npcArenaRepository.listArenas();
+            if (arenas.isEmpty()) {
+                ctx.sendMessage(Message.raw("[RealmRuler] No NPC arenas configured."));
+                return;
+            }
+
+            StringBuilder sb = new StringBuilder();
+            sb.append("[RealmRuler] NPC arenas: ");
+            for (int i = 0; i < arenas.size(); i++) {
+                NpcArenaRepository.ArenaDefinition arena = arenas.get(i);
+                if (i > 0) sb.append(" | ");
+                sb.append(arena.arenaId())
+                        .append(" (world=").append(arena.worldName())
+                        .append(", bounds=").append(arena.hasBounds() ? "yes" : "no")
+                        .append(", npcs=").append(npcTestService.trackedCountForArena(arena.arenaId()))
+                        .append(")");
+            }
+            ctx.sendMessage(Message.raw(sb.toString()));
+            return;
+        }
+
+        if ("create".equalsIgnoreCase(arenaAction)) {
+            if (args.length < 6) {
+                ctx.sendMessage(MSG_NPC_USAGE);
+                return;
+            }
+
+            String arenaId = NpcArenaRepository.normalizeId(args[4]);
+            if (arenaId == null) {
+                ctx.sendMessage(Message.raw("[RealmRuler] Invalid arenaId. Allowed: [a-z0-9_-]"));
+                return;
+            }
+
+            World world = Universe.get().getWorld(args[5]);
+            if (world == null) {
+                ctx.sendMessage(Message.raw("[RealmRuler] World not found: " + args[5]));
+                return;
+            }
+
+            boolean created = npcArenaRepository.createArena(arenaId, world.getName());
+            ctx.sendMessage(created
+                    ? Message.raw("[RealmRuler] Created NPC arena '" + arenaId + "' in world '" + world.getName() + "'.")
+                    : Message.raw("[RealmRuler] Arena already exists: " + arenaId));
+            return;
+        }
+
+        if ("delete".equalsIgnoreCase(arenaAction)) {
+            if (args.length < 5) {
+                ctx.sendMessage(MSG_NPC_USAGE);
+                return;
+            }
+
+            String arenaId = NpcArenaRepository.normalizeId(args[4]);
+            if (arenaId == null) {
+                ctx.sendMessage(Message.raw("[RealmRuler] Invalid arenaId. Allowed: [a-z0-9_-]"));
+                return;
+            }
+
+            int cleared = npcTestService.clearArena(arenaId);
+            boolean deleted = npcArenaRepository.deleteArena(arenaId);
+            if (!deleted) {
+                ctx.sendMessage(Message.raw("[RealmRuler] Arena not found: " + arenaId));
+                return;
+            }
+            ctx.sendMessage(Message.raw("[RealmRuler] Deleted arena '" + arenaId + "' (cleared " + cleared + " NPCs)."));
+            return;
+        }
+
+        if ("info".equalsIgnoreCase(arenaAction)) {
+            if (args.length < 5) {
+                ctx.sendMessage(MSG_NPC_USAGE);
+                return;
+            }
+
+            String arenaId = NpcArenaRepository.normalizeId(args[4]);
+            if (arenaId == null) {
+                ctx.sendMessage(Message.raw("[RealmRuler] Invalid arenaId. Allowed: [a-z0-9_-]"));
+                return;
+            }
+
+            NpcArenaRepository.ArenaDefinition arena = npcArenaRepository.getArena(arenaId);
+            if (arena == null) {
+                ctx.sendMessage(Message.raw("[RealmRuler] Arena not found: " + arenaId));
+                return;
+            }
+
+            String pos1 = formatPos(arena.pos1());
+            String pos2 = formatPos(arena.pos2());
+            int tracked = npcTestService.trackedCountForArena(arena.arenaId());
+            ctx.sendMessage(Message.raw("[RealmRuler] Arena '" + arena.arenaId()
+                    + "': world=" + arena.worldName()
+                    + ", enabled=" + arena.enabled()
+                    + ", pos1=" + pos1
+                    + ", pos2=" + pos2
+                    + ", npcs=" + tracked));
+            return;
+        }
+
+        if ("pos1".equalsIgnoreCase(arenaAction) || "pos2".equalsIgnoreCase(arenaAction)) {
+            if (args.length < 5) {
+                ctx.sendMessage(MSG_NPC_USAGE);
+                return;
+            }
+
+            String arenaId = NpcArenaRepository.normalizeId(args[4]);
+            if (arenaId == null) {
+                ctx.sendMessage(Message.raw("[RealmRuler] Invalid arenaId. Allowed: [a-z0-9_-]"));
+                return;
+            }
+
+            NpcArenaRepository.ArenaDefinition arena = npcArenaRepository.getArena(arenaId);
+            if (arena == null) {
+                ctx.sendMessage(Message.raw("[RealmRuler] Arena not found: " + arenaId));
+                return;
+            }
+
+            TargetingService.PlayerLocationSnapshot snapshot = snapshotForSender(ctx);
+            if (snapshot == null || !snapshot.isValid()) {
+                ctx.sendMessage(Message.raw("[RealmRuler] Could not resolve your current position. Try moving and run again."));
+                return;
+            }
+            if (!arena.worldName().equals(snapshot.worldName())) {
+                ctx.sendMessage(Message.raw("[RealmRuler] You must be in arena world: " + arena.worldName()));
+                return;
+            }
+
+            NpcArenaRepository.BlockPos blockPos = new NpcArenaRepository.BlockPos(
+                    (int) Math.floor(snapshot.x()),
+                    (int) Math.floor(snapshot.y()),
+                    (int) Math.floor(snapshot.z())
+            );
+
+            boolean updated = "pos1".equalsIgnoreCase(arenaAction)
+                    ? npcArenaRepository.setPos1(arenaId, blockPos)
+                    : npcArenaRepository.setPos2(arenaId, blockPos);
+            if (!updated) {
+                ctx.sendMessage(Message.raw("[RealmRuler] Failed to update arena position."));
+                return;
+            }
+
+            ctx.sendMessage(Message.raw("[RealmRuler] Set " + arenaAction.toLowerCase() + " for arena '" + arenaId
+                    + "' to " + blockPos.x() + " " + blockPos.y() + " " + blockPos.z()));
+            return;
+        }
+
+        ctx.sendMessage(MSG_NPC_USAGE);
+    }
+
+    private TargetingService.PlayerLocationSnapshot snapshotForSender(CommandContext ctx) {
+        String uuid = senderUuid(ctx);
+        if (uuid == null) return null;
+        return targetingService.getLatestPlayerLocation(uuid);
+    }
+
+    private static String senderUuid(CommandContext ctx) {
+        if (ctx == null || ctx.sender() == null || ctx.sender().getUuid() == null) return null;
+        String uuid = ctx.sender().getUuid().toString();
+        if (uuid == null || uuid.isBlank()) return null;
+        return uuid;
+    }
+
+    private static String formatPos(NpcArenaRepository.BlockPos pos) {
+        if (pos == null) return "<unset>";
+        return pos.x() + "," + pos.y() + "," + pos.z();
     }
 
     private void handleStandCommand(CommandContext ctx, String[] args) {
