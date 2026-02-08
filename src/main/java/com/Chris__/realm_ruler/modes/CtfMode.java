@@ -202,8 +202,31 @@ public class CtfMode implements RealmMode {
                 }
 
                 CtfMatchService.Team standFlagTeam = CtfFlagStateService.flagTeamFromStandId(clicked);
+                if (standFlagTeam == null) {
+                    ItemStack storedFlag = state.peekFlag(key);
+                    if (storedFlag != null) {
+                        standFlagTeam = CtfFlagStateService.flagTeamFromItemId(storedFlag.getItemId());
+                    }
+                }
+
                 CtfMatchService.Team playerTeam = plugin.rrActiveMatchTeamFor(uuid);
-                if (standFlagTeam != null && playerTeam != null && standFlagTeam == playerTeam) {
+                String chunkOwnerTeam = plugin.rrCtfChunkOwnerTeam(loc.world, loc.x, loc.z);
+                boolean blockOwnFlagInOwnChunk = standFlagTeam != null
+                        && playerTeam != null
+                        && standFlagTeam == playerTeam
+                        && chunkOwnerTeam != null
+                        && chunkOwnerTeam.equalsIgnoreCase(playerTeam.displayName());
+
+                if (plugin.rrVerbose()) {
+                    logger.atInfo().log("[RR-CTF] withdraw-guard uuid=%s playerTeam=%s flagTeam=%s chunkOwner=%s blocked=%s",
+                            uuid,
+                            (playerTeam == null ? "<null>" : playerTeam.displayName()),
+                            (standFlagTeam == null ? "<null>" : standFlagTeam.displayName()),
+                            (chunkOwnerTeam == null ? "<null>" : chunkOwnerTeam),
+                            blockOwnFlagInOwnChunk);
+                }
+
+                if (blockOwnFlagInOwnChunk) {
                     p.sendMessage(MSG_OWN_FLAG);
                     tryPlayDenySound(p);
                     return;

@@ -896,6 +896,22 @@ public class Realm_Ruler extends JavaPlugin {
         return ctfMatchService.activeMatchTeamFor(uuid);
     }
 
+    public String rrCtfChunkOwnerTeam(World world, int blockX, int blockZ) {
+        if (world == null) return null;
+        if (simpleClaimsCtfBridge == null || !simpleClaimsCtfBridge.isAvailable()) return null;
+
+        String worldName = world.getName();
+        if (worldName == null || worldName.isBlank()) return null;
+
+        int chunkX = ChunkUtil.chunkCoordinate(blockX);
+        int chunkZ = ChunkUtil.chunkCoordinate(blockZ);
+        String ownerTeam = simpleClaimsCtfBridge.getTeamForChunk(worldName, chunkX, chunkZ);
+        if (ownerTeam == null) return null;
+
+        String normalized = ownerTeam.trim();
+        return normalized.isEmpty() ? null : normalized;
+    }
+
     public boolean rrCtfIsCarryingAnyFlag(String uuid) {
         if (ctfFlagStateService == null || uuid == null || uuid.isBlank()) return false;
         return ctfFlagStateService.isCarryingAnyFlag(uuid);
