@@ -1,10 +1,11 @@
 package com.Chris__.realm_ruler.ui;
 
+import com.Chris__.realm_ruler.integration.MultipleHudBridge;
 import com.hypixel.hytale.server.core.entity.entities.Player;
-import com.hypixel.hytale.server.core.entity.entities.player.hud.CustomUIHud;
 import com.hypixel.hytale.server.core.universe.PlayerRef;
 
 import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.function.Supplier;
 
@@ -17,9 +18,11 @@ import java.util.function.Supplier;
  *  - renderForPlayer(...) is called once per player tick to show the same remaining time to everyone
  */
 public final class GlobalMatchTimerService {
+    private static final String HUD_SLOT_ID = "RealmRuler_MatchHud";
 
+    private final MultipleHudBridge multipleHudBridge;
     private final Map<String, GameTimerHud> hudByUuid = new ConcurrentHashMap<>();
-    private final Map<String, EmptyHud> emptyHudByUuid = new ConcurrentHashMap<>();
+    private final Set<String> shownHudByUuid = ConcurrentHashMap.newKeySet();
     private final Map<String, Integer> lastShownSecondsByUuid = new ConcurrentHashMap<>();
     private final Map<String, CtfFlagsHudState> lastShownFlagsByUuid = new ConcurrentHashMap<>();
 
@@ -28,6 +31,10 @@ public final class GlobalMatchTimerService {
     private boolean running = false;
     private int remainingSeconds = 0;
     private float secondAccumulator = 0f;
+
+    public GlobalMatchTimerService(MultipleHudBridge multipleHudBridge) {
+        this.multipleHudBridge = multipleHudBridge;
+    }
 
     public void start(int seconds) {
         this.remainingSeconds = Math.max(0, seconds);
@@ -69,14 +76,11 @@ public final class GlobalMatchTimerService {
         if (uuid == null || uuid.isEmpty() || player == null || playerRef == null) return;
 
         GameTimerHud hud = hudByUuid.computeIfAbsent(uuid, k -> new GameTimerHud(playerRef));
-        EmptyHud emptyHud = emptyHudByUuid.computeIfAbsent(uuid, k -> new EmptyHud(playerRef));
-        CustomUIHud current = player.getHudManager().getCustomHud();
 
         if (!running) {
-            // Hide once when stopped (only if we own the active custom HUD).
-            if (current == hud) {
+            if (shownHudByUuid.remove(uuid)) {
                 hud.hide();
-                player.getHudManager().setCustomHud(playerRef, emptyHud);
+                multipleHudBridge.hideCustomHud(player, playerRef, HUD_SLOT_ID);
             }
             return;
         }
@@ -87,21 +91,17 @@ public final class GlobalMatchTimerService {
         int lastShown = lastShownSecondsByUuid.getOrDefault(uuid, -1);
         CtfFlagsHudState lastFlags = lastShownFlagsByUuid.get(uuid);
         boolean flagsChanged = (flags == null) ? (lastFlags != null) : !flags.equals(lastFlags);
+        boolean isCurrentlyShown = shownHudByUuid.contains(uuid);
 
-        if (lastShown != remainingSeconds || current != hud || flagsChanged) {
-            // IMPORTANT: HudManager#setCustomHud no-ops if the same hud instance is already set.
-            // For updates, we must call hud.show() to re-send UI commands.
+        if (lastShown != remainingSeconds || flagsChanged || !isCurrentlyShown) {
             hud.showSeconds(remainingSeconds);
             hud.setFlagsState(flags);
 
-            if (current != hud) {
-                player.getHudManager().setCustomHud(playerRef, hud); // initial set (calls hud.show())
-            } else {
-                hud.show(); // force refresh (clear+rebuild)
+            if (multipleHudBridge.setCustomHud(player, playerRef, HUD_SLOT_ID, hud)) {
+                shownHudByUuid.add(uuid);
+                lastShownSecondsByUuid.put(uuid, remainingSeconds);
+                lastShownFlagsByUuid.put(uuid, flags);
             }
-
-            lastShownSecondsByUuid.put(uuid, remainingSeconds);
-            lastShownFlagsByUuid.put(uuid, flags);
         }
     }
 

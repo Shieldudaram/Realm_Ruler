@@ -2,6 +2,7 @@ package com.Chris__.realm_ruler.targeting;
 
 import com.Chris__.realm_ruler.core.LobbyHudState;
 import com.Chris__.realm_ruler.core.RrDebugFlags;
+import com.Chris__.realm_ruler.integration.MultipleHudBridge;
 import com.Chris__.realm_ruler.ui.CtfFlagsHudState;
 import com.Chris__.realm_ruler.ui.GlobalMatchTimerService;
 import com.Chris__.realm_ruler.ui.LobbyHudService;
@@ -23,6 +24,7 @@ import com.hypixel.hytale.math.vector.Vector3f;
 import com.hypixel.hytale.server.core.asset.type.blocktype.config.BlockType;
 import com.hypixel.hytale.server.core.entity.EntityUtils;
 import com.hypixel.hytale.server.core.entity.entities.Player;
+import com.hypixel.hytale.server.core.modules.entity.component.TransformComponent;
 import com.hypixel.hytale.server.core.modules.entity.teleport.Teleport;
 import com.hypixel.hytale.server.core.universe.PlayerRef;
 import com.hypixel.hytale.server.core.universe.Universe;
@@ -65,8 +67,8 @@ import static com.Chris__.realm_ruler.targeting.TargetingModels.*;
 public final class TargetingService {
 
     // --- GLOBAL MATCH TIMER (shared for everyone) ---
-    private final GlobalMatchTimerService matchTimer = new GlobalMatchTimerService();
-    private final LobbyHudService lobbyHud = new LobbyHudService();
+    private final GlobalMatchTimerService matchTimer;
+    private final LobbyHudService lobbyHud;
     private final ConcurrentLinkedQueue<TimerAction> timerActions = new ConcurrentLinkedQueue<>();
 
     // This makes sure the timer "ticks" only once per real time slice, even though tick(...) runs per player.
@@ -101,12 +103,16 @@ public final class TargetingService {
 
     // Optional callback fired when the global match timer transitions from running -> stopped.
     private volatile Runnable matchTimerEndedCallback = null;
+    // Optional callback fired once per global timer slice (roughly every 50ms).
+    private volatile Runnable perSliceCallback = null;
 
     // Pending teleports (applied on tick thread)
-    private record PendingTeleport(String worldName, double x, double y, double z) {
+    private record PendingTeleport(String worldName, double x, double y, double z,
+                                   float pitch, float yaw, float roll) {
     }
 
     private final Map<String, PendingTeleport> pendingTeleports = new ConcurrentHashMap<>();
+    private final Map<String, PlayerLocationSnapshot> latestTransformByUuid = new ConcurrentHashMap<>();
 
 
     // -------------------------------------------------------------------------
@@ -120,6 +126,15 @@ public final class TargetingService {
     // -------------------------------------------------------------------------
 
     private final Set<Class<?>> dumpedInteractionClasses = ConcurrentHashMap.newKeySet();
+
+    public record PlayerLocationSnapshot(String worldName, double x, double y, double z,
+                                         float pitch, float yaw, float roll) {
+        public boolean isValid() {
+            return worldName != null && !worldName.isBlank()
+                    && Double.isFinite(x) && Double.isFinite(y) && Double.isFinite(z)
+                    && Float.isFinite(pitch) && Float.isFinite(yaw) && Float.isFinite(roll);
+        }
+    }
 
     public void queueTimerStart(int seconds) {
         timerActions.add(new TimerAction.Start(seconds));
@@ -145,16 +160,26 @@ public final class TargetingService {
         this.matchTimerEndedCallback = callback;
     }
 
+    public void setPerSliceCallback(Runnable callback) {
+        this.perSliceCallback = callback;
+    }
+
     public void setFlagsHudStateProvider(Supplier<CtfFlagsHudState> provider) {
         matchTimer.setFlagsHudStateProvider(provider);
     }
 
     public void queueTeleport(String uuid, String worldName, double x, double y, double z) {
+        queueTeleport(uuid, worldName, x, y, z, 0f, 0f, 0f);
+    }
+
+    public void queueTeleport(String uuid, String worldName, double x, double y, double z,
+                              float pitch, float yaw, float roll) {
         if (uuid == null || uuid.isBlank()) return;
         if (worldName == null || worldName.isBlank()) return;
-        pendingTeleports.put(uuid, new PendingTeleport(worldName, x, y, z));
+        pendingTeleports.put(uuid, new PendingTeleport(worldName, x, y, z, pitch, yaw, roll));
         if (RrDebugFlags.verbose()) {
-            logger.atInfo().log("[RR] queued teleport uuid=%s world=%s pos=%.2f,%.2f,%.2f", uuid, worldName, x, y, z);
+            logger.atInfo().log("[RR] queued teleport uuid=%s world=%s pos=%.2f,%.2f,%.2f rot=%.1f,%.1f,%.1f",
+                    uuid, worldName, x, y, z, pitch, yaw, roll);
         }
     }
 
@@ -194,15 +219,27 @@ public final class TargetingService {
                 }
             }
         }
+
+        Runnable perSlice = perSliceCallback;
+        if (perSlice != null) {
+            try {
+                perSlice.run();
+            } catch (Throwable t) {
+                logger.atWarning().withCause(t).log("[RR] perSliceCallback failed");
+            }
+        }
     }
 
 
     public TargetingService(HytaleLogger logger,
                             ConcurrentLinkedQueue<Runnable> tickQueue,
-                            Map<String, Player> playerByUuid) {
+                            Map<String, Player> playerByUuid,
+                            MultipleHudBridge multipleHudBridge) {
         this.logger = logger;
         this.tickQueue = tickQueue;
         this.playerByUuid = playerByUuid;
+        this.matchTimer = new GlobalMatchTimerService(multipleHudBridge);
+        this.lobbyHud = new LobbyHudService(multipleHudBridge);
     }
 
 
@@ -234,6 +271,11 @@ public final class TargetingService {
     /** Hook for Realm_Ruler's UseBlock fallback to remember a location (optional telemetry). */
     public void rememberPendingStandLocation(BlockLocation loc) {
         this.pendingStandLocation = loc;
+    }
+
+    public PlayerLocationSnapshot getLatestPlayerLocation(String uuid) {
+        if (uuid == null || uuid.isBlank()) return null;
+        return latestTransformByUuid.get(uuid);
     }
 
     /** Create the per-tick system that raycasts player aim and updates lookByUuid + playerByUuid + drains tickQueue. */
@@ -433,7 +475,11 @@ public final class TargetingService {
     // -------------------------------------------------------------------------
 
     private final class LookTargetTrackerSystem extends EntityTickingSystem<EntityStore> {
-        private final Query<EntityStore> query = Query.and(Player.getComponentType(), PlayerRef.getComponentType());
+        private final Query<EntityStore> query = Query.and(
+                Player.getComponentType(),
+                PlayerRef.getComponentType(),
+                TransformComponent.getComponentType()
+        );
 
         @Override
         public Query<EntityStore> getQuery() {
@@ -458,6 +504,32 @@ public final class TargetingService {
 
                 // Keep existing behavior: refresh player cache every tick
                 playerByUuid.put(uuid, player);
+
+                TransformComponent transform = (TransformComponent) holder.getComponent(TransformComponent.getComponentType());
+                World playerWorld = player.getWorld();
+                if (transform != null && playerWorld != null) {
+                    Vector3d pos = transform.getPosition();
+                    Vector3f rot = transform.getRotation();
+                    if (pos != null) {
+                        float pitch = 0f;
+                        float yaw = 0f;
+                        float roll = 0f;
+                        if (rot != null) {
+                            pitch = rot.getPitch();
+                            yaw = rot.getYaw();
+                            roll = rot.getRoll();
+                        }
+                        latestTransformByUuid.put(uuid, new PlayerLocationSnapshot(
+                                playerWorld.getName(),
+                                pos.getX(),
+                                pos.getY(),
+                                pos.getZ(),
+                                pitch,
+                                yaw,
+                                roll
+                        ));
+                    }
+                }
 
                 // Apply pending teleports on the tick thread (schedule component write via world executor)
                 PendingTeleport pending = pendingTeleports.get(uuid);
@@ -485,7 +557,7 @@ public final class TargetingService {
                                         store.putComponent(ref, Teleport.getComponentType(), new Teleport(
                                                 tpWorld,
                                                 new Vector3d(pending.x(), pending.y(), pending.z()),
-                                                new Vector3f()
+                                                new Vector3f(pending.pitch(), pending.yaw(), pending.roll())
                                         ));
                                         if (RrDebugFlags.verbose()) {
                                             logger.atInfo().log("[RR] applied teleport uuid=%s -> world=%s", uuid, pending.worldName());

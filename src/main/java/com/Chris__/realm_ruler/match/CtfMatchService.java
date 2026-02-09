@@ -64,6 +64,7 @@ public final class CtfMatchService {
     // Lobby state (in-memory only)
     private final Map<String, Team> lobbyTeamByUuid = new ConcurrentHashMap<>();
     private final Map<String, Team> matchTeamByUuid = new ConcurrentHashMap<>();
+    private final Map<String, PreMatchLocation> preMatchLocationByUuid = new ConcurrentHashMap<>();
     private final Set<String> waitingUuids = ConcurrentHashMap.newKeySet();
     private volatile boolean stopRequested = false;
 
@@ -73,6 +74,15 @@ public final class CtfMatchService {
     }
 
     public record JoinLobbyResult(JoinStatus status, Team team, int waitingCount) {
+    }
+
+    public record PreMatchLocation(String worldName, double x, double y, double z,
+                                   float pitch, float yaw, float roll) {
+        public boolean isValid() {
+            return worldName != null && !worldName.isBlank()
+                    && Double.isFinite(x) && Double.isFinite(y) && Double.isFinite(z)
+                    && Float.isFinite(pitch) && Float.isFinite(yaw) && Float.isFinite(roll);
+        }
     }
 
     public JoinLobbyResult joinLobby(String uuid) {
@@ -145,6 +155,7 @@ public final class CtfMatchService {
 
         ctfMode.resetMatch();
         stopRequested = false;
+        preMatchLocationByUuid.clear();
 
         // Move lobby assignments into the active match, then clear lobby so teams reroll next match.
         matchTeamByUuid.clear();
@@ -153,6 +164,23 @@ public final class CtfMatchService {
             if (team == null) team = randomTeam();
             matchTeamByUuid.put(uuid, team);
         }
+
+        // Snapshot where participants were right before the match starts.
+        for (String uuid : matchTeamByUuid.keySet()) {
+            if (uuid == null || uuid.isBlank()) continue;
+            TargetingService.PlayerLocationSnapshot snapshot = targetingService.getLatestPlayerLocation(uuid);
+            if (snapshot == null || !snapshot.isValid()) continue;
+            preMatchLocationByUuid.put(uuid, new PreMatchLocation(
+                    snapshot.worldName(),
+                    snapshot.x(),
+                    snapshot.y(),
+                    snapshot.z(),
+                    snapshot.pitch(),
+                    snapshot.yaw(),
+                    snapshot.roll()
+            ));
+        }
+
         waitingUuids.clear(); // clear lobby when match starts
         lobbyTeamByUuid.clear(); // forces reroll on next match
 
@@ -170,6 +198,7 @@ public final class CtfMatchService {
 
     public void endMatch() {
         matchTeamByUuid.clear();
+        preMatchLocationByUuid.clear();
     }
 
     public boolean consumeStopRequested() {
@@ -197,6 +226,20 @@ public final class CtfMatchService {
         return new HashSet<>(matchTeamByUuid.keySet());
     }
 
+    public Map<String, PreMatchLocation> consumePreMatchLocationsFor(Set<String> uuids) {
+        Map<String, PreMatchLocation> out = new HashMap<>();
+        if (uuids == null || uuids.isEmpty()) return out;
+
+        for (String uuid : uuids) {
+            if (uuid == null || uuid.isBlank()) continue;
+            PreMatchLocation loc = preMatchLocationByUuid.remove(uuid);
+            if (loc != null) {
+                out.put(uuid, loc);
+            }
+        }
+        return out;
+    }
+
     public boolean isRunning() {
         return targetingService != null && targetingService.isMatchTimerRunning();
     }
@@ -220,5 +263,32 @@ public final class CtfMatchService {
             case "white" -> Team.WHITE;
             default -> null;
         };
+    }
+
+    public static Team parseTeamLoose(String raw) {
+        if (raw == null || raw.isBlank()) return null;
+        String normalized = raw
+                .replaceAll("§.", " ")
+                .replaceAll("\\p{Cntrl}", " ")
+                .toLowerCase(Locale.ROOT)
+                .replaceAll("[^a-z]+", " ")
+                .trim();
+        if (normalized.isEmpty()) return null;
+
+        Team found = null;
+        for (String token : normalized.split("\\s+")) {
+            Team parsed = parseTeam(token);
+            if (parsed == null) continue;
+            if (found != null && found != parsed) {
+                return null;
+            }
+            found = parsed;
+        }
+        return found;
+    }
+
+    public static String canonicalTeamDisplayName(String raw) {
+        Team parsed = parseTeamLoose(raw);
+        return (parsed == null) ? null : parsed.displayName();
     }
 }

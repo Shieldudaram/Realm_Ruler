@@ -4,6 +4,7 @@ import com.Chris__.realm_ruler.core.RrDebugFlags;
 import com.Chris__.realm_ruler.integration.SimpleClaimsCtfBridge;
 import com.Chris__.realm_ruler.targeting.TargetingService;
 import com.Chris__.realm_ruler.util.SpawnTeleportUtil;
+import com.Chris__.realm_ruler.world.StandSwapService;
 import com.hypixel.hytale.component.CommandBuffer;
 import com.hypixel.hytale.component.Ref;
 import com.hypixel.hytale.component.Store;
@@ -22,19 +23,25 @@ public final class CtfAutoRespawnAndTeleportSystem extends RefChangeSystem<Entit
     private static final double SPAWN_JITTER_RADIUS_BLOCKS = 3.0d;
 
     private final CtfMatchService matchService;
+    private final CtfFlagStateService flagStateService;
     private final SimpleClaimsCtfBridge simpleClaims;
     private final TargetingService targetingService;
+    private final StandSwapService standSwapService;
     private final HytaleLogger logger;
 
     private boolean warnedMissingSimpleClaims = false;
 
     public CtfAutoRespawnAndTeleportSystem(CtfMatchService matchService,
-                                          SimpleClaimsCtfBridge simpleClaims,
-                                          TargetingService targetingService,
-                                          HytaleLogger logger) {
+                                           CtfFlagStateService flagStateService,
+                                           SimpleClaimsCtfBridge simpleClaims,
+                                           TargetingService targetingService,
+                                           StandSwapService standSwapService,
+                                           HytaleLogger logger) {
         this.matchService = matchService;
+        this.flagStateService = flagStateService;
         this.simpleClaims = simpleClaims;
         this.targetingService = targetingService;
+        this.standSwapService = standSwapService;
         this.logger = logger;
     }
 
@@ -66,6 +73,8 @@ public final class CtfAutoRespawnAndTeleportSystem extends RefChangeSystem<Entit
 
         String uuidStr = playerRef.getUuid().toString();
         if (!matchService.isActiveMatchParticipant(uuidStr)) return;
+
+        dropCarriedFlagOnDeath(ref, store, player, uuidStr);
 
         // Best-effort: suppress death menu + auto-respawn.
         try {
@@ -160,5 +169,95 @@ public final class CtfAutoRespawnAndTeleportSystem extends RefChangeSystem<Entit
                 spawn.z(),
                 SPAWN_JITTER_RADIUS_BLOCKS
         );
+    }
+
+    private void dropCarriedFlagOnDeath(Ref<EntityStore> ref,
+                                        Store<EntityStore> store,
+                                        Player player,
+                                        String uuid) {
+        if (ref == null || store == null || player == null || uuid == null || uuid.isBlank()) return;
+        if (flagStateService == null) return;
+
+        CtfMatchService.Team carriedFlag = flagStateService.carriedFlagFor(uuid);
+        if (carriedFlag == null) return;
+
+        // Policy: death recovery is reset-first, not drop-first.
+        flagStateService.removeOneFlagFromPlayer(player, carriedFlag);
+
+        boolean returnedNow = standSwapService != null && flagStateService.forceReturnFlagToStand(
+                carriedFlag,
+                standSwapService,
+                CtfFlagStateService.ReturnResolutionMode.STRICT_THEN_SOFT
+        );
+        if (returnedNow) {
+            if (RrDebugFlags.verbose()) {
+                logger.atInfo().log("[RR-CTF] death flag recovery uuid=%s immediateReturn=true markedDropped=false", uuid);
+            }
+            return;
+        }
+
+        String worldName = null;
+        double x = 0;
+        double y = 0;
+        double z = 0;
+        boolean havePosition = false;
+
+        TransformComponent transform = store.getComponent(ref, TransformComponent.getComponentType());
+        if (transform != null && transform.getPosition() != null && player.getWorld() != null) {
+            worldName = player.getWorld().getName();
+            x = transform.getPosition().getX();
+            y = transform.getPosition().getY();
+            z = transform.getPosition().getZ();
+            havePosition = (worldName != null && !worldName.isBlank());
+        }
+
+        if (!havePosition && targetingService != null) {
+            TargetingService.PlayerLocationSnapshot snapshot = targetingService.getLatestPlayerLocation(uuid);
+            if (snapshot != null && snapshot.isValid()) {
+                worldName = snapshot.worldName();
+                x = snapshot.x();
+                y = snapshot.y();
+                z = snapshot.z();
+                havePosition = true;
+            }
+        }
+
+        if (!havePosition) {
+            CtfStandRegistryRepository.StandLocation home = flagStateService.resolveHomeStandLocation(carriedFlag);
+            if (home != null && home.isValid()) {
+                worldName = home.worldName();
+                x = home.x();
+                y = home.y();
+                z = home.z();
+                havePosition = true;
+            }
+        }
+
+        boolean markedDropped = false;
+        if (havePosition && worldName != null && !worldName.isBlank()) {
+            markedDropped = flagStateService.markCarrierDropped(uuid, worldName, x, y, z);
+            if (!markedDropped) {
+                markedDropped = flagStateService.markFlagDropped(carriedFlag, uuid, worldName, x, y, z);
+            }
+        }
+
+        if (!markedDropped) {
+            CtfStandRegistryRepository.StandLocation home = flagStateService.resolveHomeStandLocation(carriedFlag);
+            if (home != null && home.isValid()) {
+                markedDropped = flagStateService.markFlagDropped(carriedFlag, uuid, home.worldName(), home.x(), home.y(), home.z());
+            }
+        }
+
+        if (RrDebugFlags.verbose()) {
+            logger.atInfo().log("[RR-CTF] death flag recovery uuid=%s immediateReturn=false markedDropped=%s",
+                    uuid,
+                    markedDropped);
+        }
+
+        if (!markedDropped) {
+            logger.atWarning().log("[RR-CTF] Unable to recover flag after death. uuid=%s flag=%s immediateReturn=false markedDropped=false",
+                    uuid,
+                    carriedFlag.displayName());
+        }
     }
 }

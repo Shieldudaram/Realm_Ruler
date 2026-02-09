@@ -67,9 +67,9 @@ public final class StandSwapService {
      * - This method intentionally does NOT load chunks. It only operates on loaded data.
      * - It also intentionally does NOT throw; it fails safely and logs warnings once.
      */
-    public void swapStand(World world, int x, int y, int z, String standKey) {
+    public boolean swapStand(World world, int x, int y, int z, String standKey) {
         // Defensive: if we don't have a world or key, there is nothing to do.
-        if (world == null || standKey == null) return;
+        if (world == null || standKey == null) return false;
 
         /*
          * Convert standKey (string asset id) into the engine's internal numeric block ID.
@@ -88,7 +88,7 @@ public final class StandSwapService {
             if (warnedMissingStandKeys.add(standKey)) {
                 logger.atWarning().log("[RR] stand asset id not found for %s", standKey);
             }
-            return;
+            return false;
         }
 
         /*
@@ -106,7 +106,7 @@ public final class StandSwapService {
                 logger.atWarning().log("[RR] chunk not loaded for swap at %d,%d,%d (chunkIndex=%d)",
                         x, y, z, chunkIndex);
             }
-            return;
+            return false;
         }
 
         /*
@@ -122,5 +122,7 @@ public final class StandSwapService {
         if (RrDebugFlags.verbose()) {
             logger.atInfo().log("[RR] Swapped stand @ %d,%d,%d -> %s", x, y, z, standKey);
         }
+
+        return true;
     }
 }

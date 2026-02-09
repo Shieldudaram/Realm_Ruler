@@ -11,7 +11,7 @@
     "Website": "",
     "ServerVersion": "*",
     "Dependencies": {
-        
+        "Buuz135:MultipleHUD": "*"
     },
     "OptionalDependencies": {
         "Hytale:PlayerInteractLib": "*"
