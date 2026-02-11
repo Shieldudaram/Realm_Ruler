@@ -7,6 +7,8 @@ build/
 
 ### Hytale ###
 run/
+# ignore a file
+.env
 
 ### IntelliJ IDEA ###
 .idea/
@@ -41,3 +43,6 @@ bin/
 
 ### Mac OS ###
 .DS_Store
+
+.rr_assist/
+.rr_assist/
