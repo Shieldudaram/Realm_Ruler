@@ -1,5 +1,6 @@
 package com.Chris__.realm_ruler.match;
 
+import com.Chris__.realm_ruler.core.RrDebugFlags;
 import com.hypixel.hytale.component.ArchetypeChunk;
 import com.hypixel.hytale.component.CommandBuffer;
 import com.hypixel.hytale.component.Ref;
@@ -47,8 +48,10 @@ public final class CtfBalloonSpawnService {
     private static final long DESPAWN_AFTER_NANOS = 45_000_000_000L;
     private static final long PROCESS_SLICE_INTERVAL_NANOS = 50_000_000L;
     private static final long BACKEND_WARN_INTERVAL_NANOS = 10_000_000_000L;
+    private static final long FALLBACK_FAILURE_COOLDOWN_NANOS = 12_000_000_000L;
     private static final int MAX_ACTIVE_BALLOONS = 6;
     private static final int MAX_ATTEMPTS_PER_SPAWN = 10;
+    private static final List<String> FALLBACK_COMMAND_SUFFIXES = List.of("", " 1", " 1 1");
 
     private static final String REWARD_PLACE_1_ITEM_ID = BALLOON_ITEM_ID;
     private static final String REWARD_PLACE_2_ITEM_ID = "Rare_Loot_Bag";
@@ -70,6 +73,10 @@ public final class CtfBalloonSpawnService {
                                  boolean directApiReady,
                                  boolean fallbackReady,
                                  boolean balloonRoleResolvable,
+                                 String selectedFallbackTemplate,
+                                 long fallbackCooldownRemainingSeconds,
+                                 String lastFallbackError,
+                                 String lastFallbackAttemptTemplate,
                                  String blockingReason) {
     }
 
@@ -90,8 +97,12 @@ public final class CtfBalloonSpawnService {
     private long nextSpawnAtNanos = 0L;
     private long nextSliceAtNanos = 0L;
     private long nextBackendWarnAtNanos = 0L;
+    private long fallbackCommandCooldownUntilNanos = 0L;
     private int forcedSpawnQueue = 0;
     private String fallbackRequesterHint = null;
+    private String cachedFallbackCommandSuffix = null;
+    private String lastFallbackErrorSummary = null;
+    private String lastFallbackAttemptTemplate = null;
 
     public CtfBalloonSpawnService(CtfMatchService matchService,
                                   CtfRegionRepository regionRepository,
@@ -173,6 +184,10 @@ public final class CtfBalloonSpawnService {
 
         int activeCount;
         long secondsUntilNextSpawn;
+        long fallbackCooldownRemainingSeconds;
+        String selectedFallbackTemplate;
+        String lastFallbackError;
+        String lastFallbackAttemptTemplate;
         synchronized (lock) {
             pruneInvalidRefsLocked();
             activeCount = activeBalloonsByRef.size();
@@ -182,9 +197,23 @@ public final class CtfBalloonSpawnService {
                 long nanosLeft = Math.max(0L, nextSpawnAtNanos - now);
                 secondsUntilNextSpawn = (long) Math.ceil(nanosLeft / 1_000_000_000.0d);
             }
+            fallbackCooldownRemainingSeconds = (fallbackCommandCooldownUntilNanos <= now)
+                    ? 0L
+                    : (long) Math.ceil((fallbackCommandCooldownUntilNanos - now) / 1_000_000_000.0d);
+            selectedFallbackTemplate = templateLabelForSuffix(cachedFallbackCommandSuffix);
+            lastFallbackError = lastFallbackErrorSummary;
+            lastFallbackAttemptTemplate = this.lastFallbackAttemptTemplate;
         }
 
-        String blocking = resolveBlockingReason(region, regionWorld, directApiReady, fallbackReady, roleResolvable, activeCount);
+        String blocking = resolveBlockingReason(
+                region,
+                regionWorld,
+                directApiReady,
+                fallbackReady,
+                roleResolvable,
+                activeCount,
+                fallbackCooldownRemainingSeconds
+        );
 
         return new StatusSnapshot(
                 matchService != null && matchService.isRunning(),
@@ -198,6 +227,10 @@ public final class CtfBalloonSpawnService {
                 directApiReady,
                 fallbackReady,
                 roleResolvable,
+                selectedFallbackTemplate,
+                fallbackCooldownRemainingSeconds,
+                lastFallbackError,
+                lastFallbackAttemptTemplate,
                 blocking
         );
     }
@@ -239,6 +272,10 @@ public final class CtfBalloonSpawnService {
                 nextSpawnAtNanos = 0L;
                 forcedSpawnQueue = 0;
                 fallbackRequesterHint = null;
+                fallbackCommandCooldownUntilNanos = 0L;
+                cachedFallbackCommandSuffix = null;
+                lastFallbackErrorSummary = null;
+                lastFallbackAttemptTemplate = null;
                 return;
             }
 
@@ -249,6 +286,10 @@ public final class CtfBalloonSpawnService {
             nextSpawnAtNanos = 0L;
             forcedSpawnQueue = 0;
             fallbackRequesterHint = null;
+            fallbackCommandCooldownUntilNanos = 0L;
+            cachedFallbackCommandSuffix = null;
+            lastFallbackErrorSummary = null;
+            lastFallbackAttemptTemplate = null;
         }
     }
 
@@ -429,9 +470,18 @@ public final class CtfBalloonSpawnService {
         if (store == null || world == null || position == null) return null;
 
         Ref<EntityStore> spawned = trySpawnWithDirectApi(store, position);
-        if (spawned != null) return spawned;
+        if (spawned != null) {
+            if (RrDebugFlags.verbose()) {
+                logger.atInfo().log("[RR-CTF] Balloon spawned via direct NPC API.");
+            }
+            return spawned;
+        }
 
-        return trySpawnWithCommandFallback(store, world, position, fallbackRequesterUuid);
+        Ref<EntityStore> fallbackSpawned = trySpawnWithCommandFallback(store, world, position, fallbackRequesterUuid);
+        if (fallbackSpawned != null && RrDebugFlags.verbose()) {
+            logger.atInfo().log("[RR-CTF] Balloon spawned via command fallback.");
+        }
+        return fallbackSpawned;
     }
 
     private @Nullable Ref<EntityStore> trySpawnWithDirectApi(Store<EntityStore> store, Vector3d position) {
@@ -461,29 +511,158 @@ public final class CtfBalloonSpawnService {
                                                                     Vector3d desiredPosition,
                                                                     @Nullable String preferredRequesterUuid) {
         if (store == null || world == null || desiredPosition == null) return null;
-
-        String requesterUuid = resolveFallbackRequesterUuid(preferredRequesterUuid);
-        if (requesterUuid == null) return null;
-
-        PlayerRef requesterRef = parsePlayerRef(requesterUuid);
-        if (requesterRef == null || !requesterRef.isValid()) return null;
-
-        Map<String, NpcSnapshot> before = collectNpcSnapshots(store);
-        if (before == null) return null;
-
-        try {
-            String command = "npc spawn " + BALLOON_ROLE_ID + " 1 1";
-            CommandManager.get().handleCommand(requesterRef, command).get(2, TimeUnit.SECONDS);
-        } catch (Throwable t) {
-            logger.atInfo().log("[RR-CTF] Balloon fallback command spawn failed.");
+        long now = System.nanoTime();
+        if (isFallbackCooldownActive(now)) {
+            if (RrDebugFlags.verbose()) {
+                logger.atInfo().log("[RR-CTF] Balloon fallback command skipped during cooldown. remaining=%ds",
+                        fallbackCooldownRemainingSeconds(now));
+            }
             return null;
         }
 
-        Map<String, NpcSnapshot> after = collectNpcSnapshots(store);
-        if (after == null || after.isEmpty()) return null;
+        String requesterUuid = resolveFallbackRequesterUuid(preferredRequesterUuid);
+        if (requesterUuid == null) {
+            recordFallbackFailure(now, null, "No online requester available for command fallback.", false);
+            return null;
+        }
 
-        NpcSnapshot created = findClosestNewNpc(before, after, desiredPosition);
-        return (created == null) ? null : created.ref();
+        PlayerRef requesterRef = parsePlayerRef(requesterUuid);
+        if (requesterRef == null || !requesterRef.isValid()) {
+            recordFallbackFailure(now, null, "Requester is not valid for command fallback.", false);
+            return null;
+        }
+
+        String lastTemplate = null;
+        String lastError = null;
+        for (String suffix : orderedFallbackCommandSuffixes()) {
+            lastTemplate = templateLabelForSuffix(suffix);
+            String command = "npc spawn " + BALLOON_ROLE_ID + suffix;
+
+            Map<String, NpcSnapshot> before = collectNpcSnapshots(store);
+            if (before == null) {
+                lastError = "Unable to snapshot NPC state before fallback command.";
+                continue;
+            }
+
+            try {
+                CommandManager.get().handleCommand(requesterRef, command).get(2, TimeUnit.SECONDS);
+            } catch (Throwable t) {
+                lastError = summarizeFailure(t);
+                if (RrDebugFlags.verbose()) {
+                    logger.atInfo().withCause(t).log("[RR-CTF] Balloon fallback command failed. template=%s", lastTemplate);
+                }
+                continue;
+            }
+
+            Map<String, NpcSnapshot> after = collectNpcSnapshots(store);
+            if (after == null || after.isEmpty()) {
+                lastError = "Fallback command executed but NPC snapshot after spawn was unavailable.";
+                continue;
+            }
+
+            NpcSnapshot created = findClosestNewNpc(before, after, desiredPosition);
+            if (created != null && created.ref() != null && created.ref().isValid()) {
+                recordFallbackSuccess(suffix);
+                if (RrDebugFlags.verbose()) {
+                    logger.atInfo().log("[RR-CTF] Balloon fallback command spawn succeeded. template=%s", lastTemplate);
+                }
+                return created.ref();
+            }
+
+            lastError = "Fallback command executed but no new NPC was detected.";
+        }
+
+        recordFallbackFailure(now, lastTemplate, lastError, true);
+        return null;
+    }
+
+    private List<String> orderedFallbackCommandSuffixes() {
+        List<String> ordered = new ArrayList<>(FALLBACK_COMMAND_SUFFIXES.size());
+        String cached;
+        synchronized (lock) {
+            cached = cachedFallbackCommandSuffix;
+        }
+        if (cached != null && FALLBACK_COMMAND_SUFFIXES.contains(cached)) {
+            ordered.add(cached);
+        }
+        for (String suffix : FALLBACK_COMMAND_SUFFIXES) {
+            if (ordered.contains(suffix)) continue;
+            ordered.add(suffix);
+        }
+        return ordered;
+    }
+
+    private void recordFallbackSuccess(String suffix) {
+        synchronized (lock) {
+            cachedFallbackCommandSuffix = suffix;
+            fallbackCommandCooldownUntilNanos = 0L;
+            lastFallbackErrorSummary = null;
+            lastFallbackAttemptTemplate = templateLabelForSuffix(suffix);
+        }
+    }
+
+    private void recordFallbackFailure(long nowNanos,
+                                       @Nullable String attemptedTemplate,
+                                       @Nullable String errorSummary,
+                                       boolean applyCooldown) {
+        synchronized (lock) {
+            if (attemptedTemplate != null && !attemptedTemplate.isBlank()) {
+                lastFallbackAttemptTemplate = attemptedTemplate;
+            }
+            if (errorSummary != null && !errorSummary.isBlank()) {
+                lastFallbackErrorSummary = errorSummary;
+            }
+            cachedFallbackCommandSuffix = null;
+            if (applyCooldown) {
+                fallbackCommandCooldownUntilNanos = nowNanos + FALLBACK_FAILURE_COOLDOWN_NANOS;
+            }
+        }
+
+        if (applyCooldown) {
+            logger.atWarning().log(
+                    "[RR-CTF] Balloon fallback command spawn failed. template=%s reason=%s",
+                    (attemptedTemplate == null || attemptedTemplate.isBlank()) ? "<unknown>" : attemptedTemplate,
+                    (errorSummary == null || errorSummary.isBlank()) ? "<unknown>" : errorSummary
+            );
+        } else if (RrDebugFlags.verbose()) {
+            logger.atInfo().log(
+                    "[RR-CTF] Balloon fallback command unavailable. template=%s reason=%s",
+                    (attemptedTemplate == null || attemptedTemplate.isBlank()) ? "<unknown>" : attemptedTemplate,
+                    (errorSummary == null || errorSummary.isBlank()) ? "<unknown>" : errorSummary
+            );
+        }
+    }
+
+    private boolean isFallbackCooldownActive(long nowNanos) {
+        synchronized (lock) {
+            return fallbackCommandCooldownUntilNanos > nowNanos;
+        }
+    }
+
+    private long fallbackCooldownRemainingSeconds(long nowNanos) {
+        synchronized (lock) {
+            if (fallbackCommandCooldownUntilNanos <= nowNanos) return 0L;
+            long nanosLeft = fallbackCommandCooldownUntilNanos - nowNanos;
+            return (long) Math.ceil(nanosLeft / 1_000_000_000.0d);
+        }
+    }
+
+    private static String templateLabelForSuffix(@Nullable String suffix) {
+        if (suffix == null) return "<unresolved>";
+        return "npc spawn <role>" + suffix;
+    }
+
+    private static String summarizeFailure(Throwable throwable) {
+        if (throwable == null) return "<unknown>";
+        Throwable root = throwable;
+        if (throwable.getCause() != null) {
+            root = throwable.getCause();
+        }
+        String message = root.getMessage();
+        if (message == null || message.isBlank()) {
+            return root.getClass().getSimpleName();
+        }
+        return root.getClass().getSimpleName() + ": " + message;
     }
 
     private @Nullable Map<String, NpcSnapshot> collectNpcSnapshots(Store<EntityStore> store) {
@@ -642,7 +821,8 @@ public final class CtfBalloonSpawnService {
                                          boolean directApiReady,
                                          boolean fallbackReady,
                                          boolean roleResolvable,
-                                         int activeCount) {
+                                         int activeCount,
+                                         long fallbackCooldownRemainingSeconds) {
         if (matchService == null) return "CTF match service is unavailable.";
         if (!matchService.isRunning()) return "CTF match is not running.";
         if (regionRepository == null) return "CTF region repository is unavailable.";
@@ -651,6 +831,9 @@ public final class CtfBalloonSpawnService {
         if (!region.hasBounds()) return "CTF region bounds are not set.";
         if (resolvedRegionWorld == null) return "CTF region world is unavailable: " + region.worldName();
         if (!roleResolvable) return "Balloon NPC role is unavailable: " + BALLOON_ROLE_ID;
+        if (!directApiReady && fallbackReady && fallbackCooldownRemainingSeconds > 0L) {
+            return "Balloon command fallback cooling down (" + fallbackCooldownRemainingSeconds + "s).";
+        }
         if (!directApiReady && !fallbackReady) return "No balloon spawn backend is available.";
         if (activeCount >= MAX_ACTIVE_BALLOONS) return "Active balloon cap reached (" + MAX_ACTIVE_BALLOONS + ").";
         return null;

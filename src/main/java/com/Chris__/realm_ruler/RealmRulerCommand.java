@@ -525,7 +525,14 @@ public final class RealmRulerCommand extends CommandBase {
                     + ", nextSpawn=" + remaining
                     + ", roleReady=" + status.balloonRoleResolvable()
                     + ", directApiReady=" + status.directApiReady()
-                    + ", fallbackReady=" + status.fallbackReady()));
+                    + ", fallbackReady=" + status.fallbackReady()
+                    + ", fallbackTemplate=" + safeField(status.selectedFallbackTemplate(), "<unresolved>")
+                    + ", fallbackCooldown=" + status.fallbackCooldownRemainingSeconds() + "s"));
+            if (status.lastFallbackError() != null && !status.lastFallbackError().isBlank()) {
+                ctx.sendMessage(Message.raw("[RealmRuler] Balloon fallback lastError="
+                        + status.lastFallbackError()
+                        + ", lastTemplate=" + safeField(status.lastFallbackAttemptTemplate(), "<unknown>")));
+            }
             if (status.blockingReason() != null && !status.blockingReason().isBlank()) {
                 ctx.sendMessage(Message.raw("[RealmRuler] Balloon blocker: " + status.blockingReason()));
             }

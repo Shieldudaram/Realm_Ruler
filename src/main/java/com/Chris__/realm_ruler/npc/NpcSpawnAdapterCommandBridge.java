@@ -13,6 +13,8 @@ import com.hypixel.hytale.server.core.universe.world.World;
 import com.hypixel.hytale.server.core.universe.world.storage.EntityStore;
 import com.hypixel.hytale.server.npc.entities.NPCEntity;
 
+import javax.annotation.Nullable;
+import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -32,8 +34,11 @@ public final class NpcSpawnAdapterCommandBridge implements NpcSpawnAdapter {
             "farmer",
             "worker"
     );
+    private static final List<String> SPAWN_COMMAND_SUFFIXES = List.of("", " 1", " 1 1");
 
     private final HytaleLogger logger;
+    private final Object spawnTemplateLock = new Object();
+    private String cachedSpawnCommandSuffix = null;
 
     public NpcSpawnAdapterCommandBridge(HytaleLogger logger) {
         this.logger = logger;
@@ -68,23 +73,27 @@ public final class NpcSpawnAdapterCommandBridge implements NpcSpawnAdapter {
             return SpawnResult.failure("world not found: " + request.worldName());
         }
 
-        Map<UUID, Vector3d> before = collectNpcPositions(world);
-        if (before == null) return SpawnResult.failure("failed snapshot before spawn");
-
         for (String role : ROLE_CANDIDATES) {
-            String command = "npc spawn " + role + " 1 1";
-            boolean executed = executeCommand(playerRef, command);
-            if (!executed) continue;
+            for (String suffix : orderedSpawnCommandSuffixes()) {
+                Map<UUID, Vector3d> before = collectNpcPositions(world);
+                if (before == null) continue;
 
-            Map<UUID, Vector3d> after = collectNpcPositions(world);
-            if (after == null) continue;
+                String command = "npc spawn " + role + suffix;
+                boolean executed = executeCommand(playerRef, command);
+                if (!executed) continue;
 
-            UUID created = findBestNewNpc(before, after, request.x(), request.y(), request.z());
-            if (created != null) {
-                return SpawnResult.success(new NpcHandle(created.toString(), backendId()));
+                Map<UUID, Vector3d> after = collectNpcPositions(world);
+                if (after == null) continue;
+
+                UUID created = findBestNewNpc(before, after, request.x(), request.y(), request.z());
+                if (created != null) {
+                    rememberSuccessfulSpawnSuffix(suffix);
+                    return SpawnResult.success(new NpcHandle(created.toString(), backendId()));
+                }
             }
         }
 
+        clearCachedSpawnSuffix();
         return SpawnResult.failure("npc command spawn failed");
     }
 
@@ -133,6 +142,34 @@ public final class NpcSpawnAdapterCommandBridge implements NpcSpawnAdapter {
         } catch (Throwable t) {
             logger.atInfo().log("[RR-NPC] NPC command backend attempt failed. command=%s", command);
             return false;
+        }
+    }
+
+    private List<String> orderedSpawnCommandSuffixes() {
+        List<String> ordered = new ArrayList<>(SPAWN_COMMAND_SUFFIXES.size());
+        String cached;
+        synchronized (spawnTemplateLock) {
+            cached = cachedSpawnCommandSuffix;
+        }
+        if (cached != null && SPAWN_COMMAND_SUFFIXES.contains(cached)) {
+            ordered.add(cached);
+        }
+        for (String suffix : SPAWN_COMMAND_SUFFIXES) {
+            if (ordered.contains(suffix)) continue;
+            ordered.add(suffix);
+        }
+        return ordered;
+    }
+
+    private void rememberSuccessfulSpawnSuffix(@Nullable String suffix) {
+        synchronized (spawnTemplateLock) {
+            cachedSpawnCommandSuffix = suffix;
+        }
+    }
+
+    private void clearCachedSpawnSuffix() {
+        synchronized (spawnTemplateLock) {
+            cachedSpawnCommandSuffix = null;
         }
     }
 
