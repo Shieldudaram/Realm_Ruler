@@ -1,7 +1,7 @@
 {
     "Group": "Chris__",
     "Name": "RealmRulerPlugin",
-    "Version": "0.1.27",
+    "Version": "1.0.0",
     "Description": "A plugin for a 'capture the flag'-like game in HyTale!",
     "Authors": [
         {

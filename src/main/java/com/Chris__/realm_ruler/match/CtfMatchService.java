@@ -56,7 +56,7 @@ public final class CtfMatchService {
         NOT_READY
     }
 
-    private static final int DEFAULT_SECONDS = 15 * 60;
+    private static final int DEFAULT_SECONDS = 8 * 60;
 
     private final TargetingService targetingService;
     private final CtfMode ctfMode;
@@ -132,17 +132,17 @@ public final class CtfMatchService {
     }
 
     public LobbyHudState lobbyHudStateFor(String uuid) {
-        if (uuid == null || uuid.isBlank()) return new LobbyHudState(false, "", 0);
+        if (uuid == null || uuid.isBlank()) return new LobbyHudState(false, "", 0, "");
 
         // While the match is running, we currently hide the lobby HUD to avoid custom HUD command issues
         // when multiple UI documents are appended at once. We can show team info again later once stable.
-        if (isRunning()) return new LobbyHudState(false, "", 0);
+        if (isRunning()) return new LobbyHudState(false, "", 0, "");
 
-        if (!waitingUuids.contains(uuid)) return new LobbyHudState(false, "", 0);
+        if (!waitingUuids.contains(uuid)) return new LobbyHudState(false, "", 0, "");
 
         Team team = lobbyTeamByUuid.get(uuid);
-        if (team == null) return new LobbyHudState(false, "", 0);
-        return new LobbyHudState(true, team.displayName(), waitingUuids.size());
+        if (team == null) return new LobbyHudState(false, "", 0, "");
+        return new LobbyHudState(true, team.displayName(), waitingUuids.size(), waitingTeamCountsLine());
     }
 
     public StartResult startCaptureTheFlag() {
@@ -290,5 +290,28 @@ public final class CtfMatchService {
     public static String canonicalTeamDisplayName(String raw) {
         Team parsed = parseTeamLoose(raw);
         return (parsed == null) ? null : parsed.displayName();
+    }
+
+    private String waitingTeamCountsLine() {
+        int red = 0;
+        int blue = 0;
+        int yellow = 0;
+        int white = 0;
+
+        for (String uuid : waitingUuids) {
+            Team team = lobbyTeamByUuid.get(uuid);
+            if (team == null) continue;
+            switch (team) {
+                case RED -> red++;
+                case BLUE -> blue++;
+                case YELLOW -> yellow++;
+                case WHITE -> white++;
+            }
+        }
+
+        return "Red:" + red
+                + " Blue:" + blue
+                + " Yellow:" + yellow
+                + " White:" + white;
     }
 }

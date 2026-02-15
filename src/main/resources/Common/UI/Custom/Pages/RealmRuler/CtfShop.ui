@@ -8,7 +8,7 @@ Group #RealmRulerCtfShopPage {
   }
 
   Group #ShopWindow {
-    Anchor: (Width: 720, Height: 540);
+    Anchor: (Width: 720, Height: 980);
     LayoutMode: Top;
     Padding: (Horizontal: 16, Vertical: 16);
     Background: #0b0f18(0.95);
@@ -26,10 +26,10 @@ Group #RealmRulerCtfShopPage {
     }
 
     Group #Entries {
-      Anchor: (Top: 14, Width: 688, Height: 410);
+      Anchor: (Top: 14, Width: 688, Height: 830);
       LayoutMode: Top;
 
-      // NOTE: Entries are fixed (Entry0..Entry7). Realm Ruler hides unused ones via #EntryX.Visible.
+      // NOTE: Entries are fixed (Entry0..Entry15). Realm Ruler hides unused ones via #EntryX.Visible.
       Group #Entry0 {
         Anchor: (Height: 44);
         Padding: (Horizontal: 12, Vertical: 10);
@@ -217,6 +217,198 @@ Group #RealmRulerCtfShopPage {
         }
 
         TextButton #Entry7BuyButton {
+          Anchor: (Left: 10, Width: 120, Height: 28);
+          Text: "Buy";
+        }
+      }
+
+      Group #Entry8 {
+        Anchor: (Top: 8, Height: 44);
+        Padding: (Horizontal: 12, Vertical: 10);
+        LayoutMode: Left;
+        Background: #000000(0.22);
+
+        Label #Entry8Name {
+          Anchor: (Width: 420, Height: 24);
+          Style: (FontSize: 16, Alignment: Start);
+          Text: "Item Name";
+        }
+
+        Label #Entry8Cost {
+          Anchor: (Left: 10, Width: 80, Height: 24);
+          Style: (FontSize: 16, Alignment: Center);
+          Text: "0";
+        }
+
+        TextButton #Entry8BuyButton {
+          Anchor: (Left: 10, Width: 120, Height: 28);
+          Text: "Buy";
+        }
+      }
+
+      Group #Entry9 {
+        Anchor: (Top: 8, Height: 44);
+        Padding: (Horizontal: 12, Vertical: 10);
+        LayoutMode: Left;
+        Background: #000000(0.22);
+
+        Label #Entry9Name {
+          Anchor: (Width: 420, Height: 24);
+          Style: (FontSize: 16, Alignment: Start);
+          Text: "Item Name";
+        }
+
+        Label #Entry9Cost {
+          Anchor: (Left: 10, Width: 80, Height: 24);
+          Style: (FontSize: 16, Alignment: Center);
+          Text: "0";
+        }
+
+        TextButton #Entry9BuyButton {
+          Anchor: (Left: 10, Width: 120, Height: 28);
+          Text: "Buy";
+        }
+      }
+
+      Group #Entry10 {
+        Anchor: (Top: 8, Height: 44);
+        Padding: (Horizontal: 12, Vertical: 10);
+        LayoutMode: Left;
+        Background: #000000(0.22);
+
+        Label #Entry10Name {
+          Anchor: (Width: 420, Height: 24);
+          Style: (FontSize: 16, Alignment: Start);
+          Text: "Item Name";
+        }
+
+        Label #Entry10Cost {
+          Anchor: (Left: 10, Width: 80, Height: 24);
+          Style: (FontSize: 16, Alignment: Center);
+          Text: "0";
+        }
+
+        TextButton #Entry10BuyButton {
+          Anchor: (Left: 10, Width: 120, Height: 28);
+          Text: "Buy";
+        }
+      }
+
+      Group #Entry11 {
+        Anchor: (Top: 8, Height: 44);
+        Padding: (Horizontal: 12, Vertical: 10);
+        LayoutMode: Left;
+        Background: #000000(0.22);
+
+        Label #Entry11Name {
+          Anchor: (Width: 420, Height: 24);
+          Style: (FontSize: 16, Alignment: Start);
+          Text: "Item Name";
+        }
+
+        Label #Entry11Cost {
+          Anchor: (Left: 10, Width: 80, Height: 24);
+          Style: (FontSize: 16, Alignment: Center);
+          Text: "0";
+        }
+
+        TextButton #Entry11BuyButton {
+          Anchor: (Left: 10, Width: 120, Height: 28);
+          Text: "Buy";
+        }
+      }
+
+      Group #Entry12 {
+        Anchor: (Top: 8, Height: 44);
+        Padding: (Horizontal: 12, Vertical: 10);
+        LayoutMode: Left;
+        Background: #000000(0.22);
+
+        Label #Entry12Name {
+          Anchor: (Width: 420, Height: 24);
+          Style: (FontSize: 16, Alignment: Start);
+          Text: "Item Name";
+        }
+
+        Label #Entry12Cost {
+          Anchor: (Left: 10, Width: 80, Height: 24);
+          Style: (FontSize: 16, Alignment: Center);
+          Text: "0";
+        }
+
+        TextButton #Entry12BuyButton {
+          Anchor: (Left: 10, Width: 120, Height: 28);
+          Text: "Buy";
+        }
+      }
+
+      Group #Entry13 {
+        Anchor: (Top: 8, Height: 44);
+        Padding: (Horizontal: 12, Vertical: 10);
+        LayoutMode: Left;
+        Background: #000000(0.22);
+
+        Label #Entry13Name {
+          Anchor: (Width: 420, Height: 24);
+          Style: (FontSize: 16, Alignment: Start);
+          Text: "Item Name";
+        }
+
+        Label #Entry13Cost {
+          Anchor: (Left: 10, Width: 80, Height: 24);
+          Style: (FontSize: 16, Alignment: Center);
+          Text: "0";
+        }
+
+        TextButton #Entry13BuyButton {
+          Anchor: (Left: 10, Width: 120, Height: 28);
+          Text: "Buy";
+        }
+      }
+
+      Group #Entry14 {
+        Anchor: (Top: 8, Height: 44);
+        Padding: (Horizontal: 12, Vertical: 10);
+        LayoutMode: Left;
+        Background: #000000(0.22);
+
+        Label #Entry14Name {
+          Anchor: (Width: 420, Height: 24);
+          Style: (FontSize: 16, Alignment: Start);
+          Text: "Item Name";
+        }
+
+        Label #Entry14Cost {
+          Anchor: (Left: 10, Width: 80, Height: 24);
+          Style: (FontSize: 16, Alignment: Center);
+          Text: "0";
+        }
+
+        TextButton #Entry14BuyButton {
+          Anchor: (Left: 10, Width: 120, Height: 28);
+          Text: "Buy";
+        }
+      }
+
+      Group #Entry15 {
+        Anchor: (Top: 8, Height: 44);
+        Padding: (Horizontal: 12, Vertical: 10);
+        LayoutMode: Left;
+        Background: #000000(0.22);
+
+        Label #Entry15Name {
+          Anchor: (Width: 420, Height: 24);
+          Style: (FontSize: 16, Alignment: Start);
+          Text: "Item Name";
+        }
+
+        Label #Entry15Cost {
+          Anchor: (Left: 10, Width: 80, Height: 24);
+          Style: (FontSize: 16, Alignment: Center);
+          Text: "0";
+        }
+
+        TextButton #Entry15BuyButton {
           Anchor: (Left: 10, Width: 120, Height: 28);
           Text: "Buy";
         }

@@ -12,15 +12,17 @@ public final class LobbyHud extends CustomUIHud {
     private boolean visible = false;
     private String teamName = "";
     private int waitingCount = 0;
+    private String waitingTeamsLine = "";
 
     public LobbyHud(@Nonnull PlayerRef playerRef) {
         super(playerRef);
     }
 
-    public void show(String teamName, int waitingCount) {
+    public void show(String teamName, int waitingCount, String waitingTeamsLine) {
         this.visible = true;
         this.teamName = (teamName == null) ? "" : teamName;
         this.waitingCount = Math.max(0, waitingCount);
+        this.waitingTeamsLine = (waitingTeamsLine == null) ? "" : waitingTeamsLine;
     }
 
     public void hide() {
@@ -40,6 +42,9 @@ public final class LobbyHud extends CustomUIHud {
         String waitingText = "Waiting: " + waitingCount;
         ui.set("#LobbyWaitingLabel.Text", waitingText);
         ui.set("#LobbyWaitingLabel.TextSpans", Message.raw(waitingText));
+
+        String teamsText = "Teams: " + waitingTeamsLine;
+        ui.set("#LobbyTeamsLabel.Text", teamsText);
+        ui.set("#LobbyTeamsLabel.TextSpans", Message.raw(teamsText));
     }
 }
-
