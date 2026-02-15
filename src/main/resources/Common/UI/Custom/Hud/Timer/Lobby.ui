@@ -1,6 +1,6 @@
 Group #LobbyHud {
   LayoutMode: Left;
-  Anchor: (Top: 20, Height: 80);
+  Anchor: (Top: 20, Height: 110);
 
   Group #LobbyPanel {
     Background: #000000(0.2);
@@ -21,6 +21,11 @@ Group #LobbyHud {
     Label #LobbyWaitingLabel {
       Style: (FontSize: 16);
       Text: "Waiting: 0";
+    }
+
+    Label #LobbyTeamsLabel {
+      Style: (FontSize: 14);
+      Text: "Teams: Red:0 Blue:0 Yellow:0 White:0";
     }
   }
 }

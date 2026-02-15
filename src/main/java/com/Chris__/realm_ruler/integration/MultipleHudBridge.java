@@ -94,6 +94,10 @@ public final class MultipleHudBridge {
         warnedPlayerUuids.remove(uuid);
     }
 
+    public boolean isRuntimeFailed() {
+        return runtimeFailed.get();
+    }
+
     private String ensureLoaded() {
         if (runtimeFailed.get()) {
             return "bridge is disabled after a runtime integration failure";

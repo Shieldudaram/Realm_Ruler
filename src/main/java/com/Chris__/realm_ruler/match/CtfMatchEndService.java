@@ -33,6 +33,7 @@ public final class CtfMatchEndService {
     private final StandSwapService standSwapService;
     private final TargetingService targetingService;
     private final Map<String, Player> playerByUuid;
+    private final CtfArmorLoadoutService armorLoadoutService;
     private final HytaleLogger logger;
 
     public CtfMatchEndService(CtfMatchService matchService,
@@ -42,6 +43,7 @@ public final class CtfMatchEndService {
                               StandSwapService standSwapService,
                               TargetingService targetingService,
                               Map<String, Player> playerByUuid,
+                              CtfArmorLoadoutService armorLoadoutService,
                               HytaleLogger logger) {
         this.matchService = matchService;
         this.simpleClaims = simpleClaims;
@@ -50,6 +52,7 @@ public final class CtfMatchEndService {
         this.standSwapService = standSwapService;
         this.targetingService = targetingService;
         this.playerByUuid = playerByUuid;
+        this.armorLoadoutService = armorLoadoutService;
         this.logger = logger;
     }
 
@@ -102,6 +105,10 @@ public final class CtfMatchEndService {
 
         // Return participants to their pre-match locations (or world spawn fallback).
         queuePostMatchRestores(matchUuids);
+
+        if (armorLoadoutService != null) {
+            armorLoadoutService.restoreForParticipants(playerByUuid, matchUuids);
+        }
 
         // Clear match roster.
         matchService.endMatch();

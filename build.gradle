@@ -148,6 +148,10 @@ tasks.register('ciCheck') {
     description = 'Runs repository sanity checks that do not require a local Hytale install.'
 
     doLast {
+        if (!includesPack) {
+            throw new GradleException('CTF custom UI requires includes_pack=true so HUD/pages are shipped to clients.')
+        }
+
         def manifestFile = file('src/main/resources/manifest.json')
         if (!manifestFile.exists()) {
             throw new GradleException("Could not find manifest.json at ${manifestFile.path}!")
@@ -159,6 +163,24 @@ tasks.register('ciCheck') {
         def gradleVersion = project.version.toString()
         if (manifestVersion != gradleVersion) {
             throw new GradleException("manifest.json Version (${manifestVersion}) does not match Gradle version (${gradleVersion}).")
+        }
+
+        def manifestIncludesPack = Boolean.TRUE.equals(manifestJson.IncludesAssetPack)
+        if (!manifestIncludesPack) {
+            throw new GradleException('manifest.json IncludesAssetPack must be true for RealmRuler HUD/page assets.')
+        }
+
+        def requiredUiDocs = [
+                'src/main/resources/Common/UI/Custom/Hud/Timer/Lobby.ui',
+                'src/main/resources/Common/UI/Custom/Hud/Timer/Timer.ui',
+                'src/main/resources/Common/UI/Custom/Hud/CTF/Flags.ui',
+                'src/main/resources/Common/UI/Custom/Pages/RealmRuler/CtfShop.ui',
+                'src/main/resources/Common/UI/Custom/Pages/RealmRuler/CtfMap.ui'
+        ]
+        requiredUiDocs.each { relPath ->
+            if (!file(relPath).exists()) {
+                throw new GradleException("Missing required CTF UI document: ${relPath}")
+            }
         }
 
         def mainClass = String.valueOf(manifestJson.Main ?: '').trim()

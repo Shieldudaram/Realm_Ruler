@@ -7,6 +7,11 @@ public final class CtfShopConfig {
     public int version = 1;
     public List<ShopItem> items = new ArrayList<>();
 
+    public static final class BundleItem {
+        public String itemId;
+        public int amount = 1;
+    }
+
     public static final class ShopItem {
         public String id;
         public boolean enabled;
@@ -15,6 +20,9 @@ public final class CtfShopConfig {
         public String type;
         public String itemId;
         public int amount;
+        public String availability = "any";
+        public String teamRule = "any";
+        public String team;
+        public List<BundleItem> bundleItems = new ArrayList<>();
     }
 }
-

@@ -4,8 +4,7 @@ import com.Chris__.realm_ruler.core.LobbyHudState;
 import com.Chris__.realm_ruler.core.RrDebugFlags;
 import com.Chris__.realm_ruler.integration.MultipleHudBridge;
 import com.Chris__.realm_ruler.ui.CtfFlagsHudState;
-import com.Chris__.realm_ruler.ui.GlobalMatchTimerService;
-import com.Chris__.realm_ruler.ui.LobbyHudService;
+import com.Chris__.realm_ruler.ui.RealmRulerHudService;
 import com.Chris__.realm_ruler.ui.TimerAction;
 import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.concurrent.atomic.AtomicLong;
@@ -67,8 +66,7 @@ import static com.Chris__.realm_ruler.targeting.TargetingModels.*;
 public final class TargetingService {
 
     // --- GLOBAL MATCH TIMER (shared for everyone) ---
-    private final GlobalMatchTimerService matchTimer;
-    private final LobbyHudService lobbyHud;
+    private final RealmRulerHudService hudService;
     private final ConcurrentLinkedQueue<TimerAction> timerActions = new ConcurrentLinkedQueue<>();
 
     // This makes sure the timer "ticks" only once per real time slice, even though tick(...) runs per player.
@@ -145,11 +143,11 @@ public final class TargetingService {
     }
 
     public boolean isMatchTimerRunning() {
-        return matchTimer.isRunning();
+        return hudService.isRunning();
     }
 
     public int getMatchTimerRemainingSeconds() {
-        return matchTimer.getRemainingSeconds();
+        return hudService.getRemainingSeconds();
     }
 
     public void setLobbyHudStateProvider(Function<String, LobbyHudState> provider) {
@@ -165,7 +163,7 @@ public final class TargetingService {
     }
 
     public void setFlagsHudStateProvider(Supplier<CtfFlagsHudState> provider) {
-        matchTimer.setFlagsHudStateProvider(provider);
+        hudService.setFlagsHudStateProvider(provider);
     }
 
     public void queueTeleport(String uuid, String worldName, double x, double y, double z) {
@@ -195,20 +193,20 @@ public final class TargetingService {
         long last = lastGlobalTimerUpdateNanos.getAndSet(now);
         float dt = (last == 0L) ? 0f : (float) ((now - last) / 1_000_000_000.0);
 
-        boolean wasRunning = matchTimer.isRunning();
+        boolean wasRunning = hudService.isRunning();
 
         // Apply queued actions on the tick thread
         TimerAction a;
         while ((a = timerActions.poll()) != null) {
-            if (a instanceof TimerAction.Start s) matchTimer.start(s.seconds());
-            else if (a instanceof TimerAction.Stop) matchTimer.stop();
+            if (a instanceof TimerAction.Start s) hudService.start(s.seconds());
+            else if (a instanceof TimerAction.Stop) hudService.stop();
         }
 
         if (dt > 0f) {
-            matchTimer.tick(dt);
+            hudService.tick(dt);
         }
 
-        boolean isRunning = matchTimer.isRunning();
+        boolean isRunning = hudService.isRunning();
         if (wasRunning && !isRunning) {
             Runnable cb = matchTimerEndedCallback;
             if (cb != null) {
@@ -234,12 +232,12 @@ public final class TargetingService {
     public TargetingService(HytaleLogger logger,
                             ConcurrentLinkedQueue<Runnable> tickQueue,
                             Map<String, Player> playerByUuid,
-                            MultipleHudBridge multipleHudBridge) {
+                            MultipleHudBridge multipleHudBridge,
+                            boolean hudRenderingEnabled) {
         this.logger = logger;
         this.tickQueue = tickQueue;
         this.playerByUuid = playerByUuid;
-        this.matchTimer = new GlobalMatchTimerService(multipleHudBridge);
-        this.lobbyHud = new LobbyHudService(multipleHudBridge);
+        this.hudService = new RealmRulerHudService(multipleHudBridge, logger, hudRenderingEnabled);
     }
 
 
@@ -588,15 +586,7 @@ public final class TargetingService {
                     }
                 }
 
-                if (matchTimer.isRunning()) {
-                    // Match running: show only timer (hide lobby)
-                    lobbyHud.renderForPlayer(uuid, player, playerRef, null);
-                    matchTimer.renderForPlayer(uuid, player, playerRef);
-                } else {
-                    // Match not running: hide timer (if we own it) and show lobby (if visible)
-                    matchTimer.renderForPlayer(uuid, player, playerRef);
-                    lobbyHud.renderForPlayer(uuid, player, playerRef, lobbyState);
-                }
+                hudService.renderForPlayer(uuid, player, playerRef, lobbyState);
 
                 Vector3i hit = TargetUtil.getTargetBlock(chunk.getReferenceTo(entityId), LOOK_RAYCAST_RANGE, store);
                 if (hit == null) return;

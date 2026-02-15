@@ -1,5 +1,6 @@
 package com.Chris__.realm_ruler.ui.pages.ctf;
 
+import com.Chris__.realm_ruler.ui.CtfUiAssetContract;
 import com.hypixel.hytale.component.Ref;
 import com.hypixel.hytale.component.Store;
 import com.hypixel.hytale.protocol.packets.interface_.CustomPageLifetime;
@@ -13,7 +14,7 @@ import javax.annotation.Nonnull;
 
 public final class CtfMapPage extends CustomUIPage {
 
-    public static final String UI_PATH = "Pages/RealmRuler/CtfMap.ui";
+    public static final String UI_PATH = CtfUiAssetContract.PAGE_CTF_MAP;
 
     public CtfMapPage(@Nonnull PlayerRef playerRef) {
         super(playerRef, CustomPageLifetime.CanDismiss);
@@ -27,4 +28,3 @@ public final class CtfMapPage extends CustomUIPage {
         ui.append(UI_PATH);
     }
 }
-

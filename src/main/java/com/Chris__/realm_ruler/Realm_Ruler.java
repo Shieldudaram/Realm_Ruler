@@ -26,15 +26,26 @@ import com.hypixel.hytale.server.core.plugin.JavaPlugin;
 import com.hypixel.hytale.server.core.plugin.JavaPluginInit;
 import com.hypixel.hytale.server.core.plugin.PluginManager;
 import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import com.Chris__.realm_ruler.match.CtfMatchService;
 import com.Chris__.realm_ruler.match.CtfAutoRespawnAndTeleportSystem;
+import com.Chris__.realm_ruler.match.CtfBalloonPickupGuardSystem;
+import com.Chris__.realm_ruler.match.CtfBalloonPopSystem;
+import com.Chris__.realm_ruler.match.CtfBalloonSpawnService;
+import com.Chris__.realm_ruler.match.CtfBalloonSpawnSystem;
+import com.Chris__.realm_ruler.match.CtfBuildBreakGuardSystem;
+import com.Chris__.realm_ruler.match.CtfBuildDamageGuardSystem;
+import com.Chris__.realm_ruler.match.CtfBuildPlaceGuardSystem;
 import com.Chris__.realm_ruler.match.CtfCarrierDropBlockSystem;
 import com.Chris__.realm_ruler.match.CtfCarrierSlotLockSystem;
 import com.Chris__.realm_ruler.match.CtfFlagStateService;
+import com.Chris__.realm_ruler.match.CtfArmorLoadoutService;
 import com.Chris__.realm_ruler.match.CtfMatchEndService;
 import com.Chris__.realm_ruler.match.CtfPointsRepository;
+import com.Chris__.realm_ruler.match.CtfRegionRepository;
 import com.Chris__.realm_ruler.match.CtfShopConfigRepository;
+import com.Chris__.realm_ruler.match.CtfShopService;
 import com.Chris__.realm_ruler.match.CtfStandRegistryRepository;
 import com.Chris__.realm_ruler.integration.MultipleHudBridge;
 import com.Chris__.realm_ruler.integration.SimpleClaimsCtfBridge;
@@ -44,11 +55,13 @@ import com.Chris__.realm_ruler.npc.NpcSpawnAdapter;
 import com.Chris__.realm_ruler.npc.NpcSpawnAdapterCommandBridge;
 import com.Chris__.realm_ruler.npc.NpcSpawnAdapterFallback;
 import com.Chris__.realm_ruler.npc.NpcTestService;
+import com.Chris__.realm_ruler.ui.CtfUiAssetContract;
 import com.Chris__.realm_ruler.ui.pages.ctf.CtfShopUiService;
 import com.hypixel.hytale.math.util.ChunkUtil;
 import com.hypixel.hytale.math.vector.Transform;
 import javax.annotation.Nonnull;
 import java.lang.reflect.Method;
+import java.util.List;
 import java.util.Locale;
 import java.util.concurrent.Flow;
 import com.hypixel.hytale.server.core.event.events.player.PlayerDisconnectEvent;
@@ -119,10 +132,17 @@ public class Realm_Ruler extends JavaPlugin {
     private CtfPointsRepository ctfPointsRepository;
     private CtfMatchEndService ctfMatchEndService;
     private CtfShopConfigRepository ctfShopConfigRepository;
+    private CtfShopService ctfShopService;
     private CtfShopUiService ctfShopUiService;
+    private CtfRegionRepository ctfRegionRepository;
+    private CtfBalloonSpawnService ctfBalloonSpawnService;
+    private CtfArmorLoadoutService ctfArmorLoadoutService;
+    private CtfAutoRespawnAndTeleportSystem ctfAutoRespawnAndTeleportSystem;
     private NpcArenaRepository npcArenaRepository;
     private NpcTestService npcTestService;
     private MultipleHudBridge multipleHudBridge;
+    private volatile boolean customUiAssetsReady = false;
+    private volatile boolean ctfHudRenderingEnabled = false;
     private final PlayerInteractAdapter pi = new PlayerInteractAdapter();
 
     private void setupModes() {
@@ -156,6 +176,7 @@ public class Realm_Ruler extends JavaPlugin {
     // They should NOT change core gameplay logic, only enable/disable optional telemetry/fallbacks.
     private static final boolean ENABLE_USEBLOCK_FALLBACK = true;
     private static final boolean ENABLE_LOOK_TRACKER = true;
+    private static final long CARRIER_SLOT_CORRECTION_COOLDOWN_NANOS = 250_000_000L;
 
 
     // TICK-SAFE EXECUTOR: queue work from async callbacks to run on tick thread.
@@ -163,6 +184,8 @@ public class Realm_Ruler extends JavaPlugin {
 
     // PLAYER RESOLUTION: uuid -> Player (refreshed every tick by LookTargetTrackerSystem)
     public final Map<String, Player> playerByUuid = new ConcurrentHashMap<>();
+    private final Set<String> inventoryChangeInFlightByUuid = ConcurrentHashMap.newKeySet();
+    private final Map<String, Long> lastCarrierCorrectionNanosByUuid = new ConcurrentHashMap<>();
 
     // -------------------------------------------------------------------------
     // Asset IDs (strings must match your JSON block/item IDs exactly)
@@ -214,15 +237,42 @@ public class Realm_Ruler extends JavaPlugin {
         // ---------------------------------------------------------------------
 
         LOGGER.atInfo().log("Setting up Realm Ruler %s", this.getName());
+        CtfUiAssetContract.ValidationResult uiValidation = CtfUiAssetContract.validate(this.getClass().getClassLoader());
+        if (!uiValidation.manifestIncludesAssetPack()) {
+            LOGGER.atSevere().log("[RR-UI] manifest IncludesAssetPack=false. Set includes_pack=true before building.");
+        }
+        List<String> missingUiDocs = uiValidation.missingUiDocuments();
+        if (!missingUiDocs.isEmpty()) {
+            LOGGER.atSevere().log("[RR-UI] Missing required UI docs in plugin assets: %s", String.join(", ", missingUiDocs));
+        }
+        this.customUiAssetsReady = uiValidation.ready();
+        if (!this.customUiAssetsReady) {
+            LOGGER.atWarning().log("[RR-UI] Custom UI pages and HUD are disabled until the UI asset contract is fixed.");
+        }
+
         this.multipleHudBridge = new MultipleHudBridge(LOGGER);
+        boolean multipleHudReady = true;
         try {
             this.multipleHudBridge.requireReadyOrThrow();
         } catch (IllegalStateException e) {
-            LOGGER.atSevere().withCause(e).log("[RR-HUD] MultipleHUD integration failed. Aborting setup.");
-            throw e;
+            multipleHudReady = false;
+            LOGGER.atWarning().withCause(e).log("[RR-HUD] MultipleHUD integration failed. HUD rendering disabled for this session.");
         }
 
-        this.targetingService = new TargetingService(LOGGER, tickQueue, playerByUuid, this.multipleHudBridge);
+        this.ctfHudRenderingEnabled = this.customUiAssetsReady && multipleHudReady;
+        if (!this.ctfHudRenderingEnabled) {
+            LOGGER.atWarning().log("[RR-HUD] HUD rendering disabled. uiAssetsReady=%s multipleHudReady=%s",
+                    this.customUiAssetsReady,
+                    multipleHudReady);
+        }
+
+        this.targetingService = new TargetingService(
+                LOGGER,
+                tickQueue,
+                playerByUuid,
+                this.multipleHudBridge,
+                this.ctfHudRenderingEnabled
+        );
         this.ctfMatchService = new CtfMatchService(this.targetingService, this.ctfMode);
         this.targetingService.setLobbyHudStateProvider(this.ctfMatchService::lobbyHudStateFor);
         this.simpleClaimsCtfBridge = new SimpleClaimsCtfBridge(LOGGER);
@@ -237,7 +287,28 @@ public class Realm_Ruler extends JavaPlugin {
         this.targetingService.setFlagsHudStateProvider(this.ctfFlagStateService::snapshotHudState);
         this.ctfPointsRepository = new CtfPointsRepository(this.getDataDirectory(), LOGGER);
         this.ctfShopConfigRepository = new CtfShopConfigRepository(this.getDataDirectory(), LOGGER);
-        this.ctfShopUiService = new CtfShopUiService(this.ctfPointsRepository, this.ctfShopConfigRepository, this::rrCreateItemStackById);
+        this.ctfRegionRepository = new CtfRegionRepository(this.getDataDirectory(), LOGGER);
+        this.ctfShopService = new CtfShopService(
+                this.ctfMatchService,
+                this.ctfPointsRepository,
+                this.ctfShopConfigRepository,
+                this::rrCreateItemStackById,
+                LOGGER
+        );
+        this.ctfArmorLoadoutService = new CtfArmorLoadoutService(this::rrCreateItemStackById, LOGGER);
+        this.ctfShopUiService = new CtfShopUiService(
+                this.ctfShopConfigRepository,
+                this.ctfShopService,
+                this::rrCustomUiAssetsReady,
+                LOGGER
+        );
+        this.ctfBalloonSpawnService = new CtfBalloonSpawnService(
+                this.ctfMatchService,
+                this.ctfRegionRepository,
+                this.ctfFlagStateService,
+                this::rrCreateItemStackById,
+                LOGGER
+        );
         this.npcArenaRepository = new NpcArenaRepository(this.getDataDirectory(), LOGGER);
         NpcSpawnAdapter npcCommandBridgeAdapter = new NpcSpawnAdapterCommandBridge(LOGGER);
         NpcSpawnAdapter npcFallbackAdapter = new NpcSpawnAdapterFallback(LOGGER);
@@ -255,6 +326,7 @@ public class Realm_Ruler extends JavaPlugin {
                 this.standSwapService,
                 this.targetingService,
                 this.playerByUuid,
+                this.ctfArmorLoadoutService,
                 LOGGER
         );
         this.targetingService.setMatchTimerEndedCallback(() -> {
@@ -268,6 +340,11 @@ public class Realm_Ruler extends JavaPlugin {
             mes.endMatch(reason);
         });
         this.targetingService.setPerSliceCallback(() -> {
+            CtfAutoRespawnAndTeleportSystem respawnSystem = ctfAutoRespawnAndTeleportSystem;
+            if (respawnSystem != null) {
+                respawnSystem.processPendingRespawns();
+            }
+
             NpcTestService nts = npcTestService;
             if (nts != null) {
                 nts.processRespawns();
@@ -302,7 +379,11 @@ public class Realm_Ruler extends JavaPlugin {
                 this.ctfFlagStateService,
                 this.ctfStandRegistryRepository,
                 this.ctfPointsRepository,
+                this.ctfShopService,
                 this.ctfShopUiService,
+                this.ctfBalloonSpawnService,
+                this.ctfRegionRepository,
+                this.ctfArmorLoadoutService,
                 this.npcArenaRepository,
                 this.npcTestService
         ));
@@ -357,17 +438,24 @@ public class Realm_Ruler extends JavaPlugin {
         }
 
         // Auto-respawn + teleport back to team spawn during CTF matches.
-        this.getEntityStoreRegistry().registerSystem(new CtfAutoRespawnAndTeleportSystem(
+        this.ctfAutoRespawnAndTeleportSystem = new CtfAutoRespawnAndTeleportSystem(
                 this.ctfMatchService,
                 this.ctfFlagStateService,
                 this.simpleClaimsCtfBridge,
                 this.targetingService,
                 this.standSwapService,
                 LOGGER
-        ));
+        );
+        this.getEntityStoreRegistry().registerSystem(this.ctfAutoRespawnAndTeleportSystem);
         LOGGER.atInfo().log("Registered CtfAutoRespawnAndTeleportSystem.");
+        this.getEntityStoreRegistry().registerSystem(new CtfBalloonSpawnSystem(this.ctfBalloonSpawnService));
+        this.getEntityStoreRegistry().registerSystem(new CtfBalloonPopSystem(this.ctfBalloonSpawnService));
         this.getEntityStoreRegistry().registerSystem(new CtfCarrierSlotLockSystem(this.ctfMatchService, this.ctfFlagStateService));
         this.getEntityStoreRegistry().registerSystem(new CtfCarrierDropBlockSystem(this.ctfMatchService, this.ctfFlagStateService));
+        this.getEntityStoreRegistry().registerSystem(new CtfBalloonPickupGuardSystem(this.ctfMatchService));
+        this.getEntityStoreRegistry().registerSystem(new CtfBuildBreakGuardSystem(this.ctfMatchService));
+        this.getEntityStoreRegistry().registerSystem(new CtfBuildPlaceGuardSystem(this.ctfMatchService));
+        this.getEntityStoreRegistry().registerSystem(new CtfBuildDamageGuardSystem(this.ctfMatchService));
         LOGGER.atInfo().log("Registered CTF carrier slot/drop enforcement systems.");
         this.getEntityStoreRegistry().registerSystem(new NpcLifecycleSystem(this.npcTestService));
         LOGGER.atInfo().log("Registered NpcLifecycleSystem.");
@@ -478,6 +566,9 @@ public class Realm_Ruler extends JavaPlugin {
             }
         }
 
+        inventoryChangeInFlightByUuid.remove(uuid);
+        lastCarrierCorrectionNanosByUuid.remove(uuid);
+
         handleCarrierDisconnect(playerRef, uuid);
     }
 
@@ -489,21 +580,40 @@ public class Realm_Ruler extends JavaPlugin {
         if (player.getUuid() == null) return;
 
         String uuid = player.getUuid().toString();
+        if (uuid.isBlank()) return;
+        if (!inventoryChangeInFlightByUuid.add(uuid)) {
+            if (rrVerbose()) {
+                LOGGER.atInfo().log("[RR-CTF] carrier-integrity skipped; inventory-change already in-flight. uuid=%s", uuid);
+            }
+            return;
+        }
 
-        Inventory inv = player.getInventory();
-        if (inv == null) return;
+        try {
+            CtfAutoRespawnAndTeleportSystem respawnSystem = ctfAutoRespawnAndTeleportSystem;
+            if (respawnSystem != null && respawnSystem.isPendingRespawn(uuid)) {
+                if (rrVerbose()) {
+                    LOGGER.atInfo().log("[RR-CTF] carrier-integrity skipped; pending respawn. uuid=%s", uuid);
+                }
+                return;
+            }
 
-        enforceCarrierSlotIntegrity(player, uuid, inv);
+            Inventory inv = player.getInventory();
+            if (inv == null) return;
 
-        for (CtfMatchService.Team flagTeam : CtfMatchService.Team.values()) {
-            if (!ctfFlagStateService.isFlagDropped(flagTeam)) continue;
-            String flagItemId = CtfFlagStateService.flagItemIdForTeam(flagTeam);
-            if (flagItemId == null) continue;
+            enforceCarrierSlotIntegrity(player, uuid, inv);
 
-            InventorySlot slot = findFirstFlagSlot(inv, flagItemId);
-            if (slot == null) continue;
+            for (CtfMatchService.Team flagTeam : CtfMatchService.Team.values()) {
+                if (!ctfFlagStateService.isFlagDropped(flagTeam)) continue;
+                String flagItemId = CtfFlagStateService.flagItemIdForTeam(flagTeam);
+                if (flagItemId == null) continue;
 
-            applyDroppedFlagPickupRules(player, uuid, flagTeam, flagItemId, slot);
+                InventorySlot slot = findFirstFlagSlot(inv, flagItemId);
+                if (slot == null) continue;
+
+                applyDroppedFlagPickupRules(player, uuid, flagTeam, flagItemId, slot);
+            }
+        } finally {
+            inventoryChangeInFlightByUuid.remove(uuid);
         }
     }
 
@@ -631,23 +741,60 @@ public class Realm_Ruler extends JavaPlugin {
         ItemContainer hotbar = inv.getHotbar();
         if (hotbar == null) return;
 
+        long nowNanos = System.nanoTime();
         short slot = (short) (lockedSlot & 0xFF);
+        byte lockedSlotByte = (byte) (lockedSlot & 0xFF);
         ItemStack inLockedSlot = hotbar.getItemStack(slot);
         if (inLockedSlot != null && flagItemId.equals(inLockedSlot.getItemId())) {
-            inv.setActiveHotbarSlot((byte) (lockedSlot & 0xFF));
+            if (inv.getActiveHotbarSlot() == lockedSlotByte) {
+                return;
+            }
+            if (isCarrierCorrectionThrottled(uuid, nowNanos, "active_slot")) {
+                return;
+            }
+            inv.setActiveHotbarSlot(lockedSlotByte);
+            markCarrierCorrectionApplied(uuid, nowNanos, "active_slot");
             return;
         }
 
         InventorySlot found = findFirstFlagSlot(inv, flagItemId);
         if (found == null) return;
+        if (isCarrierCorrectionThrottled(uuid, nowNanos, "move_flag")) {
+            return;
+        }
 
         found.container().removeItemStackFromSlot(found.slot(), 1);
         ItemStack movedFlag = rrCreateItemStackById(flagItemId, 1);
         if (movedFlag == null) return;
 
         hotbar.setItemStackForSlot(slot, movedFlag);
-        inv.setActiveHotbarSlot((byte) (lockedSlot & 0xFF));
+        if (inv.getActiveHotbarSlot() != lockedSlotByte) {
+            inv.setActiveHotbarSlot(lockedSlotByte);
+        }
         player.sendInventory();
+        markCarrierCorrectionApplied(uuid, nowNanos, "move_flag");
+    }
+
+    private boolean isCarrierCorrectionThrottled(String uuid, long nowNanos, String reason) {
+        Long last = lastCarrierCorrectionNanosByUuid.get(uuid);
+        if (last == null) return false;
+        long elapsed = nowNanos - last;
+        if (elapsed >= CARRIER_SLOT_CORRECTION_COOLDOWN_NANOS) return false;
+        if (rrVerbose()) {
+            LOGGER.atInfo().log("[RR-CTF] carrier correction skipped by cooldown. uuid=%s reason=%s elapsedMs=%.2f",
+                    uuid,
+                    reason,
+                    elapsed / 1_000_000d);
+        }
+        return true;
+    }
+
+    private void markCarrierCorrectionApplied(String uuid, long nowNanos, String reason) {
+        if (uuid == null || uuid.isBlank()) return;
+        lastCarrierCorrectionNanosByUuid.put(uuid, nowNanos);
+        if (rrVerbose()) {
+            LOGGER.atInfo().log("[RR-CTF] carrier correction applied. uuid=%s reason=%s", uuid, reason);
+        }
     }
 
     /**
@@ -1442,5 +1589,9 @@ public class Realm_Ruler extends JavaPlugin {
 
     public void runOnTick(Runnable r) {
         if (r != null) tickQueue.add(r);
+    }
+
+    private boolean rrCustomUiAssetsReady() {
+        return customUiAssetsReady;
     }
 }

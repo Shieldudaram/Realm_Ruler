@@ -12,7 +12,7 @@ import java.util.concurrent.ConcurrentHashMap;
 public final class LobbyHudService {
     private static final String HUD_SLOT_ID = "RealmRuler_LobbyHud";
 
-    private record HudKey(String teamName, int waitingCount) {
+    private record HudKey(String teamName, int waitingCount, String waitingTeamsLine) {
     }
 
     private final MultipleHudBridge multipleHudBridge;
@@ -41,12 +41,13 @@ public final class LobbyHudService {
 
         String teamName = (state.teamName() == null) ? "" : state.teamName();
         int waitingCount = Math.max(0, state.waitingCount());
+        String waitingTeamsLine = (state.waitingTeamsLine() == null) ? "" : state.waitingTeamsLine();
 
-        HudKey desired = new HudKey(teamName, waitingCount);
+        HudKey desired = new HudKey(teamName, waitingCount, waitingTeamsLine);
         HudKey last = lastShownByUuid.get(uuid);
         boolean isCurrentlyShown = shownHudByUuid.contains(uuid);
         if (!desired.equals(last) || !isCurrentlyShown) {
-            hud.show(teamName, waitingCount);
+            hud.show(teamName, waitingCount, waitingTeamsLine);
 
             if (multipleHudBridge.setCustomHud(player, playerRef, HUD_SLOT_ID, hud)) {
                 shownHudByUuid.add(uuid);

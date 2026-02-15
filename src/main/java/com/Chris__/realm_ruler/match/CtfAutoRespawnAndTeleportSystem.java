@@ -18,9 +18,13 @@ import com.hypixel.hytale.server.core.modules.entity.damage.DeathComponent;
 import com.hypixel.hytale.server.core.universe.PlayerRef;
 import com.hypixel.hytale.server.core.universe.world.storage.EntityStore;
 
+import java.util.Map;
+import java.util.concurrent.ConcurrentHashMap;
+
 public final class CtfAutoRespawnAndTeleportSystem extends RefChangeSystem<EntityStore, DeathComponent> {
 
     private static final double SPAWN_JITTER_RADIUS_BLOCKS = 3.0d;
+    private static final long RESPAWN_DELAY_NANOS = 5_000_000_000L;
 
     private final CtfMatchService matchService;
     private final CtfFlagStateService flagStateService;
@@ -30,6 +34,19 @@ public final class CtfAutoRespawnAndTeleportSystem extends RefChangeSystem<Entit
     private final HytaleLogger logger;
 
     private boolean warnedMissingSimpleClaims = false;
+    private final Map<String, PendingRespawn> pendingRespawnsByUuid = new ConcurrentHashMap<>();
+
+    private static final class PendingRespawn {
+        private final Ref<EntityStore> ref;
+        private long readyAtNanos;
+        private int lastAnnouncedSecond;
+
+        private PendingRespawn(Ref<EntityStore> ref, long readyAtNanos) {
+            this.ref = ref;
+            this.readyAtNanos = readyAtNanos;
+            this.lastAnnouncedSecond = 5;
+        }
+    }
 
     public CtfAutoRespawnAndTeleportSystem(CtfMatchService matchService,
                                            CtfFlagStateService flagStateService,
@@ -88,29 +105,9 @@ public final class CtfAutoRespawnAndTeleportSystem extends RefChangeSystem<Entit
             logger.atInfo().log("[RR] CTF death detected; scheduling auto-respawn. uuid=%s", uuidStr);
         }
 
-        try {
-            commandBuffer.run(store2 -> {
-                try {
-                    DeathComponent.respawn(store2, ref);
-                    if (RrDebugFlags.verbose()) {
-                        logger.atInfo().log("[RR] CTF respawn requested. uuid=%s", uuidStr);
-                    }
-                } catch (Throwable t) {
-                    logger.atWarning().withCause(t).log("[RR] CTF auto-respawn failed. uuid=%s", uuidStr);
-                }
-
-                // Best-effort: force-close any opened death/respawn page.
-                try {
-                    player.getPageManager().setPage(ref, store2, Page.None);
-                } catch (Throwable t) {
-                    if (RrDebugFlags.verbose()) {
-                        logger.atWarning().withCause(t).log("[RR] Failed to close death page. uuid=%s", uuidStr);
-                    }
-                }
-            });
-        } catch (Throwable t) {
-            logger.atWarning().withCause(t).log("[RR] Failed to schedule CTF auto-respawn. uuid=%s", uuidStr);
-        }
+        long readyAt = System.nanoTime() + RESPAWN_DELAY_NANOS;
+        pendingRespawnsByUuid.put(uuidStr, new PendingRespawn(ref, readyAt));
+        player.sendMessage(com.hypixel.hytale.server.core.Message.raw("[RealmRuler] Respawning in 5..."));
     }
 
     @Override
@@ -139,6 +136,7 @@ public final class CtfAutoRespawnAndTeleportSystem extends RefChangeSystem<Entit
         if (player == null || playerRef == null || playerRef.getUuid() == null) return;
 
         String uuidStr = playerRef.getUuid().toString();
+        pendingRespawnsByUuid.remove(uuidStr);
         CtfMatchService.Team team = matchService.activeMatchTeamFor(uuidStr);
         if (team == null) return;
 
@@ -259,5 +257,74 @@ public final class CtfAutoRespawnAndTeleportSystem extends RefChangeSystem<Entit
                     uuid,
                     carriedFlag.displayName());
         }
+    }
+
+    public void processPendingRespawns() {
+        if (pendingRespawnsByUuid.isEmpty()) return;
+
+        long now = System.nanoTime();
+        for (Map.Entry<String, PendingRespawn> entry : pendingRespawnsByUuid.entrySet()) {
+            String uuid = entry.getKey();
+            PendingRespawn pending = entry.getValue();
+            if (uuid == null || uuid.isBlank() || pending == null) {
+                pendingRespawnsByUuid.remove(uuid, pending);
+                continue;
+            }
+
+            Ref<EntityStore> ref = pending.ref;
+            if (ref == null || !ref.isValid()) {
+                pendingRespawnsByUuid.remove(uuid, pending);
+                continue;
+            }
+
+            Store<EntityStore> store = ref.getStore();
+            if (store == null) {
+                pendingRespawnsByUuid.remove(uuid, pending);
+                continue;
+            }
+
+            Player player = store.getComponent(ref, Player.getComponentType());
+            if (player == null) {
+                pendingRespawnsByUuid.remove(uuid, pending);
+                continue;
+            }
+
+            long remainingNanos = pending.readyAtNanos - now;
+            if (remainingNanos > 0L) {
+                int remainingSeconds = (int) Math.ceil(remainingNanos / 1_000_000_000d);
+                if (remainingSeconds < pending.lastAnnouncedSecond && remainingSeconds > 0) {
+                    pending.lastAnnouncedSecond = remainingSeconds;
+                    player.sendMessage(com.hypixel.hytale.server.core.Message.raw("[RealmRuler] Respawning in " + remainingSeconds + "..."));
+                }
+                continue;
+            }
+
+            try {
+                DeathComponent death = store.getComponent(ref, DeathComponent.getComponentType());
+                if (death == null) {
+                    pendingRespawnsByUuid.remove(uuid, pending);
+                    continue;
+                }
+
+                DeathComponent.respawn(store, ref);
+                try {
+                    player.getPageManager().setPage(ref, store, Page.None);
+                } catch (Throwable ignored) {
+                }
+
+                pendingRespawnsByUuid.remove(uuid, pending);
+                if (RrDebugFlags.verbose()) {
+                    logger.atInfo().log("[RR] CTF delayed respawn requested. uuid=%s", uuid);
+                }
+            } catch (Throwable t) {
+                pending.readyAtNanos = now + 1_000_000_000L;
+                logger.atWarning().withCause(t).log("[RR] CTF delayed respawn failed; retrying. uuid=%s", uuid);
+            }
+        }
+    }
+
+    public boolean isPendingRespawn(String uuid) {
+        if (uuid == null || uuid.isBlank()) return false;
+        return pendingRespawnsByUuid.containsKey(uuid);
     }
 }
