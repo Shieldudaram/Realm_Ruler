@@ -83,6 +83,53 @@ To install it manually, drop the JAR into `%appdata%/Hytale/UserData/Mods/`.
 
 ---
 
+## 🔖 Versioning & Releases
+
+### Version Policy
+
+This repo follows **Semantic Versioning**: `MAJOR.MINOR.PATCH`.
+
+* `PATCH`: bug fixes or safe internal changes (`1.2.3` -> `1.2.4`)
+* `MINOR`: new backward-compatible features (`1.2.3` -> `1.3.0`)
+* `MAJOR`: breaking behavior or compatibility changes (`1.x` -> `2.0.0`)
+
+The version source of truth is `version=` in `gradle.properties`.
+`manifest.json` is kept in sync by the build and release automation.
+
+### PR Title Rules (Required)
+
+Release automation infers version bumps from PR titles. Use conventional PR titles such as:
+
+* `fix: correct CTF flag reset`
+* `feat: add match warmup countdown`
+* `feat!: remove legacy spawn command`
+
+If a change is breaking, use `!` after the type (or include `BREAKING CHANGE` in the PR description).
+
+### Stable Release Flow (`main`)
+
+1. Merge conventional-title PRs into `main`.
+2. Release Please opens or updates a release PR with version/changelog changes.
+3. Merge the release PR.
+4. GitHub Actions creates a stable tag (`vX.Y.Z`), creates the GitHub Release, builds `realm_ruler-X.Y.Z.jar` on the self-hosted runner, and uploads that jar asset.
+
+### Dev Prerelease Flow (`dev`)
+
+1. Open **Actions** -> **Dev Prerelease**.
+2. Run it from the `dev` branch.
+3. Optionally pass `base_version` (otherwise it uses `gradle.properties`).
+4. The workflow publishes `vX.Y.Z-dev.<run_number>` with a matching prerelease jar asset.
+
+### Rollback Playbook
+
+If a bad release is published:
+
+1. Remove the bad GitHub Release and tag.
+2. Merge a fix.
+3. Publish a follow-up patch release (for example, `v1.2.4` -> `v1.2.5`) instead of reusing a tag.
+
+---
+
 ## 📚 Advanced Documentation
 
 For detailed guides on commands, event listeners, and professional patterns, visit our full documentation:
