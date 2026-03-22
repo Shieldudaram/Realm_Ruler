@@ -1,0 +1,646 @@
+@RealmPlayButtonLabelStyle = LabelStyle(
+  FontSize: 15,
+  TextColor: #dbe7f0,
+  RenderBold: true,
+  HorizontalAlignment: Center,
+  VerticalAlignment: Center,
+  ShrinkTextToFit: true,
+  MinShrinkTextToFitFontSize: 11,
+  LetterSpacing: 1
+);
+
+@RealmPlayButtonHoveredLabelStyle = LabelStyle(
+  ...@RealmPlayButtonLabelStyle,
+  TextColor: #f3fbff
+);
+
+@RealmPlayButtonPressedLabelStyle = LabelStyle(
+  ...@RealmPlayButtonLabelStyle,
+  TextColor: #c9d5de
+);
+
+@RealmPlayButtonDisabledLabelStyle = LabelStyle(
+  ...@RealmPlayButtonLabelStyle,
+  TextColor: #9ea9b3
+);
+
+@RealmPlayHomeButtonLabelStyle = LabelStyle(
+  ...@RealmPlayButtonLabelStyle,
+  FontSize: 14,
+  MinShrinkTextToFitFontSize: 10
+);
+
+@RealmPlayHomeButtonHoveredLabelStyle = LabelStyle(
+  ...@RealmPlayHomeButtonLabelStyle,
+  TextColor: #f3fbff
+);
+
+@RealmPlayHomeButtonPressedLabelStyle = LabelStyle(
+  ...@RealmPlayHomeButtonLabelStyle,
+  TextColor: #c9d5de
+);
+
+@RealmPlayHomeButtonDisabledLabelStyle = LabelStyle(
+  ...@RealmPlayHomeButtonLabelStyle,
+  TextColor: #9ea9b3
+);
+
+@RealmPlayHomeButtonStyle = TextButtonStyle(
+  Default: (Background: (TexturePath: "../../Hud/RealmRulerTheme/RealmButtonSubtle.png", Border: 12), LabelStyle: @RealmPlayHomeButtonLabelStyle),
+  Hovered: (Background: (TexturePath: "../../Hud/RealmRulerTheme/RealmButtonSubtle_Hovered.png", Border: 12), LabelStyle: @RealmPlayHomeButtonHoveredLabelStyle),
+  Pressed: (Background: (TexturePath: "../../Hud/RealmRulerTheme/RealmButtonSubtle_Pressed.png", Border: 12), LabelStyle: @RealmPlayHomeButtonPressedLabelStyle),
+  Disabled: (Background: (TexturePath: "../../Hud/RealmRulerTheme/RealmButtonSubtle.png", Border: 12, Color: #ffffff(0.58)), LabelStyle: @RealmPlayHomeButtonDisabledLabelStyle)
+);
+
+@RealmPlayGoldButtonStyle = TextButtonStyle(
+  Default: (Background: (TexturePath: "../../Hud/RealmRulerTheme/RealmButton.png", Border: 12), LabelStyle: @RealmPlayButtonLabelStyle),
+  Hovered: (Background: (TexturePath: "../../Hud/RealmRulerTheme/RealmButton_Hovered.png", Border: 12), LabelStyle: @RealmPlayButtonHoveredLabelStyle),
+  Pressed: (Background: (TexturePath: "../../Hud/RealmRulerTheme/RealmButton_Pressed.png", Border: 12), LabelStyle: @RealmPlayButtonPressedLabelStyle),
+  Disabled: (Background: (TexturePath: "../../Hud/RealmRulerTheme/RealmButton.png", Border: 12, Color: #ffffff(0.58)), LabelStyle: @RealmPlayButtonDisabledLabelStyle)
+);
+
+@RealmPlayDangerButtonStyle = TextButtonStyle(
+  Default: (Background: (TexturePath: "../../Hud/RealmRulerTheme/RealmButtonDanger.png", Border: 12), LabelStyle: @RealmPlayButtonLabelStyle),
+  Hovered: (Background: (TexturePath: "../../Hud/RealmRulerTheme/RealmButtonDanger_Hovered.png", Border: 12), LabelStyle: @RealmPlayButtonHoveredLabelStyle),
+  Pressed: (Background: (TexturePath: "../../Hud/RealmRulerTheme/RealmButtonDanger_Pressed.png", Border: 12), LabelStyle: @RealmPlayButtonPressedLabelStyle),
+  Disabled: (Background: (TexturePath: "../../Hud/RealmRulerTheme/RealmButtonDanger.png", Border: 12, Color: #ffffff(0.58)), LabelStyle: @RealmPlayButtonDisabledLabelStyle)
+);
+
+@RealmPlayRandomButtonStyle = TextButtonStyle(
+  Default: (Background: (TexturePath: "../../Hud/RealmRulerTheme/RealmButtonRandom.png", Border: 12), LabelStyle: @RealmPlayButtonLabelStyle),
+  Hovered: (Background: (TexturePath: "../../Hud/RealmRulerTheme/RealmButtonRandom_Hovered.png", Border: 12), LabelStyle: @RealmPlayButtonHoveredLabelStyle),
+  Pressed: (Background: (TexturePath: "../../Hud/RealmRulerTheme/RealmButtonRandom_Pressed.png", Border: 12), LabelStyle: @RealmPlayButtonPressedLabelStyle),
+  Disabled: (Background: (TexturePath: "../../Hud/RealmRulerTheme/RealmButtonRandom.png", Border: 12, Color: #ffffff(0.58)), LabelStyle: @RealmPlayButtonDisabledLabelStyle)
+);
+
+@RealmPlayRedButtonStyle = TextButtonStyle(
+  Default: (Background: (TexturePath: "../../Hud/RealmRulerTheme/RealmButtonRed.png", Border: 12), LabelStyle: @RealmPlayButtonLabelStyle),
+  Hovered: (Background: (TexturePath: "../../Hud/RealmRulerTheme/RealmButtonRed_Hovered.png", Border: 12), LabelStyle: @RealmPlayButtonHoveredLabelStyle),
+  Pressed: (Background: (TexturePath: "../../Hud/RealmRulerTheme/RealmButtonRed_Pressed.png", Border: 12), LabelStyle: @RealmPlayButtonPressedLabelStyle),
+  Disabled: (Background: (TexturePath: "../../Hud/RealmRulerTheme/RealmButtonRed.png", Border: 12, Color: #ffffff(0.58)), LabelStyle: @RealmPlayButtonDisabledLabelStyle)
+);
+
+@RealmPlayBlueButtonStyle = TextButtonStyle(
+  Default: (Background: (TexturePath: "../../Hud/RealmRulerTheme/RealmButtonBlue.png", Border: 12), LabelStyle: @RealmPlayButtonLabelStyle),
+  Hovered: (Background: (TexturePath: "../../Hud/RealmRulerTheme/RealmButtonBlue_Hovered.png", Border: 12), LabelStyle: @RealmPlayButtonHoveredLabelStyle),
+  Pressed: (Background: (TexturePath: "../../Hud/RealmRulerTheme/RealmButtonBlue_Pressed.png", Border: 12), LabelStyle: @RealmPlayButtonPressedLabelStyle),
+  Disabled: (Background: (TexturePath: "../../Hud/RealmRulerTheme/RealmButtonBlue.png", Border: 12, Color: #ffffff(0.58)), LabelStyle: @RealmPlayButtonDisabledLabelStyle)
+);
+
+@RealmPlayYellowButtonStyle = TextButtonStyle(
+  Default: (Background: (TexturePath: "../../Hud/RealmRulerTheme/RealmButtonYellow.png", Border: 12), LabelStyle: @RealmPlayButtonLabelStyle),
+  Hovered: (Background: (TexturePath: "../../Hud/RealmRulerTheme/RealmButtonYellow_Hovered.png", Border: 12), LabelStyle: @RealmPlayButtonHoveredLabelStyle),
+  Pressed: (Background: (TexturePath: "../../Hud/RealmRulerTheme/RealmButtonYellow_Pressed.png", Border: 12), LabelStyle: @RealmPlayButtonPressedLabelStyle),
+  Disabled: (Background: (TexturePath: "../../Hud/RealmRulerTheme/RealmButtonYellow.png", Border: 12, Color: #ffffff(0.58)), LabelStyle: @RealmPlayButtonDisabledLabelStyle)
+);
+
+@RealmPlayWhiteButtonStyle = TextButtonStyle(
+  Default: (Background: (TexturePath: "../../Hud/RealmRulerTheme/RealmButtonWhite.png", Border: 12), LabelStyle: @RealmPlayButtonLabelStyle),
+  Hovered: (Background: (TexturePath: "../../Hud/RealmRulerTheme/RealmButtonWhite_Hovered.png", Border: 12), LabelStyle: @RealmPlayButtonHoveredLabelStyle),
+  Pressed: (Background: (TexturePath: "../../Hud/RealmRulerTheme/RealmButtonWhite_Pressed.png", Border: 12), LabelStyle: @RealmPlayButtonPressedLabelStyle),
+  Disabled: (Background: (TexturePath: "../../Hud/RealmRulerTheme/RealmButtonWhite.png", Border: 12, Color: #ffffff(0.58)), LabelStyle: @RealmPlayButtonDisabledLabelStyle)
+);
+
+@RealmPlaySummaryLabelStyle = LabelStyle(
+  FontSize: 16,
+  TextColor: #c7d3dd,
+  HorizontalAlignment: Start,
+  VerticalAlignment: Center
+);
+
+@RealmPlaySummaryValueStyle = LabelStyle(
+  FontSize: 19,
+  TextColor: #f4f8fc,
+  RenderBold: true,
+  HorizontalAlignment: Start,
+  VerticalAlignment: Center,
+  ShrinkTextToFit: true,
+  MinShrinkTextToFitFontSize: 16
+);
+
+@RealmPlayTeamRedStyle = LabelStyle(
+  FontSize: 18,
+  TextColor: #f4baae,
+  RenderBold: true,
+  HorizontalAlignment: Center,
+  VerticalAlignment: Center,
+  ShrinkTextToFit: true,
+  MinShrinkTextToFitFontSize: 15
+);
+
+@RealmPlayTeamBlueStyle = LabelStyle(
+  FontSize: 18,
+  TextColor: #b4d9f5,
+  RenderBold: true,
+  HorizontalAlignment: Center,
+  VerticalAlignment: Center,
+  ShrinkTextToFit: true,
+  MinShrinkTextToFitFontSize: 15
+);
+
+@RealmPlayTeamYellowStyle = LabelStyle(
+  FontSize: 18,
+  TextColor: #f4e39c,
+  RenderBold: true,
+  HorizontalAlignment: Center,
+  VerticalAlignment: Center,
+  ShrinkTextToFit: true,
+  MinShrinkTextToFitFontSize: 15
+);
+
+@RealmPlayTeamWhiteStyle = LabelStyle(
+  FontSize: 18,
+  TextColor: #f2f7fb,
+  RenderBold: true,
+  HorizontalAlignment: Center,
+  VerticalAlignment: Center,
+  ShrinkTextToFit: true,
+  MinShrinkTextToFitFontSize: 15
+);
+
+Group #RealmRulerCtfPlayPage {
+  Anchor: (Top: 0, Bottom: 0, Left: 0, Right: 0);
+  LayoutMode: Center;
+
+  Group #Backdrop {
+    Anchor: (Top: 0, Bottom: 0, Left: 0, Right: 0);
+    Background: #02050b(0.74);
+  }
+
+  Group #Window {
+    Anchor: (Width: 944, Height: 778);
+    LayoutMode: Center;
+    Padding: (Horizontal: 14, Vertical: 14);
+    Background: (TexturePath: "../../Hud/RealmRulerTheme/RealmFrame.png", Border: 24);
+
+    Group #Panel {
+      Anchor: (Width: 916, Height: 750);
+      LayoutMode: Top;
+      Padding: (Horizontal: 20, Vertical: 20);
+      Background: (TexturePath: "../../Hud/RealmRulerTheme/RealmInset.png", Border: 18);
+
+      Group #HeaderBand {
+        Anchor: (Width: 876, Height: 164);
+        LayoutMode: Top;
+        Padding: (Horizontal: 18, Vertical: 14);
+        Background: (TexturePath: "../../Hud/RealmRulerTheme/RealmInset.png", Border: 16);
+
+        Group #HeaderTopRow {
+          Anchor: (Width: 840, Height: 40);
+          LayoutMode: Left;
+
+          Group #HomeAction {
+            Anchor: (Width: 138, Height: 34);
+            LayoutMode: Center;
+
+            TextButton #HomeButton {
+              Anchor: (Width: 138, Height: 34);
+              Padding: (Horizontal: 16, Bottom: 1);
+              Text: "Home";
+              Style: @RealmPlayHomeButtonStyle;
+            }
+          }
+
+          Group #HeaderTopSpacer {
+            Anchor: (Left: 10, Width: 458, Height: 40);
+          }
+
+        Group #PointsBadge {
+          Anchor: (Left: 10, Width: 224, Height: 40);
+          LayoutMode: Top;
+          Background: (TexturePath: "../../Hud/RealmRulerTheme/RealmPointsBadge.png", Border: 18);
+
+          Group #PointsLane {
+            Anchor: (Top: 8, Width: 182, Height: 20);
+            LayoutMode: Top;
+
+            Group #PointsTextBand {
+              Anchor: (Top: 1, Width: 170, Height: 18);
+              LayoutMode: Center;
+
+              Label #PointsLabel {
+                Anchor: (Width: 170, Height: 18);
+                Style: (FontSize: 17, Alignment: Center);
+                Text: "Points: 0";
+              }
+            }
+          }
+        }
+        }
+
+        Group #HeaderPlaque {
+          Anchor: (Top: 16, Width: 660, Height: 60);
+          LayoutMode: Top;
+          Background: (TexturePath: "../../Hud/RealmRulerTheme/RealmTitlePlaque.png", Border: 18);
+
+          Group #TitleLane {
+            Anchor: (Top: 5, Width: 520, Height: 36);
+            LayoutMode: Top;
+
+            Group #TitleTextBand {
+              Anchor: (Top: 2, Width: 500, Height: 32);
+              LayoutMode: Center;
+
+              Label #TitleLabel {
+                Anchor: (Width: 500, Height: 32);
+                Style: (FontSize: 30, Alignment: Center);
+                Text: "Join A Team";
+              }
+            }
+          }
+        }
+
+        Group #SubtitleRow {
+          Anchor: (Top: 12, Width: 648, Height: 22);
+          LayoutMode: Center;
+
+          Group #SubtitleLane {
+            Anchor: (Width: 648, Height: 18);
+            LayoutMode: Top;
+
+            Group #SubtitleTextBand {
+              Anchor: (Top: 1, Width: 636, Height: 16);
+              LayoutMode: Center;
+
+              Label #SubtitleLabel {
+                Anchor: (Width: 636, Height: 16);
+                Style: (FontSize: 15, Alignment: Center, TextColor: #e0ebf4(0.94));
+                Text: "Choose a team, watch lobby state, and leave before the round begins.";
+              }
+            }
+          }
+        }
+      }
+
+      Group #StatusBanner {
+        Anchor: (Top: 14, Width: 876, Height: 40);
+        LayoutMode: Center;
+        Background: (TexturePath: "../../Hud/RealmRulerTheme/RealmStatusRibbon.png", Border: 14);
+
+        Label #StatusLabel {
+          Anchor: (Width: 782, Height: 22);
+          Style: (FontSize: 15, Alignment: Center);
+          Text: "";
+        }
+      }
+
+      Group #SummaryCard {
+        Anchor: (Top: 18, Width: 876, Height: 200);
+        LayoutMode: Top;
+        Padding: (Horizontal: 18, Vertical: 18);
+        Background: (TexturePath: "../../Hud/RealmRulerTheme/RealmCardInfo.png", Border: 18);
+
+        Group #SummaryRow1 {
+          Anchor: (Width: 840, Height: 36);
+          LayoutMode: Center;
+          Background: (TexturePath: "../../Hud/RealmRulerTheme/RealmMainSummaryRow.png", Border: 8);
+
+          Group #SummaryRow1Lane {
+            Anchor: (Width: 788, Height: 24);
+            LayoutMode: Left;
+
+            Group #SummaryRow1Left {
+              Anchor: (Width: 378, Height: 24);
+              LayoutMode: Left;
+
+              Label #CurrentTeamLabel {
+                Anchor: (Width: 118, Height: 24);
+                Style: @RealmPlaySummaryLabelStyle;
+                Text: "Current Team";
+              }
+
+              Label #CurrentTeamValue {
+                Anchor: (Left: 14, Width: 246, Height: 24);
+                Style: @RealmPlaySummaryValueStyle;
+                Text: "None";
+              }
+            }
+
+            Group #SummaryRow1Right {
+              Anchor: (Left: 32, Width: 378, Height: 24);
+              LayoutMode: Left;
+
+              Label #MatchStateLabel {
+                Anchor: (Width: 108, Height: 24);
+                Style: @RealmPlaySummaryLabelStyle;
+                Text: "Match State";
+              }
+
+              Label #MatchStateValue {
+                Anchor: (Left: 14, Width: 256, Height: 24);
+                Style: @RealmPlaySummaryValueStyle;
+                Text: "Lobby Open";
+              }
+            }
+          }
+        }
+
+        Group #SummaryRow2 {
+          Anchor: (Top: 6, Width: 840, Height: 36);
+          LayoutMode: Center;
+          Background: (TexturePath: "../../Hud/RealmRulerTheme/RealmMainSummaryRow.png", Border: 8);
+
+          Group #SummaryRow2Lane {
+            Anchor: (Width: 788, Height: 24);
+            LayoutMode: Left;
+
+            Group #SummaryRow2Left {
+              Anchor: (Width: 378, Height: 24);
+              LayoutMode: Left;
+
+              Label #WaitingLabel {
+                Anchor: (Width: 132, Height: 24);
+                Style: @RealmPlaySummaryLabelStyle;
+                Text: "Waiting Players";
+              }
+
+              Label #WaitingValue {
+                Anchor: (Left: 14, Width: 232, Height: 24);
+                Style: @RealmPlaySummaryValueStyle;
+                Text: "0";
+              }
+            }
+
+            Group #SummaryRow2Right {
+              Anchor: (Left: 32, Width: 378, Height: 24);
+              LayoutMode: Left;
+
+              Label #ActiveTeamCountLabel {
+                Anchor: (Width: 108, Height: 24);
+                Style: @RealmPlaySummaryLabelStyle;
+                Text: "Active Teams";
+              }
+
+              Label #ActiveTeamCountValue {
+                Anchor: (Left: 14, Width: 256, Height: 24);
+                Style: @RealmPlaySummaryValueStyle;
+                Text: "0";
+              }
+            }
+          }
+        }
+
+        Group #SummaryRow3 {
+          Anchor: (Top: 6, Width: 840, Height: 36);
+          LayoutMode: Center;
+          Background: (TexturePath: "../../Hud/RealmRulerTheme/RealmMainSummaryRow.png", Border: 8);
+
+          Group #SummaryRow3Lane {
+            Anchor: (Width: 788, Height: 24);
+            LayoutMode: Left;
+
+            Label #LobbyCountsLabel {
+              Anchor: (Width: 126, Height: 24);
+              Style: @RealmPlaySummaryLabelStyle;
+              Text: "Lobby Teams";
+            }
+
+            Group #LobbyCountsColumns {
+              Anchor: (Left: 18, Width: 644, Height: 24);
+              LayoutMode: Left;
+
+              Label #LobbyRedValue {
+                Anchor: (Width: 154, Height: 24);
+                Style: @RealmPlayTeamRedStyle;
+                Text: "Red 0";
+              }
+
+              Label #LobbyBlueValue {
+                Anchor: (Left: 6, Width: 154, Height: 24);
+                Style: @RealmPlayTeamBlueStyle;
+                Text: "Blue 0";
+              }
+
+              Label #LobbyYellowValue {
+                Anchor: (Left: 6, Width: 154, Height: 24);
+                Style: @RealmPlayTeamYellowStyle;
+                Text: "Yellow 0";
+              }
+
+              Label #LobbyWhiteValue {
+                Anchor: (Left: 6, Width: 154, Height: 24);
+                Style: @RealmPlayTeamWhiteStyle;
+                Text: "White 0";
+              }
+            }
+          }
+        }
+
+        Group #SummaryRow4 {
+          Anchor: (Top: 6, Width: 840, Height: 36);
+          LayoutMode: Center;
+          Background: (TexturePath: "../../Hud/RealmRulerTheme/RealmMainSummaryRow.png", Border: 8);
+
+          Group #SummaryRow4Lane {
+            Anchor: (Width: 788, Height: 24);
+            LayoutMode: Left;
+
+            Label #ActiveCountsLabel {
+              Anchor: (Width: 126, Height: 24);
+              Style: @RealmPlaySummaryLabelStyle;
+              Text: "Active Teams";
+            }
+
+            Group #ActiveCountsColumns {
+              Anchor: (Left: 18, Width: 644, Height: 24);
+              LayoutMode: Left;
+
+              Label #ActiveRedValue {
+                Anchor: (Width: 154, Height: 24);
+                Style: @RealmPlayTeamRedStyle;
+                Text: "Red 0";
+              }
+
+              Label #ActiveBlueValue {
+                Anchor: (Left: 6, Width: 154, Height: 24);
+                Style: @RealmPlayTeamBlueStyle;
+                Text: "Blue 0";
+              }
+
+              Label #ActiveYellowValue {
+                Anchor: (Left: 6, Width: 154, Height: 24);
+                Style: @RealmPlayTeamYellowStyle;
+                Text: "Yellow 0";
+              }
+
+              Label #ActiveWhiteValue {
+                Anchor: (Left: 6, Width: 154, Height: 24);
+                Style: @RealmPlayTeamWhiteStyle;
+                Text: "White 0";
+              }
+            }
+          }
+        }
+      }
+
+      Group #JoinCard {
+        Anchor: (Top: 20, Width: 876, Height: 286);
+        LayoutMode: Top;
+        Padding: (Horizontal: 18, Vertical: 18);
+        Background: (TexturePath: "../../Hud/RealmRulerTheme/RealmCardAction.png", Border: 18);
+
+        Group #JoinPlaque {
+          Anchor: (Width: 220, Height: 34);
+          LayoutMode: Center;
+          Background: (TexturePath: "../../Hud/RealmRulerTheme/RealmMiniPlaque.png", Border: 12);
+
+          Label #JoinTitle {
+            Anchor: (Width: 160, Height: 22);
+            Style: (FontSize: 16, Alignment: Center);
+            Text: "Lobby Actions";
+          }
+        }
+
+        Label #JoinText {
+          Anchor: (Top: 12, Width: 640, Height: 20);
+          Style: (FontSize: 15, Alignment: Center, TextColor: #dce7f0(0.9));
+          Text: "Choose your next assignment, or leave the lobby before the round begins.";
+        }
+
+        Group #JoinWarningCard {
+          Anchor: (Top: 14, Width: 840, Height: 38);
+          LayoutMode: Center;
+          Background: (TexturePath: "../../Hud/RealmRulerTheme/RealmWarningRibbon.png", Border: 16);
+          Visible: false;
+
+          Label #JoinWarningLabel {
+            Anchor: (Width: 748, Height: 20);
+            Style: (FontSize: 14, Alignment: Center);
+            Text: "";
+            Visible: false;
+          }
+        }
+
+        Group #JoinWarningActiveCard {
+          Anchor: (Top: 14, Width: 840, Height: 38);
+          LayoutMode: Center;
+          Background: (TexturePath: "../../Hud/RealmRulerTheme/RealmWarningRibbonActive.png", Border: 16);
+          Visible: false;
+
+          Label #JoinWarningActiveLabel {
+            Anchor: (Width: 748, Height: 20);
+            Style: (FontSize: 15, Alignment: Center, TextColor: #fff2d6);
+            Text: "";
+            Visible: false;
+          }
+        }
+
+        Group #JoinButtonsRow {
+          Anchor: (Top: 18, Width: 840, Height: 52);
+          LayoutMode: Left;
+
+          Group #JoinRandomAction {
+            Anchor: (Width: 160, Height: 52);
+            LayoutMode: Center;
+
+            TextButton #JoinRandomButton {
+              Anchor: (Width: 160, Height: 52);
+              Padding: (Horizontal: 18, Bottom: 1);
+              Text: "Random";
+              Style: @RealmPlayRandomButtonStyle;
+            }
+          }
+
+          Group #JoinRedAction {
+            Anchor: (Left: 10, Width: 160, Height: 52);
+            LayoutMode: Center;
+
+            TextButton #JoinRedButton {
+              Anchor: (Width: 160, Height: 52);
+              Padding: (Horizontal: 18, Bottom: 1);
+              Text: "Red";
+              Style: @RealmPlayRedButtonStyle;
+            }
+          }
+
+          Group #JoinBlueAction {
+            Anchor: (Left: 10, Width: 160, Height: 52);
+            LayoutMode: Center;
+
+            TextButton #JoinBlueButton {
+              Anchor: (Width: 160, Height: 52);
+              Padding: (Horizontal: 18, Bottom: 1);
+              Text: "Blue";
+              Style: @RealmPlayBlueButtonStyle;
+            }
+          }
+
+          Group #JoinYellowAction {
+            Anchor: (Left: 10, Width: 160, Height: 52);
+            LayoutMode: Center;
+
+            TextButton #JoinYellowButton {
+              Anchor: (Width: 160, Height: 52);
+              Padding: (Horizontal: 18, Bottom: 1);
+              Text: "Yellow";
+              Style: @RealmPlayYellowButtonStyle;
+            }
+          }
+
+          Group #JoinWhiteAction {
+            Anchor: (Left: 10, Width: 160, Height: 52);
+            LayoutMode: Center;
+
+            TextButton #JoinWhiteButton {
+              Anchor: (Width: 160, Height: 52);
+              Padding: (Horizontal: 18, Bottom: 1);
+              Text: "White";
+              Style: @RealmPlayWhiteButtonStyle;
+            }
+          }
+        }
+
+        Group #UtilityRow {
+          Anchor: (Top: 18, Width: 840, Height: 50);
+          LayoutMode: Left;
+
+          Group #UtilitySpacer {
+            Anchor: (Width: 144, Height: 50);
+          }
+
+          Group #LeaveAction {
+            Anchor: (Left: 10, Width: 240, Height: 50);
+            LayoutMode: Center;
+
+            TextButton #LeaveButton {
+              Anchor: (Width: 240, Height: 50);
+              Padding: (Horizontal: 20, Bottom: 1);
+              Text: "Leave Lobby";
+              Style: @RealmPlayDangerButtonStyle;
+            }
+          }
+
+          Group #ShopAction {
+            Anchor: (Left: 16, Width: 240, Height: 50);
+            LayoutMode: Center;
+
+            TextButton #ShopButton {
+              Anchor: (Width: 240, Height: 50);
+              Padding: (Horizontal: 20, Bottom: 1);
+              Text: "Open Shop";
+              Style: @RealmPlayGoldButtonStyle;
+            }
+          }
+        }
+
+        Label #FooterHint {
+          Anchor: (Top: 18, Height: 18);
+          Style: (FontSize: 13, Alignment: Center, TextColor: #d2dde7(0.82));
+          Text: "Leave Lobby only clears pre-match slots.";
+        }
+      }
+
+      Group #PageFooter {
+        Anchor: (Top: 18, Width: 876, Height: 34);
+        LayoutMode: Center;
+        Background: (TexturePath: "../../Hud/RealmRulerTheme/RealmFooterBar.png", Border: 12);
+
+        Label #CloseHint {
+          Anchor: (Width: 188, Height: 20);
+          Style: (FontSize: 13, Alignment: Center, TextColor: #cfd9e2(0.88));
+          Text: "Press Esc to close";
+        }
+      }
+    }
+  }
+}

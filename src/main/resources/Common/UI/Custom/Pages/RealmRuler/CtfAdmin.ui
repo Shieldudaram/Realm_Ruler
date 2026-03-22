@@ -1,0 +1,307 @@
+@RealmAdminButtonLabelStyle = LabelStyle(
+  FontSize: 15,
+  TextColor: #dbe7f0,
+  RenderBold: true,
+  HorizontalAlignment: Center,
+  VerticalAlignment: Center,
+  ShrinkTextToFit: true,
+  MinShrinkTextToFitFontSize: 11,
+  LetterSpacing: 1
+);
+
+@RealmAdminButtonHoveredLabelStyle = LabelStyle(
+  ...@RealmAdminButtonLabelStyle,
+  TextColor: #f3fbff
+);
+
+@RealmAdminButtonPressedLabelStyle = LabelStyle(
+  ...@RealmAdminButtonLabelStyle,
+  TextColor: #c9d5de
+);
+
+@RealmAdminButtonDisabledLabelStyle = LabelStyle(
+  ...@RealmAdminButtonLabelStyle,
+  TextColor: #9ea9b3
+);
+
+@RealmAdminHomeButtonLabelStyle = LabelStyle(
+  ...@RealmAdminButtonLabelStyle,
+  FontSize: 14,
+  MinShrinkTextToFitFontSize: 10
+);
+
+@RealmAdminHomeButtonHoveredLabelStyle = LabelStyle(
+  ...@RealmAdminHomeButtonLabelStyle,
+  TextColor: #f3fbff
+);
+
+@RealmAdminHomeButtonPressedLabelStyle = LabelStyle(
+  ...@RealmAdminHomeButtonLabelStyle,
+  TextColor: #c9d5de
+);
+
+@RealmAdminHomeButtonDisabledLabelStyle = LabelStyle(
+  ...@RealmAdminHomeButtonLabelStyle,
+  TextColor: #9ea9b3
+);
+
+@RealmAdminHomeButtonStyle = TextButtonStyle(
+  Default: (Background: (TexturePath: "../../Hud/RealmRulerTheme/RealmButtonSubtle.png", Border: 12), LabelStyle: @RealmAdminHomeButtonLabelStyle),
+  Hovered: (Background: (TexturePath: "../../Hud/RealmRulerTheme/RealmButtonSubtle_Hovered.png", Border: 12), LabelStyle: @RealmAdminHomeButtonHoveredLabelStyle),
+  Pressed: (Background: (TexturePath: "../../Hud/RealmRulerTheme/RealmButtonSubtle_Pressed.png", Border: 12), LabelStyle: @RealmAdminHomeButtonPressedLabelStyle),
+  Disabled: (Background: (TexturePath: "../../Hud/RealmRulerTheme/RealmButtonSubtle.png", Border: 12, Color: #ffffff(0.58)), LabelStyle: @RealmAdminHomeButtonDisabledLabelStyle)
+);
+
+@RealmAdminGoldButtonStyle = TextButtonStyle(
+  Default: (Background: (TexturePath: "../../Hud/RealmRulerTheme/RealmButton.png", Border: 12), LabelStyle: @RealmAdminButtonLabelStyle),
+  Hovered: (Background: (TexturePath: "../../Hud/RealmRulerTheme/RealmButton_Hovered.png", Border: 12), LabelStyle: @RealmAdminButtonHoveredLabelStyle),
+  Pressed: (Background: (TexturePath: "../../Hud/RealmRulerTheme/RealmButton_Pressed.png", Border: 12), LabelStyle: @RealmAdminButtonPressedLabelStyle),
+  Disabled: (Background: (TexturePath: "../../Hud/RealmRulerTheme/RealmButton.png", Border: 12, Color: #ffffff(0.58)), LabelStyle: @RealmAdminButtonDisabledLabelStyle)
+);
+
+@RealmAdminBlueButtonStyle = TextButtonStyle(
+  Default: (Background: (TexturePath: "../../Hud/RealmRulerTheme/RealmButtonBlue.png", Border: 12), LabelStyle: @RealmAdminButtonLabelStyle),
+  Hovered: (Background: (TexturePath: "../../Hud/RealmRulerTheme/RealmButtonBlue_Hovered.png", Border: 12), LabelStyle: @RealmAdminButtonHoveredLabelStyle),
+  Pressed: (Background: (TexturePath: "../../Hud/RealmRulerTheme/RealmButtonBlue_Pressed.png", Border: 12), LabelStyle: @RealmAdminButtonPressedLabelStyle),
+  Disabled: (Background: (TexturePath: "../../Hud/RealmRulerTheme/RealmButtonBlue.png", Border: 12, Color: #ffffff(0.58)), LabelStyle: @RealmAdminButtonDisabledLabelStyle)
+);
+
+@RealmAdminDangerButtonStyle = TextButtonStyle(
+  Default: (Background: (TexturePath: "../../Hud/RealmRulerTheme/RealmButtonDanger.png", Border: 12), LabelStyle: @RealmAdminButtonLabelStyle),
+  Hovered: (Background: (TexturePath: "../../Hud/RealmRulerTheme/RealmButtonDanger_Hovered.png", Border: 12), LabelStyle: @RealmAdminButtonHoveredLabelStyle),
+  Pressed: (Background: (TexturePath: "../../Hud/RealmRulerTheme/RealmButtonDanger_Pressed.png", Border: 12), LabelStyle: @RealmAdminButtonPressedLabelStyle),
+  Disabled: (Background: (TexturePath: "../../Hud/RealmRulerTheme/RealmButtonDanger.png", Border: 12, Color: #ffffff(0.58)), LabelStyle: @RealmAdminButtonDisabledLabelStyle)
+);
+
+Group #RealmRulerCtfAdminPage {
+  Anchor: (Top: 0, Bottom: 0, Left: 0, Right: 0);
+  LayoutMode: Center;
+
+  Group #Backdrop {
+    Anchor: (Top: 0, Bottom: 0, Left: 0, Right: 0);
+    Background: #02050b(0.74);
+  }
+
+  Group #Window {
+    Anchor: (Width: 956, Height: 676);
+    LayoutMode: Center;
+    Padding: (Horizontal: 14, Vertical: 14);
+    Background: (TexturePath: "../../Hud/RealmRulerTheme/RealmFrame.png", Border: 24);
+
+    Group #Panel {
+      Anchor: (Width: 928, Height: 648);
+      LayoutMode: Top;
+      Padding: (Horizontal: 20, Vertical: 20);
+      Background: (TexturePath: "../../Hud/RealmRulerTheme/RealmInset.png", Border: 18);
+
+      Group #HeaderBand {
+        Anchor: (Width: 888, Height: 152);
+        LayoutMode: Top;
+        Padding: (Horizontal: 18, Vertical: 14);
+        Background: (TexturePath: "../../Hud/RealmRulerTheme/RealmInset.png", Border: 16);
+
+        Group #HeaderTopRow {
+          Anchor: (Width: 852, Height: 40);
+          LayoutMode: Left;
+
+          Group #HomeAction {
+            Anchor: (Width: 138, Height: 34);
+            LayoutMode: Center;
+
+            TextButton #HomeButton {
+              Anchor: (Width: 138, Height: 34);
+              Padding: (Horizontal: 16, Bottom: 1);
+              Text: "Home";
+              Style: @RealmAdminHomeButtonStyle;
+            }
+          }
+
+          Group #HeaderTopSpacer {
+            Anchor: (Left: 10, Width: 546, Height: 40);
+          }
+
+        }
+
+        Group #HeaderPlaque {
+          Anchor: (Top: 16, Width: 664, Height: 60);
+          LayoutMode: Top;
+          Background: (TexturePath: "../../Hud/RealmRulerTheme/RealmTitlePlaque.png", Border: 18);
+
+          Group #TitleLane {
+            Anchor: (Top: 5, Width: 540, Height: 36);
+            LayoutMode: Top;
+
+            Group #TitleTextBand {
+              Anchor: (Top: 2, Width: 520, Height: 32);
+              LayoutMode: Center;
+
+              Label #TitleLabel {
+                Anchor: (Width: 520, Height: 32);
+                Style: (FontSize: 30, Alignment: Center);
+                Text: "Admin Tools";
+              }
+            }
+          }
+        }
+
+        Group #SubtitleRow {
+          Anchor: (Top: 12, Width: 560, Height: 22);
+          LayoutMode: Center;
+
+          Group #SubtitleLane {
+            Anchor: (Width: 560, Height: 18);
+            LayoutMode: Top;
+
+            Group #SubtitleTextBand {
+              Anchor: (Top: 1, Width: 548, Height: 16);
+              LayoutMode: Center;
+
+              Label #SubtitleLabel {
+                Anchor: (Width: 548, Height: 16);
+                Style: (FontSize: 15, Alignment: Center, TextColor: #e0ebf4(0.94));
+                Text: "Staff setup, validation, and recovery tools.";
+              }
+            }
+          }
+        }
+      }
+
+      Group #StatusBanner {
+        Anchor: (Top: 14, Width: 888, Height: 40);
+        LayoutMode: Center;
+        Background: (TexturePath: "../../Hud/RealmRulerTheme/RealmStatusRibbon.png", Border: 14);
+
+        Label #StatusLabel {
+          Anchor: (Width: 804, Height: 22);
+          Style: (FontSize: 15, Alignment: Center);
+          Text: "";
+        }
+      }
+
+      Group #AdminRow {
+        Anchor: (Top: 18, Width: 888, Height: 304);
+        LayoutMode: Left;
+
+        Group #RegionCard {
+          Anchor: (Width: 285, Height: 304);
+          LayoutMode: Top;
+          Padding: (Horizontal: 20, Vertical: 18);
+          Background: (TexturePath: "../../Hud/RealmRulerTheme/RealmCardAction.png", Border: 18);
+
+          Group #RegionIcon {
+            Anchor: (Width: 52, Height: 52);
+            Background: (TexturePath: "../../Hud/RealmRulerTheme/RealmCrestRegion.png");
+          }
+
+          Label #RegionTitle {
+            Anchor: (Top: 10, Height: 24);
+            Style: (FontSize: 19, Alignment: Center);
+            Text: "Region";
+          }
+
+          Label #RegionText {
+            Anchor: (Top: 12, Width: 242, Height: 72);
+            Style: (FontSize: 14, Alignment: Start, VerticalAlignment: Start);
+            Text: "Capture arena bounds, refresh corners, and repair broken edges.";
+          }
+
+          Group #RegionActionRow {
+            Anchor: (Top: 20, Width: 245, Height: 46);
+            LayoutMode: Center;
+
+            TextButton #RegionButton {
+              Anchor: (Width: 249, Height: 46);
+              Padding: (Horizontal: 20, Bottom: 1);
+              Text: "Open Region";
+              Style: @RealmAdminBlueButtonStyle;
+            }
+          }
+        }
+
+        Group #StandsCard {
+          Anchor: (Left: 16, Width: 285, Height: 304);
+          LayoutMode: Top;
+          Padding: (Horizontal: 20, Vertical: 18);
+          Background: (TexturePath: "../../Hud/RealmRulerTheme/RealmCardInfo.png", Border: 18);
+
+          Group #StandsIcon {
+            Anchor: (Width: 52, Height: 52);
+            Background: (TexturePath: "../../Hud/RealmRulerTheme/RealmCrestStands.png");
+          }
+
+          Label #StandsTitle {
+            Anchor: (Top: 10, Height: 24);
+            Style: (FontSize: 19, Alignment: Center);
+            Text: "Stands";
+          }
+
+          Label #StandsText {
+            Anchor: (Top: 12, Width: 242, Height: 72);
+            Style: (FontSize: 14, Alignment: Start, VerticalAlignment: Start);
+            Text: "Review stand spots, replace bad entries, and set a reliable primary.";
+          }
+
+          Group #StandsActionRow {
+            Anchor: (Top: 20, Width: 245, Height: 46);
+            LayoutMode: Center;
+
+            TextButton #StandsButton {
+              Anchor: (Width: 249, Height: 46);
+              Padding: (Horizontal: 20, Bottom: 1);
+              Text: "Open Stands";
+              Style: @RealmAdminGoldButtonStyle;
+            }
+          }
+        }
+
+        Group #BalloonsCard {
+          Anchor: (Left: 16, Width: 285, Height: 304);
+          LayoutMode: Top;
+          Padding: (Horizontal: 20, Vertical: 18);
+          Background: (TexturePath: "../../Hud/RealmRulerTheme/RealmCardAdmin.png", Border: 18);
+
+          Group #BalloonsIcon {
+            Anchor: (Width: 52, Height: 52);
+            Background: (TexturePath: "../../Hud/RealmRulerTheme/RealmCrestBalloons.png");
+          }
+
+          Label #BalloonsTitle {
+            Anchor: (Top: 10, Height: 24);
+            Style: (FontSize: 19, Alignment: Center);
+            Text: "Balloons";
+          }
+
+          Label #BalloonsText {
+            Anchor: (Top: 12, Width: 242, Height: 72);
+            Style: (FontSize: 14, Alignment: Start, VerticalAlignment: Start);
+            Text: "Inspect blockers, fallback health, cooldowns, and controlled spawn bursts.";
+          }
+
+          Group #BalloonsActionRow {
+            Anchor: (Top: 20, Width: 245, Height: 46);
+            LayoutMode: Center;
+
+            TextButton #BalloonsButton {
+              Anchor: (Width: 249, Height: 46);
+              Padding: (Horizontal: 20, Bottom: 1);
+              Text: "Open Balloons";
+              Style: @RealmAdminDangerButtonStyle;
+            }
+          }
+        }
+      }
+
+      Group #PageFooter {
+        Anchor: (Top: 16, Width: 888, Height: 36);
+        LayoutMode: Center;
+        Background: (TexturePath: "../../Hud/RealmRulerTheme/RealmFooterBar.png", Border: 12);
+
+        Label #CloseHint {
+          Anchor: (Width: 190, Height: 20);
+          Style: (FontSize: 13, Alignment: Center, TextColor: #cfd9e2(0.88));
+          Text: "Press Esc to close";
+        }
+      }
+    }
+  }
+}

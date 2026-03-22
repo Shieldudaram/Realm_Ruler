@@ -1,0 +1,538 @@
+@RealmBalloonsButtonLabelStyle = LabelStyle(
+  FontSize: 15,
+  TextColor: #dbe7f0,
+  RenderBold: true,
+  HorizontalAlignment: Center,
+  VerticalAlignment: Center,
+  ShrinkTextToFit: true,
+  MinShrinkTextToFitFontSize: 11,
+  LetterSpacing: 1
+);
+
+@RealmBalloonsButtonHoveredLabelStyle = LabelStyle(
+  ...@RealmBalloonsButtonLabelStyle,
+  TextColor: #f3fbff
+);
+
+@RealmBalloonsButtonPressedLabelStyle = LabelStyle(
+  ...@RealmBalloonsButtonLabelStyle,
+  TextColor: #c9d5de
+);
+
+@RealmBalloonsButtonDisabledLabelStyle = LabelStyle(
+  ...@RealmBalloonsButtonLabelStyle,
+  TextColor: #9ea9b3
+);
+
+@RealmBalloonsBackButtonLabelStyle = LabelStyle(
+  ...@RealmBalloonsButtonLabelStyle,
+  FontSize: 14,
+  MinShrinkTextToFitFontSize: 10
+);
+
+@RealmBalloonsBackButtonHoveredLabelStyle = LabelStyle(
+  ...@RealmBalloonsBackButtonLabelStyle,
+  TextColor: #f3fbff
+);
+
+@RealmBalloonsBackButtonPressedLabelStyle = LabelStyle(
+  ...@RealmBalloonsBackButtonLabelStyle,
+  TextColor: #c9d5de
+);
+
+@RealmBalloonsBackButtonDisabledLabelStyle = LabelStyle(
+  ...@RealmBalloonsBackButtonLabelStyle,
+  TextColor: #9ea9b3
+);
+
+@RealmBalloonsBackButtonStyle = TextButtonStyle(
+  Default: (Background: (TexturePath: "../../Hud/RealmRulerTheme/RealmButtonSubtle.png", Border: 12), LabelStyle: @RealmBalloonsBackButtonLabelStyle),
+  Hovered: (Background: (TexturePath: "../../Hud/RealmRulerTheme/RealmButtonSubtle_Hovered.png", Border: 12), LabelStyle: @RealmBalloonsBackButtonHoveredLabelStyle),
+  Pressed: (Background: (TexturePath: "../../Hud/RealmRulerTheme/RealmButtonSubtle_Pressed.png", Border: 12), LabelStyle: @RealmBalloonsBackButtonPressedLabelStyle),
+  Disabled: (Background: (TexturePath: "../../Hud/RealmRulerTheme/RealmButtonSubtle.png", Border: 12, Color: #ffffff(0.58)), LabelStyle: @RealmBalloonsBackButtonDisabledLabelStyle)
+);
+
+@RealmBalloonsDangerButtonStyle = TextButtonStyle(
+  Default: (Background: (TexturePath: "../../Hud/RealmRulerTheme/RealmButtonDanger.png", Border: 12), LabelStyle: @RealmBalloonsButtonLabelStyle),
+  Hovered: (Background: (TexturePath: "../../Hud/RealmRulerTheme/RealmButtonDanger_Hovered.png", Border: 12), LabelStyle: @RealmBalloonsButtonHoveredLabelStyle),
+  Pressed: (Background: (TexturePath: "../../Hud/RealmRulerTheme/RealmButtonDanger_Pressed.png", Border: 12), LabelStyle: @RealmBalloonsButtonPressedLabelStyle),
+  Disabled: (Background: (TexturePath: "../../Hud/RealmRulerTheme/RealmButtonDanger.png", Border: 12, Color: #ffffff(0.58)), LabelStyle: @RealmBalloonsButtonDisabledLabelStyle)
+);
+
+@RealmBalloonsSubtleButtonStyle = TextButtonStyle(
+  Default: (Background: (TexturePath: "../../Hud/RealmRulerTheme/RealmButtonSubtle.png", Border: 12), LabelStyle: @RealmBalloonsButtonLabelStyle),
+  Hovered: (Background: (TexturePath: "../../Hud/RealmRulerTheme/RealmButtonSubtle_Hovered.png", Border: 12), LabelStyle: @RealmBalloonsButtonHoveredLabelStyle),
+  Pressed: (Background: (TexturePath: "../../Hud/RealmRulerTheme/RealmButtonSubtle_Pressed.png", Border: 12), LabelStyle: @RealmBalloonsButtonPressedLabelStyle),
+  Disabled: (Background: (TexturePath: "../../Hud/RealmRulerTheme/RealmButtonSubtle.png", Border: 12, Color: #ffffff(0.58)), LabelStyle: @RealmBalloonsButtonDisabledLabelStyle)
+);
+
+@RealmBalloonsStepperButtonLabelStyle = LabelStyle(
+  FontSize: 28,
+  TextColor: #e7f2f8,
+  RenderBold: true,
+  HorizontalAlignment: Center,
+  VerticalAlignment: Center
+);
+
+@RealmBalloonsStepperHoveredLabelStyle = LabelStyle(
+  ...@RealmBalloonsStepperButtonLabelStyle,
+  TextColor: #ffffff
+);
+
+@RealmBalloonsStepperPressedLabelStyle = LabelStyle(
+  ...@RealmBalloonsStepperButtonLabelStyle,
+  TextColor: #d6dde4
+);
+
+@RealmBalloonsStepperButtonStyle = TextButtonStyle(
+  Default: (Background: (TexturePath: "../../Hud/RealmRulerTheme/RealmButtonSubtle.png", Border: 12), LabelStyle: @RealmBalloonsStepperButtonLabelStyle),
+  Hovered: (Background: (TexturePath: "../../Hud/RealmRulerTheme/RealmButtonSubtle_Hovered.png", Border: 12), LabelStyle: @RealmBalloonsStepperHoveredLabelStyle),
+  Pressed: (Background: (TexturePath: "../../Hud/RealmRulerTheme/RealmButtonSubtle_Pressed.png", Border: 12), LabelStyle: @RealmBalloonsStepperPressedLabelStyle),
+  Disabled: (Background: (TexturePath: "../../Hud/RealmRulerTheme/RealmButtonSubtle.png", Border: 12, Color: #ffffff(0.58)), LabelStyle: @RealmBalloonsStepperPressedLabelStyle)
+);
+
+Group #RealmRulerCtfBalloonsPage {
+  Anchor: (Top: 0, Bottom: 0, Left: 0, Right: 0);
+  LayoutMode: Center;
+
+  Group #Backdrop {
+    Anchor: (Top: 0, Bottom: 0, Left: 0, Right: 0);
+    Background: #02050b(0.74);
+  }
+
+  Group #Window {
+    Anchor: (Width: 948, Height: 838);
+    LayoutMode: Center;
+    Padding: (Horizontal: 14, Vertical: 14);
+    Background: (TexturePath: "../../Hud/RealmRulerTheme/RealmFrame.png", Border: 24);
+
+    Group #Panel {
+      Anchor: (Width: 920, Height: 810);
+      LayoutMode: Top;
+      Padding: (Horizontal: 20, Vertical: 20);
+      Background: (TexturePath: "../../Hud/RealmRulerTheme/RealmInset.png", Border: 18);
+
+      Group #HeaderBand {
+        Anchor: (Width: 880, Height: 152);
+        LayoutMode: Top;
+        Padding: (Horizontal: 18, Vertical: 14);
+        Background: (TexturePath: "../../Hud/RealmRulerTheme/RealmInset.png", Border: 16);
+
+        Group #HeaderTopRow {
+          Anchor: (Width: 844, Height: 40);
+          LayoutMode: Left;
+
+          Group #BackAction {
+            Anchor: (Width: 138, Height: 34);
+            LayoutMode: Center;
+
+            TextButton #BackButton {
+              Anchor: (Width: 138, Height: 34);
+              Padding: (Horizontal: 16, Bottom: 1);
+              Text: "Back";
+              Style: @RealmBalloonsBackButtonStyle;
+            }
+          }
+
+          Group #HeaderTopSpacer {
+            Anchor: (Left: 10, Width: 540, Height: 40);
+          }
+
+        }
+
+        Group #HeaderPlaque {
+          Anchor: (Top: 16, Width: 760, Height: 60);
+          LayoutMode: Top;
+          Background: (TexturePath: "../../Hud/RealmRulerTheme/RealmTitlePlaque.png", Border: 18);
+
+          Group #TitleLane {
+            Anchor: (Top: 5, Width: 620, Height: 36);
+            LayoutMode: Top;
+
+            Group #TitleTextBand {
+              Anchor: (Top: 2, Width: 600, Height: 32);
+              LayoutMode: Center;
+
+              Label #TitleLabel {
+                Anchor: (Width: 600, Height: 32);
+                Style: (FontSize: 30, Alignment: Center);
+                Text: "Balloon Control";
+              }
+            }
+          }
+        }
+
+        Group #SubtitleRow {
+          Anchor: (Top: 12, Width: 700, Height: 22);
+          LayoutMode: Center;
+
+          Group #SubtitleLane {
+            Anchor: (Width: 700, Height: 18);
+            LayoutMode: Top;
+
+            Group #SubtitleTextBand {
+              Anchor: (Top: 1, Width: 688, Height: 16);
+              LayoutMode: Center;
+
+              Label #SubtitleLabel {
+                Anchor: (Width: 688, Height: 16);
+                Style: (FontSize: 15, Alignment: Center, TextColor: #e0ebf4(0.94));
+                Text: "Inspect blockers, fallback health, and trigger controlled balloon bursts.";
+              }
+            }
+          }
+        }
+      }
+
+      Group #StatusBanner {
+        Anchor: (Top: 14, Width: 880, Height: 40);
+        LayoutMode: Center;
+        Background: (TexturePath: "../../Hud/RealmRulerTheme/RealmStatusRibbon.png", Border: 14);
+
+        Label #StatusLabel {
+          Anchor: (Width: 800, Height: 22);
+          Style: (FontSize: 15, Alignment: Center);
+          Text: "";
+        }
+      }
+
+      Group #SpawnCard {
+        Anchor: (Top: 18, Width: 880, Height: 162);
+        LayoutMode: Top;
+        Padding: (Horizontal: 18, Vertical: 18);
+        Background: (TexturePath: "../../Hud/RealmRulerTheme/RealmCardAction.png", Border: 18);
+
+        Group #SpawnPlaque {
+          Anchor: (Width: 220, Height: 34);
+          LayoutMode: Center;
+          Background: (TexturePath: "../../Hud/RealmRulerTheme/RealmMiniPlaque.png", Border: 12);
+
+          Label #SpawnTitle {
+            Anchor: (Width: 164, Height: 22);
+            Style: (FontSize: 16, Alignment: Center);
+            Text: "Spawn Controls";
+          }
+        }
+
+        Label #SpawnText {
+          Anchor: (Top: 12, Width: 652, Height: 20);
+          Style: (FontSize: 15, Alignment: Center, TextColor: #dce7f0(0.9));
+          Text: "Tune the burst size, then trigger a controlled spawn when the system is healthy.";
+        }
+
+        Group #SpawnRow {
+          Anchor: (Top: 18, Width: 844, Height: 52);
+          LayoutMode: Left;
+
+          Group #CountMinusAction {
+            Anchor: (Width: 112, Height: 52);
+            LayoutMode: Center;
+
+            TextButton #CountMinusButton {
+              Anchor: (Width: 112, Height: 52);
+              Padding: (Horizontal: 12, Bottom: 2);
+              Text: "-";
+              Style: @RealmBalloonsStepperButtonStyle;
+            }
+          }
+
+          Group #CountMedallion {
+            Anchor: (Left: 14, Width: 144, Height: 52);
+            LayoutMode: Center;
+            Background: (TexturePath: "../../Hud/RealmRulerTheme/RealmPointsBadge.png", Border: 18);
+
+            Label #SpawnCountValue {
+              Anchor: (Width: 84, Height: 28);
+              Style: (FontSize: 20, Alignment: Center);
+              Text: "1";
+            }
+          }
+
+          Group #CountPlusAction {
+            Anchor: (Left: 14, Width: 112, Height: 52);
+            LayoutMode: Center;
+
+            TextButton #CountPlusButton {
+              Anchor: (Width: 112, Height: 52);
+              Padding: (Horizontal: 12, Bottom: 2);
+              Text: "+";
+              Style: @RealmBalloonsStepperButtonStyle;
+            }
+          }
+
+          Label #SpawnCountLabel {
+            Anchor: (Left: 18, Width: 120, Height: 52);
+            Style: (FontSize: 16, Alignment: Center, TextColor: #dce7f0(0.9));
+            Text: "Spawn Count";
+          }
+
+          Group #SpawnNowAction {
+            Anchor: (Left: 16, Width: 252, Height: 52);
+            LayoutMode: Center;
+
+            TextButton #SpawnButton {
+              Anchor: (Width: 252, Height: 52);
+              Padding: (Horizontal: 20, Bottom: 1);
+              Text: "Spawn Now";
+              Style: @RealmBalloonsDangerButtonStyle;
+            }
+          }
+        }
+      }
+
+      Group #AlertRow {
+        Anchor: (Top: 18, Width: 880, Height: 112);
+        LayoutMode: Left;
+
+        Group #BlockingCard {
+          Anchor: (Width: 432, Height: 112);
+          LayoutMode: Top;
+          Padding: (Horizontal: 18, Vertical: 16);
+          Background: (TexturePath: "../../Hud/RealmRulerTheme/RealmWarningRibbon.png", Border: 16);
+
+          Label #BlockingReasonLabel {
+            Anchor: (Height: 20);
+            Style: (FontSize: 15, Alignment: Center);
+            Text: "Blocking Reason";
+          }
+
+          Label #BlockingReasonValue {
+            Anchor: (Top: 10, Height: 44);
+            Style: (FontSize: 15, Alignment: Center);
+            Text: "<none>";
+          }
+        }
+
+        Group #LastErrorCard {
+          Anchor: (Left: 16, Width: 432, Height: 112);
+          LayoutMode: Top;
+          Padding: (Horizontal: 18, Vertical: 16);
+          Background: (TexturePath: "../../Hud/RealmRulerTheme/RealmCardAdmin.png", Border: 18);
+
+          Label #LastErrorLabel {
+            Anchor: (Height: 20);
+            Style: (FontSize: 15, Alignment: Center);
+            Text: "Last Error";
+          }
+
+          Label #LastErrorValue {
+            Anchor: (Top: 10, Height: 44);
+            Style: (FontSize: 15, Alignment: Center);
+            Text: "<none>";
+          }
+        }
+      }
+
+      Group #StatusCard {
+        Anchor: (Top: 18, Width: 880, Height: 314);
+        LayoutMode: Top;
+        Padding: (Horizontal: 18, Vertical: 16);
+        Background: (TexturePath: "../../Hud/RealmRulerTheme/RealmCardInfo.png", Border: 18);
+
+        Group #StatusPlaque {
+          Anchor: (Width: 220, Height: 34);
+          LayoutMode: Center;
+          Background: (TexturePath: "../../Hud/RealmRulerTheme/RealmMiniPlaque.png", Border: 12);
+
+          Label #StatusTitle {
+            Anchor: (Width: 158, Height: 22);
+            Style: (FontSize: 16, Alignment: Center);
+            Text: "Runtime Status";
+          }
+        }
+
+        Group #Row1 {
+          Anchor: (Top: 12, Width: 844, Height: 38);
+          LayoutMode: Left;
+          Background: (TexturePath: "../../Hud/RealmRulerTheme/RealmRow.png", Border: 8);
+
+          Label #MatchRunningLabel {
+            Anchor: (Width: 180, Height: 38);
+            Style: (FontSize: 16, Alignment: Start);
+            Text: "Match Running";
+          }
+
+          Label #MatchRunningValue {
+            Anchor: (Left: 10, Width: 160, Height: 38);
+            Style: (FontSize: 16, Alignment: Start);
+            Text: "<unknown>";
+          }
+
+          Label #RegionConfiguredLabel {
+            Anchor: (Left: 16, Width: 180, Height: 38);
+            Style: (FontSize: 16, Alignment: Start);
+            Text: "Region Configured";
+          }
+
+          Label #RegionConfiguredValue {
+            Anchor: (Left: 10, Width: 160, Height: 38);
+            Style: (FontSize: 16, Alignment: Start);
+            Text: "<unknown>";
+          }
+        }
+
+        Group #Row2 {
+          Anchor: (Top: 10, Width: 844, Height: 38);
+          LayoutMode: Left;
+          Background: (TexturePath: "../../Hud/RealmRulerTheme/RealmRow.png", Border: 8);
+
+          Label #RegionReadyLabel {
+            Anchor: (Width: 180, Height: 38);
+            Style: (FontSize: 16, Alignment: Start);
+            Text: "Region Ready";
+          }
+
+          Label #RegionReadyValue {
+            Anchor: (Left: 10, Width: 160, Height: 38);
+            Style: (FontSize: 16, Alignment: Start);
+            Text: "<unknown>";
+          }
+
+          Label #RegionWorldLabel {
+            Anchor: (Left: 16, Width: 180, Height: 38);
+            Style: (FontSize: 16, Alignment: Start);
+            Text: "Region World";
+          }
+
+          Label #RegionWorldValue {
+            Anchor: (Left: 10, Width: 200, Height: 38);
+            Style: (FontSize: 16, Alignment: Start);
+            Text: "<unset>";
+          }
+        }
+
+        Group #Row3 {
+          Anchor: (Top: 10, Width: 844, Height: 38);
+          LayoutMode: Left;
+          Background: (TexturePath: "../../Hud/RealmRulerTheme/RealmRow.png", Border: 8);
+
+          Label #WorldResolvedLabel {
+            Anchor: (Width: 180, Height: 38);
+            Style: (FontSize: 16, Alignment: Start);
+            Text: "World Resolved";
+          }
+
+          Label #WorldResolvedValue {
+            Anchor: (Left: 10, Width: 160, Height: 38);
+            Style: (FontSize: 16, Alignment: Start);
+            Text: "<unknown>";
+          }
+
+          Label #ActiveLabel {
+            Anchor: (Left: 16, Width: 180, Height: 38);
+            Style: (FontSize: 16, Alignment: Start);
+            Text: "Active Balloons";
+          }
+
+          Label #ActiveValue {
+            Anchor: (Left: 10, Width: 200, Height: 38);
+            Style: (FontSize: 16, Alignment: Start);
+            Text: "0/0";
+          }
+        }
+
+        Group #Row4 {
+          Anchor: (Top: 10, Width: 844, Height: 38);
+          LayoutMode: Left;
+          Background: (TexturePath: "../../Hud/RealmRulerTheme/RealmRow.png", Border: 8);
+
+          Label #NextSpawnLabel {
+            Anchor: (Width: 180, Height: 38);
+            Style: (FontSize: 16, Alignment: Start);
+            Text: "Next Spawn";
+          }
+
+          Label #NextSpawnValue {
+            Anchor: (Left: 10, Width: 160, Height: 38);
+            Style: (FontSize: 16, Alignment: Start);
+            Text: "<none>";
+          }
+
+          Label #RoleReadyLabel {
+            Anchor: (Left: 16, Width: 180, Height: 38);
+            Style: (FontSize: 16, Alignment: Start);
+            Text: "Role Ready";
+          }
+
+          Label #RoleReadyValue {
+            Anchor: (Left: 10, Width: 200, Height: 38);
+            Style: (FontSize: 16, Alignment: Start);
+            Text: "<unknown>";
+          }
+        }
+
+        Group #Row5 {
+          Anchor: (Top: 10, Width: 844, Height: 38);
+          LayoutMode: Left;
+          Background: (TexturePath: "../../Hud/RealmRulerTheme/RealmRow.png", Border: 8);
+
+          Label #DirectApiLabel {
+            Anchor: (Width: 180, Height: 38);
+            Style: (FontSize: 16, Alignment: Start);
+            Text: "Direct API";
+          }
+
+          Label #DirectApiValue {
+            Anchor: (Left: 10, Width: 160, Height: 38);
+            Style: (FontSize: 16, Alignment: Start);
+            Text: "<unknown>";
+          }
+
+          Label #FallbackReadyLabel {
+            Anchor: (Left: 16, Width: 180, Height: 38);
+            Style: (FontSize: 16, Alignment: Start);
+            Text: "Fallback Ready";
+          }
+
+          Label #FallbackReadyValue {
+            Anchor: (Left: 10, Width: 200, Height: 38);
+            Style: (FontSize: 16, Alignment: Start);
+            Text: "<unknown>";
+          }
+        }
+
+        Group #Row6 {
+          Anchor: (Top: 10, Width: 844, Height: 38);
+          LayoutMode: Left;
+          Background: (TexturePath: "../../Hud/RealmRulerTheme/RealmRow.png", Border: 8);
+
+          Label #FallbackTemplateLabel {
+            Anchor: (Width: 180, Height: 38);
+            Style: (FontSize: 16, Alignment: Start);
+            Text: "Fallback Template";
+          }
+
+          Label #FallbackTemplateValue {
+            Anchor: (Left: 10, Width: 248, Height: 38);
+            Style: (FontSize: 16, Alignment: Start);
+            Text: "<unset>";
+          }
+
+          Label #FallbackCooldownLabel {
+            Anchor: (Left: 16, Width: 180, Height: 38);
+            Style: (FontSize: 16, Alignment: Start);
+            Text: "Fallback Cooldown";
+          }
+
+          Label #FallbackCooldownValue {
+            Anchor: (Left: 10, Width: 110, Height: 38);
+            Style: (FontSize: 16, Alignment: Start);
+            Text: "0s";
+          }
+        }
+      }
+
+      Group #PageFooter {
+        Anchor: (Top: 16, Width: 880, Height: 36);
+        LayoutMode: Center;
+        Background: (TexturePath: "../../Hud/RealmRulerTheme/RealmFooterBar.png", Border: 12);
+
+        Label #CloseHint {
+          Anchor: (Width: 190, Height: 20);
+          Style: (FontSize: 13, Alignment: Center, TextColor: #cfd9e2(0.88));
+          Text: "Press Esc to close";
+        }
+      }
+    }
+  }
+}

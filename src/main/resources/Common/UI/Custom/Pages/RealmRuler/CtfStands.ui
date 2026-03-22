@@ -1,0 +1,685 @@
+@RealmStandsButtonLabelStyle = LabelStyle(
+  FontSize: 15,
+  TextColor: #dbe7f0,
+  RenderBold: true,
+  HorizontalAlignment: Center,
+  VerticalAlignment: Center,
+  ShrinkTextToFit: true,
+  MinShrinkTextToFitFontSize: 11,
+  LetterSpacing: 1
+);
+
+@RealmStandsButtonHoveredLabelStyle = LabelStyle(
+  ...@RealmStandsButtonLabelStyle,
+  TextColor: #f3fbff
+);
+
+@RealmStandsButtonPressedLabelStyle = LabelStyle(
+  ...@RealmStandsButtonLabelStyle,
+  TextColor: #c9d5de
+);
+
+@RealmStandsButtonDisabledLabelStyle = LabelStyle(
+  ...@RealmStandsButtonLabelStyle,
+  TextColor: #9ea9b3
+);
+
+@RealmStandsBackButtonLabelStyle = LabelStyle(
+  ...@RealmStandsButtonLabelStyle,
+  FontSize: 14,
+  MinShrinkTextToFitFontSize: 10
+);
+
+@RealmStandsBackButtonHoveredLabelStyle = LabelStyle(
+  ...@RealmStandsBackButtonLabelStyle,
+  TextColor: #f3fbff
+);
+
+@RealmStandsBackButtonPressedLabelStyle = LabelStyle(
+  ...@RealmStandsBackButtonLabelStyle,
+  TextColor: #c9d5de
+);
+
+@RealmStandsBackButtonDisabledLabelStyle = LabelStyle(
+  ...@RealmStandsBackButtonLabelStyle,
+  TextColor: #9ea9b3
+);
+
+@RealmStandsCompactButtonLabelStyle = LabelStyle(
+  FontSize: 13,
+  TextColor: #dbe7f0,
+  RenderBold: true,
+  HorizontalAlignment: Center,
+  VerticalAlignment: Center,
+  ShrinkTextToFit: true,
+  MinShrinkTextToFitFontSize: 10,
+  LetterSpacing: 0
+);
+
+@RealmStandsCompactButtonHoveredLabelStyle = LabelStyle(
+  ...@RealmStandsCompactButtonLabelStyle,
+  TextColor: #f3fbff
+);
+
+@RealmStandsCompactButtonPressedLabelStyle = LabelStyle(
+  ...@RealmStandsCompactButtonLabelStyle,
+  TextColor: #c9d5de
+);
+
+@RealmStandsCompactButtonDisabledLabelStyle = LabelStyle(
+  ...@RealmStandsCompactButtonLabelStyle,
+  TextColor: #9ea9b3
+);
+
+@RealmStandsBackButtonStyle = TextButtonStyle(
+  Default: (Background: (TexturePath: "../../Hud/RealmRulerTheme/RealmButtonSubtle.png", Border: 12), LabelStyle: @RealmStandsBackButtonLabelStyle),
+  Hovered: (Background: (TexturePath: "../../Hud/RealmRulerTheme/RealmButtonSubtle_Hovered.png", Border: 12), LabelStyle: @RealmStandsBackButtonHoveredLabelStyle),
+  Pressed: (Background: (TexturePath: "../../Hud/RealmRulerTheme/RealmButtonSubtle_Pressed.png", Border: 12), LabelStyle: @RealmStandsBackButtonPressedLabelStyle),
+  Disabled: (Background: (TexturePath: "../../Hud/RealmRulerTheme/RealmButtonSubtle.png", Border: 12, Color: #ffffff(0.58)), LabelStyle: @RealmStandsBackButtonDisabledLabelStyle)
+);
+
+@RealmStandsGoldButtonStyle = TextButtonStyle(
+  Default: (Background: (TexturePath: "../../Hud/RealmRulerTheme/RealmButton.png", Border: 12), LabelStyle: @RealmStandsButtonLabelStyle),
+  Hovered: (Background: (TexturePath: "../../Hud/RealmRulerTheme/RealmButton_Hovered.png", Border: 12), LabelStyle: @RealmStandsButtonHoveredLabelStyle),
+  Pressed: (Background: (TexturePath: "../../Hud/RealmRulerTheme/RealmButton_Pressed.png", Border: 12), LabelStyle: @RealmStandsButtonPressedLabelStyle),
+  Disabled: (Background: (TexturePath: "../../Hud/RealmRulerTheme/RealmButton.png", Border: 12, Color: #ffffff(0.58)), LabelStyle: @RealmStandsButtonDisabledLabelStyle)
+);
+
+@RealmStandsDangerButtonStyle = TextButtonStyle(
+  Default: (Background: (TexturePath: "../../Hud/RealmRulerTheme/RealmButtonDanger.png", Border: 12), LabelStyle: @RealmStandsButtonLabelStyle),
+  Hovered: (Background: (TexturePath: "../../Hud/RealmRulerTheme/RealmButtonDanger_Hovered.png", Border: 12), LabelStyle: @RealmStandsButtonHoveredLabelStyle),
+  Pressed: (Background: (TexturePath: "../../Hud/RealmRulerTheme/RealmButtonDanger_Pressed.png", Border: 12), LabelStyle: @RealmStandsButtonPressedLabelStyle),
+  Disabled: (Background: (TexturePath: "../../Hud/RealmRulerTheme/RealmButtonDanger.png", Border: 12, Color: #ffffff(0.58)), LabelStyle: @RealmStandsButtonDisabledLabelStyle)
+);
+
+@RealmStandsSubtleButtonStyle = TextButtonStyle(
+  Default: (Background: (TexturePath: "../../Hud/RealmRulerTheme/RealmButtonSubtle.png", Border: 12), LabelStyle: @RealmStandsButtonLabelStyle),
+  Hovered: (Background: (TexturePath: "../../Hud/RealmRulerTheme/RealmButtonSubtle_Hovered.png", Border: 12), LabelStyle: @RealmStandsButtonHoveredLabelStyle),
+  Pressed: (Background: (TexturePath: "../../Hud/RealmRulerTheme/RealmButtonSubtle_Pressed.png", Border: 12), LabelStyle: @RealmStandsButtonPressedLabelStyle),
+  Disabled: (Background: (TexturePath: "../../Hud/RealmRulerTheme/RealmButtonSubtle.png", Border: 12, Color: #ffffff(0.58)), LabelStyle: @RealmStandsButtonDisabledLabelStyle)
+);
+
+@RealmStandsRedButtonStyle = TextButtonStyle(
+  Default: (Background: (TexturePath: "../../Hud/RealmRulerTheme/RealmButtonRed.png", Border: 12), LabelStyle: @RealmStandsButtonLabelStyle),
+  Hovered: (Background: (TexturePath: "../../Hud/RealmRulerTheme/RealmButtonRed_Hovered.png", Border: 12), LabelStyle: @RealmStandsButtonHoveredLabelStyle),
+  Pressed: (Background: (TexturePath: "../../Hud/RealmRulerTheme/RealmButtonRed_Pressed.png", Border: 12), LabelStyle: @RealmStandsButtonPressedLabelStyle),
+  Disabled: (Background: (TexturePath: "../../Hud/RealmRulerTheme/RealmButtonRed.png", Border: 12, Color: #ffffff(0.58)), LabelStyle: @RealmStandsButtonDisabledLabelStyle)
+);
+
+@RealmStandsBlueButtonStyle = TextButtonStyle(
+  Default: (Background: (TexturePath: "../../Hud/RealmRulerTheme/RealmButtonBlue.png", Border: 12), LabelStyle: @RealmStandsButtonLabelStyle),
+  Hovered: (Background: (TexturePath: "../../Hud/RealmRulerTheme/RealmButtonBlue_Hovered.png", Border: 12), LabelStyle: @RealmStandsButtonHoveredLabelStyle),
+  Pressed: (Background: (TexturePath: "../../Hud/RealmRulerTheme/RealmButtonBlue_Pressed.png", Border: 12), LabelStyle: @RealmStandsButtonPressedLabelStyle),
+  Disabled: (Background: (TexturePath: "../../Hud/RealmRulerTheme/RealmButtonBlue.png", Border: 12, Color: #ffffff(0.58)), LabelStyle: @RealmStandsButtonDisabledLabelStyle)
+);
+
+@RealmStandsYellowButtonStyle = TextButtonStyle(
+  Default: (Background: (TexturePath: "../../Hud/RealmRulerTheme/RealmButtonYellow.png", Border: 12), LabelStyle: @RealmStandsButtonLabelStyle),
+  Hovered: (Background: (TexturePath: "../../Hud/RealmRulerTheme/RealmButtonYellow_Hovered.png", Border: 12), LabelStyle: @RealmStandsButtonHoveredLabelStyle),
+  Pressed: (Background: (TexturePath: "../../Hud/RealmRulerTheme/RealmButtonYellow_Pressed.png", Border: 12), LabelStyle: @RealmStandsButtonPressedLabelStyle),
+  Disabled: (Background: (TexturePath: "../../Hud/RealmRulerTheme/RealmButtonYellow.png", Border: 12, Color: #ffffff(0.58)), LabelStyle: @RealmStandsButtonDisabledLabelStyle)
+);
+
+@RealmStandsWhiteButtonStyle = TextButtonStyle(
+  Default: (Background: (TexturePath: "../../Hud/RealmRulerTheme/RealmButtonWhite.png", Border: 12), LabelStyle: @RealmStandsButtonLabelStyle),
+  Hovered: (Background: (TexturePath: "../../Hud/RealmRulerTheme/RealmButtonWhite_Hovered.png", Border: 12), LabelStyle: @RealmStandsButtonHoveredLabelStyle),
+  Pressed: (Background: (TexturePath: "../../Hud/RealmRulerTheme/RealmButtonWhite_Pressed.png", Border: 12), LabelStyle: @RealmStandsButtonPressedLabelStyle),
+  Disabled: (Background: (TexturePath: "../../Hud/RealmRulerTheme/RealmButtonWhite.png", Border: 12, Color: #ffffff(0.58)), LabelStyle: @RealmStandsButtonDisabledLabelStyle)
+);
+
+@RealmStandsCompactSubtleButtonStyle = TextButtonStyle(
+  Default: (Background: (TexturePath: "../../Hud/RealmRulerTheme/RealmButtonSubtle.png", Border: 12), LabelStyle: @RealmStandsCompactButtonLabelStyle),
+  Hovered: (Background: (TexturePath: "../../Hud/RealmRulerTheme/RealmButtonSubtle_Hovered.png", Border: 12), LabelStyle: @RealmStandsCompactButtonHoveredLabelStyle),
+  Pressed: (Background: (TexturePath: "../../Hud/RealmRulerTheme/RealmButtonSubtle_Pressed.png", Border: 12), LabelStyle: @RealmStandsCompactButtonPressedLabelStyle),
+  Disabled: (Background: (TexturePath: "../../Hud/RealmRulerTheme/RealmButtonSubtle.png", Border: 12, Color: #ffffff(0.58)), LabelStyle: @RealmStandsCompactButtonDisabledLabelStyle)
+);
+
+@RealmStandsCompactGoldButtonStyle = TextButtonStyle(
+  Default: (Background: (TexturePath: "../../Hud/RealmRulerTheme/RealmButton.png", Border: 12), LabelStyle: @RealmStandsCompactButtonLabelStyle),
+  Hovered: (Background: (TexturePath: "../../Hud/RealmRulerTheme/RealmButton_Hovered.png", Border: 12), LabelStyle: @RealmStandsCompactButtonHoveredLabelStyle),
+  Pressed: (Background: (TexturePath: "../../Hud/RealmRulerTheme/RealmButton_Pressed.png", Border: 12), LabelStyle: @RealmStandsCompactButtonPressedLabelStyle),
+  Disabled: (Background: (TexturePath: "../../Hud/RealmRulerTheme/RealmButton.png", Border: 12, Color: #ffffff(0.58)), LabelStyle: @RealmStandsCompactButtonDisabledLabelStyle)
+);
+
+@RealmStandsCompactDangerButtonStyle = TextButtonStyle(
+  Default: (Background: (TexturePath: "../../Hud/RealmRulerTheme/RealmButtonDanger.png", Border: 12), LabelStyle: @RealmStandsCompactButtonLabelStyle),
+  Hovered: (Background: (TexturePath: "../../Hud/RealmRulerTheme/RealmButtonDanger_Hovered.png", Border: 12), LabelStyle: @RealmStandsCompactButtonHoveredLabelStyle),
+  Pressed: (Background: (TexturePath: "../../Hud/RealmRulerTheme/RealmButtonDanger_Pressed.png", Border: 12), LabelStyle: @RealmStandsCompactButtonPressedLabelStyle),
+  Disabled: (Background: (TexturePath: "../../Hud/RealmRulerTheme/RealmButtonDanger.png", Border: 12, Color: #ffffff(0.58)), LabelStyle: @RealmStandsCompactButtonDisabledLabelStyle)
+);
+
+Group #RealmRulerCtfStandsPage {
+  Anchor: (Top: 0, Bottom: 0, Left: 0, Right: 0);
+  LayoutMode: Center;
+
+  Group #Backdrop {
+    Anchor: (Top: 0, Bottom: 0, Left: 0, Right: 0);
+    Background: #02050b(0.74);
+  }
+
+  Group #Window {
+    Anchor: (Width: 948, Height: 830);
+    LayoutMode: Center;
+    Padding: (Horizontal: 14, Vertical: 14);
+    Background: (TexturePath: "../../Hud/RealmRulerTheme/RealmFrame.png", Border: 24);
+
+    Group #Panel {
+      Anchor: (Width: 920, Height: 802);
+      LayoutMode: Top;
+      Padding: (Horizontal: 20, Vertical: 20);
+      Background: (TexturePath: "../../Hud/RealmRulerTheme/RealmInset.png", Border: 18);
+
+      Group #HeaderBand {
+        Anchor: (Width: 880, Height: 152);
+        LayoutMode: Top;
+        Padding: (Horizontal: 18, Vertical: 14);
+        Background: (TexturePath: "../../Hud/RealmRulerTheme/RealmInset.png", Border: 16);
+
+        Group #HeaderTopRow {
+          Anchor: (Width: 844, Height: 40);
+          LayoutMode: Left;
+
+          Group #BackAction {
+            Anchor: (Width: 138, Height: 34);
+            LayoutMode: Center;
+
+            TextButton #BackButton {
+              Anchor: (Width: 138, Height: 34);
+              Padding: (Horizontal: 16, Bottom: 1);
+              Text: "Back";
+              Style: @RealmStandsBackButtonStyle;
+            }
+          }
+
+          Group #HeaderTopSpacer {
+            Anchor: (Left: 10, Width: 540, Height: 40);
+          }
+
+        }
+
+        Group #HeaderPlaque {
+          Anchor: (Top: 16, Width: 724, Height: 60);
+          LayoutMode: Top;
+          Background: (TexturePath: "../../Hud/RealmRulerTheme/RealmTitlePlaque.png", Border: 18);
+
+          Group #TitleLane {
+            Anchor: (Top: 5, Width: 586, Height: 36);
+            LayoutMode: Top;
+
+            Group #TitleTextBand {
+              Anchor: (Top: 2, Width: 566, Height: 32);
+              LayoutMode: Center;
+
+              Label #TitleLabel {
+                Anchor: (Width: 566, Height: 32);
+                Style: (FontSize: 30, Alignment: Center);
+                Text: "Stand Registry";
+              }
+            }
+          }
+        }
+
+        Group #SubtitleRow {
+          Anchor: (Top: 12, Width: 668, Height: 22);
+          LayoutMode: Center;
+
+          Group #SubtitleLane {
+            Anchor: (Width: 668, Height: 18);
+            LayoutMode: Top;
+
+            Group #SubtitleTextBand {
+              Anchor: (Top: 1, Width: 656, Height: 16);
+              LayoutMode: Center;
+
+              Label #SubtitleLabel {
+                Anchor: (Width: 656, Height: 16);
+                Style: (FontSize: 15, Alignment: Center, TextColor: #e0ebf4(0.94));
+                Text: "Review stand locations by team and keep actions inside one registry.";
+              }
+            }
+          }
+        }
+      }
+
+      Group #StatusBanner {
+        Anchor: (Top: 14, Width: 880, Height: 40);
+        LayoutMode: Center;
+        Background: (TexturePath: "../../Hud/RealmRulerTheme/RealmStatusRibbon.png", Border: 14);
+
+        Label #StatusLabel {
+          Anchor: (Width: 788, Height: 20);
+          Style: (FontSize: 15, Alignment: Center);
+          Text: "";
+        }
+      }
+
+      Group #TeamCard {
+        Anchor: (Top: 16, Width: 880, Height: 100);
+        LayoutMode: Top;
+        Padding: (Horizontal: 18, Vertical: 14);
+        Background: (TexturePath: "../../Hud/RealmRulerTheme/RealmCardAction.png", Border: 18);
+
+        Group #TeamPlaque {
+          Anchor: (Width: 170, Height: 30);
+          LayoutMode: Center;
+          Background: (TexturePath: "../../Hud/RealmRulerTheme/RealmMiniPlaque.png", Border: 12);
+
+          Label #TeamTitle {
+            Anchor: (Width: 104, Height: 20);
+            Style: (FontSize: 16, Alignment: Center);
+            Text: "Team";
+          }
+        }
+
+        Group #TeamRow {
+          Anchor: (Top: 14, Width: 844, Height: 44);
+          LayoutMode: Left;
+
+          Group #SelectedTeamPlate {
+            Anchor: (Width: 92, Height: 40);
+            LayoutMode: Center;
+            Background: (TexturePath: "../../Hud/RealmRulerTheme/RealmMiniPlaque.png", Border: 12);
+
+            Label #SelectedTeamValue {
+              Anchor: (Width: 54, Height: 18);
+              Style: (FontSize: 13, Alignment: Center, TextColor: #d4dfeb(0.86));
+              Text: "Team";
+            }
+          }
+
+          Group #TeamRedAction {
+            Anchor: (Left: 8, Width: 138, Height: 44);
+            LayoutMode: Center;
+
+            Group #TeamRedSelectedAccent {
+              Anchor: (Top: 36, Width: 96, Height: 4);
+              Background: #4fc5ff(0.98);
+              Visible: false;
+            }
+
+            TextButton #TeamRedButton {
+              Anchor: (Width: 138, Height: 44);
+              Padding: (Horizontal: 16, Bottom: 1);
+              Text: "Red";
+              Style: @RealmStandsRedButtonStyle;
+            }
+          }
+
+          Group #TeamBlueAction {
+            Anchor: (Left: 8, Width: 138, Height: 44);
+            LayoutMode: Center;
+
+            Group #TeamBlueSelectedAccent {
+              Anchor: (Top: 36, Width: 96, Height: 4);
+              Background: #4fc5ff(0.98);
+              Visible: false;
+            }
+
+            TextButton #TeamBlueButton {
+              Anchor: (Width: 138, Height: 44);
+              Padding: (Horizontal: 16, Bottom: 1);
+              Text: "Blue";
+              Style: @RealmStandsBlueButtonStyle;
+            }
+          }
+
+          Group #TeamYellowAction {
+            Anchor: (Left: 8, Width: 138, Height: 44);
+            LayoutMode: Center;
+
+            Group #TeamYellowSelectedAccent {
+              Anchor: (Top: 36, Width: 96, Height: 4);
+              Background: #4fc5ff(0.98);
+              Visible: false;
+            }
+
+            TextButton #TeamYellowButton {
+              Anchor: (Width: 138, Height: 44);
+              Padding: (Horizontal: 16, Bottom: 1);
+              Text: "Yellow";
+              Style: @RealmStandsYellowButtonStyle;
+            }
+          }
+
+          Group #TeamWhiteAction {
+            Anchor: (Left: 8, Width: 138, Height: 44);
+            LayoutMode: Center;
+
+            Group #TeamWhiteSelectedAccent {
+              Anchor: (Top: 36, Width: 96, Height: 4);
+              Background: #4fc5ff(0.98);
+              Visible: false;
+            }
+
+            TextButton #TeamWhiteButton {
+              Anchor: (Width: 138, Height: 44);
+              Padding: (Horizontal: 16, Bottom: 1);
+              Text: "White";
+              Style: @RealmStandsWhiteButtonStyle;
+            }
+          }
+        }
+      }
+
+      Group #ListCard {
+        Anchor: (Top: 18, Width: 880, Height: 456);
+        LayoutMode: Top;
+        Padding: (Horizontal: 18, Vertical: 16);
+        Background: (TexturePath: "../../Hud/RealmRulerTheme/RealmCardInfo.png", Border: 18);
+
+        Group #ListPlaque {
+          Anchor: (Width: 224, Height: 34);
+          LayoutMode: Center;
+          Background: (TexturePath: "../../Hud/RealmRulerTheme/RealmMiniPlaque.png", Border: 12);
+
+          Label #ListTitle {
+            Anchor: (Width: 166, Height: 22);
+            Style: (FontSize: 16, Alignment: Center);
+            Text: "Registered Stands";
+          }
+        }
+
+        Group #Row0 {
+          Anchor: (Top: 12, Width: 844, Height: 40);
+          LayoutMode: Left;
+          Background: (TexturePath: "../../Hud/RealmRulerTheme/RealmRow.png", Border: 8);
+
+          Group #Row0SelectedAccent {
+            Anchor: (Width: 12, Height: 40);
+            Background: #4fc5ff(0.98);
+            Visible: false;
+          }
+
+          Label #Row0Label {
+            Anchor: (Left: 14, Width: 608, Height: 40);
+            Style: (FontSize: 15, Alignment: Start);
+            Text: "Stand row";
+          }
+
+          Group #Row0Action {
+            Anchor: (Left: 12, Width: 210, Height: 40);
+            LayoutMode: Center;
+
+            TextButton #Row0Button {
+              Anchor: (Width: 210, Height: 40);
+              Padding: (Horizontal: 16, Bottom: 1);
+              Text: "Select";
+              Style: @RealmStandsCompactSubtleButtonStyle;
+            }
+          }
+        }
+
+        Group #Row1 {
+          Anchor: (Top: 8, Width: 844, Height: 40);
+          LayoutMode: Left;
+          Background: (TexturePath: "../../Hud/RealmRulerTheme/RealmRow.png", Border: 8);
+
+          Group #Row1SelectedAccent {
+            Anchor: (Width: 12, Height: 40);
+            Background: #4fc5ff(0.98);
+            Visible: false;
+          }
+
+          Label #Row1Label {
+            Anchor: (Left: 14, Width: 608, Height: 40);
+            Style: (FontSize: 15, Alignment: Start);
+            Text: "Stand row";
+          }
+
+          Group #Row1Action {
+            Anchor: (Left: 12, Width: 210, Height: 40);
+            LayoutMode: Center;
+
+            TextButton #Row1Button {
+              Anchor: (Width: 210, Height: 40);
+              Padding: (Horizontal: 16, Bottom: 1);
+              Text: "Select";
+              Style: @RealmStandsCompactSubtleButtonStyle;
+            }
+          }
+        }
+
+        Group #Row2 {
+          Anchor: (Top: 8, Width: 844, Height: 40);
+          LayoutMode: Left;
+          Background: (TexturePath: "../../Hud/RealmRulerTheme/RealmRow.png", Border: 8);
+
+          Group #Row2SelectedAccent {
+            Anchor: (Width: 12, Height: 40);
+            Background: #4fc5ff(0.98);
+            Visible: false;
+          }
+
+          Label #Row2Label {
+            Anchor: (Left: 14, Width: 608, Height: 40);
+            Style: (FontSize: 15, Alignment: Start);
+            Text: "Stand row";
+          }
+
+          Group #Row2Action {
+            Anchor: (Left: 12, Width: 210, Height: 40);
+            LayoutMode: Center;
+
+            TextButton #Row2Button {
+              Anchor: (Width: 210, Height: 40);
+              Padding: (Horizontal: 16, Bottom: 1);
+              Text: "Select";
+              Style: @RealmStandsCompactSubtleButtonStyle;
+            }
+          }
+        }
+
+        Group #Row3 {
+          Anchor: (Top: 8, Width: 844, Height: 40);
+          LayoutMode: Left;
+          Background: (TexturePath: "../../Hud/RealmRulerTheme/RealmRow.png", Border: 8);
+
+          Group #Row3SelectedAccent {
+            Anchor: (Width: 12, Height: 40);
+            Background: #4fc5ff(0.98);
+            Visible: false;
+          }
+
+          Label #Row3Label {
+            Anchor: (Left: 14, Width: 608, Height: 40);
+            Style: (FontSize: 15, Alignment: Start);
+            Text: "Stand row";
+          }
+
+          Group #Row3Action {
+            Anchor: (Left: 12, Width: 210, Height: 40);
+            LayoutMode: Center;
+
+            TextButton #Row3Button {
+              Anchor: (Width: 210, Height: 40);
+              Padding: (Horizontal: 16, Bottom: 1);
+              Text: "Select";
+              Style: @RealmStandsCompactSubtleButtonStyle;
+            }
+          }
+        }
+
+        Group #Row4 {
+          Anchor: (Top: 8, Width: 844, Height: 40);
+          LayoutMode: Left;
+          Background: (TexturePath: "../../Hud/RealmRulerTheme/RealmRow.png", Border: 8);
+
+          Group #Row4SelectedAccent {
+            Anchor: (Width: 12, Height: 40);
+            Background: #4fc5ff(0.98);
+            Visible: false;
+          }
+
+          Label #Row4Label {
+            Anchor: (Left: 14, Width: 608, Height: 40);
+            Style: (FontSize: 15, Alignment: Start);
+            Text: "Stand row";
+          }
+
+          Group #Row4Action {
+            Anchor: (Left: 12, Width: 210, Height: 40);
+            LayoutMode: Center;
+
+            TextButton #Row4Button {
+              Anchor: (Width: 210, Height: 40);
+              Padding: (Horizontal: 16, Bottom: 1);
+              Text: "Select";
+              Style: @RealmStandsCompactSubtleButtonStyle;
+            }
+          }
+        }
+
+        Group #Row5 {
+          Anchor: (Top: 8, Width: 844, Height: 40);
+          LayoutMode: Left;
+          Background: (TexturePath: "../../Hud/RealmRulerTheme/RealmRow.png", Border: 8);
+
+          Group #Row5SelectedAccent {
+            Anchor: (Width: 12, Height: 40);
+            Background: #4fc5ff(0.98);
+            Visible: false;
+          }
+
+          Label #Row5Label {
+            Anchor: (Left: 14, Width: 608, Height: 40);
+            Style: (FontSize: 15, Alignment: Start);
+            Text: "Stand row";
+          }
+
+          Group #Row5Action {
+            Anchor: (Left: 12, Width: 210, Height: 40);
+            LayoutMode: Center;
+
+            TextButton #Row5Button {
+              Anchor: (Width: 210, Height: 40);
+              Padding: (Horizontal: 16, Bottom: 1);
+              Text: "Select";
+              Style: @RealmStandsCompactSubtleButtonStyle;
+            }
+          }
+        }
+
+        Group #Row6 {
+          Anchor: (Top: 8, Width: 844, Height: 40);
+          LayoutMode: Left;
+          Background: (TexturePath: "../../Hud/RealmRulerTheme/RealmRow.png", Border: 8);
+
+          Group #Row6SelectedAccent {
+            Anchor: (Width: 12, Height: 40);
+            Background: #4fc5ff(0.98);
+            Visible: false;
+          }
+
+          Label #Row6Label {
+            Anchor: (Left: 14, Width: 608, Height: 40);
+            Style: (FontSize: 15, Alignment: Start);
+            Text: "Stand row";
+          }
+
+          Group #Row6Action {
+            Anchor: (Left: 12, Width: 210, Height: 40);
+            LayoutMode: Center;
+
+            TextButton #Row6Button {
+              Anchor: (Width: 210, Height: 40);
+              Padding: (Horizontal: 16, Bottom: 1);
+              Text: "Select";
+              Style: @RealmStandsCompactSubtleButtonStyle;
+            }
+          }
+        }
+
+        Group #Row7 {
+          Anchor: (Top: 8, Width: 844, Height: 40);
+          LayoutMode: Left;
+          Background: (TexturePath: "../../Hud/RealmRulerTheme/RealmRow.png", Border: 8);
+
+          Group #Row7SelectedAccent {
+            Anchor: (Width: 12, Height: 40);
+            Background: #4fc5ff(0.98);
+            Visible: false;
+          }
+
+          Label #Row7Label {
+            Anchor: (Left: 14, Width: 608, Height: 40);
+            Style: (FontSize: 15, Alignment: Start);
+            Text: "Stand row";
+          }
+
+          Group #Row7Action {
+            Anchor: (Left: 12, Width: 210, Height: 40);
+            LayoutMode: Center;
+
+            TextButton #Row7Button {
+              Anchor: (Width: 210, Height: 40);
+              Padding: (Horizontal: 16, Bottom: 1);
+              Text: "Select";
+              Style: @RealmStandsCompactSubtleButtonStyle;
+            }
+          }
+        }
+
+        Group #SelectionFooter {
+          Anchor: (Top: 18, Width: 844, Height: 60);
+          LayoutMode: Left;
+          Padding: (Horizontal: 14, Vertical: 10);
+          Background: (TexturePath: "../../Hud/RealmRulerTheme/RealmFooterBar.png", Border: 12);
+
+          Label #SelectionValue {
+            Anchor: (Width: 270, Height: 30);
+            Style: (FontSize: 15, Alignment: Start);
+            Text: "No stand selected";
+          }
+
+          Group #AddAction {
+            Anchor: (Left: 10, Width: 164, Height: 38);
+            LayoutMode: Center;
+
+            TextButton #AddButton {
+              Anchor: (Width: 164, Height: 38);
+              Padding: (Horizontal: 12, Bottom: 1);
+              Text: "Add Here";
+              Style: @RealmStandsCompactGoldButtonStyle;
+            }
+          }
+
+          Group #RemoveAction {
+            Anchor: (Left: 10, Width: 192, Height: 38);
+            LayoutMode: Center;
+
+            TextButton #RemoveButton {
+              Anchor: (Width: 192, Height: 38);
+              Padding: (Horizontal: 12, Bottom: 1);
+              Text: "Remove Selected";
+              Style: @RealmStandsCompactDangerButtonStyle;
+            }
+          }
+
+          Group #PrimaryAction {
+            Anchor: (Left: 10, Width: 192, Height: 38);
+            LayoutMode: Center;
+
+            TextButton #PrimaryButton {
+              Anchor: (Width: 192, Height: 38);
+              Padding: (Horizontal: 12, Bottom: 1);
+              Text: "Set Primary";
+              Style: @RealmStandsCompactSubtleButtonStyle;
+            }
+          }
+        }
+      }
+
+      Group #PageFooter {
+        Anchor: (Top: 16, Width: 880, Height: 36);
+        LayoutMode: Center;
+        Background: (TexturePath: "../../Hud/RealmRulerTheme/RealmFooterBar.png", Border: 12);
+
+        Label #CloseHint {
+          Anchor: (Width: 190, Height: 20);
+          Style: (FontSize: 13, Alignment: Center, TextColor: #cfd9e2(0.88));
+          Text: "Press Esc to close";
+        }
+      }
+    }
+  }
+}

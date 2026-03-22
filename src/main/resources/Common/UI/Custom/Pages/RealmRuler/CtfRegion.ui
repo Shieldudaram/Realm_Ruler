@@ -1,0 +1,381 @@
+@RealmRegionButtonLabelStyle = LabelStyle(
+  FontSize: 15,
+  TextColor: #dbe7f0,
+  RenderBold: true,
+  HorizontalAlignment: Center,
+  VerticalAlignment: Center,
+  ShrinkTextToFit: true,
+  MinShrinkTextToFitFontSize: 11,
+  LetterSpacing: 1
+);
+
+@RealmRegionButtonHoveredLabelStyle = LabelStyle(
+  ...@RealmRegionButtonLabelStyle,
+  TextColor: #f3fbff
+);
+
+@RealmRegionButtonPressedLabelStyle = LabelStyle(
+  ...@RealmRegionButtonLabelStyle,
+  TextColor: #c9d5de
+);
+
+@RealmRegionButtonDisabledLabelStyle = LabelStyle(
+  ...@RealmRegionButtonLabelStyle,
+  TextColor: #9ea9b3
+);
+
+@RealmRegionBackButtonLabelStyle = LabelStyle(
+  ...@RealmRegionButtonLabelStyle,
+  FontSize: 14,
+  MinShrinkTextToFitFontSize: 10
+);
+
+@RealmRegionBackButtonHoveredLabelStyle = LabelStyle(
+  ...@RealmRegionBackButtonLabelStyle,
+  TextColor: #f3fbff
+);
+
+@RealmRegionBackButtonPressedLabelStyle = LabelStyle(
+  ...@RealmRegionBackButtonLabelStyle,
+  TextColor: #c9d5de
+);
+
+@RealmRegionBackButtonDisabledLabelStyle = LabelStyle(
+  ...@RealmRegionBackButtonLabelStyle,
+  TextColor: #9ea9b3
+);
+
+@RealmRegionBackButtonStyle = TextButtonStyle(
+  Default: (Background: (TexturePath: "../../Hud/RealmRulerTheme/RealmButtonSubtle.png", Border: 12), LabelStyle: @RealmRegionBackButtonLabelStyle),
+  Hovered: (Background: (TexturePath: "../../Hud/RealmRulerTheme/RealmButtonSubtle_Hovered.png", Border: 12), LabelStyle: @RealmRegionBackButtonHoveredLabelStyle),
+  Pressed: (Background: (TexturePath: "../../Hud/RealmRulerTheme/RealmButtonSubtle_Pressed.png", Border: 12), LabelStyle: @RealmRegionBackButtonPressedLabelStyle),
+  Disabled: (Background: (TexturePath: "../../Hud/RealmRulerTheme/RealmButtonSubtle.png", Border: 12, Color: #ffffff(0.58)), LabelStyle: @RealmRegionBackButtonDisabledLabelStyle)
+);
+
+@RealmRegionGoldButtonStyle = TextButtonStyle(
+  Default: (Background: (TexturePath: "../../Hud/RealmRulerTheme/RealmButton.png", Border: 12), LabelStyle: @RealmRegionButtonLabelStyle),
+  Hovered: (Background: (TexturePath: "../../Hud/RealmRulerTheme/RealmButton_Hovered.png", Border: 12), LabelStyle: @RealmRegionButtonHoveredLabelStyle),
+  Pressed: (Background: (TexturePath: "../../Hud/RealmRulerTheme/RealmButton_Pressed.png", Border: 12), LabelStyle: @RealmRegionButtonPressedLabelStyle),
+  Disabled: (Background: (TexturePath: "../../Hud/RealmRulerTheme/RealmButton.png", Border: 12, Color: #ffffff(0.58)), LabelStyle: @RealmRegionButtonDisabledLabelStyle)
+);
+
+@RealmRegionBlueButtonStyle = TextButtonStyle(
+  Default: (Background: (TexturePath: "../../Hud/RealmRulerTheme/RealmButtonBlue.png", Border: 12), LabelStyle: @RealmRegionButtonLabelStyle),
+  Hovered: (Background: (TexturePath: "../../Hud/RealmRulerTheme/RealmButtonBlue_Hovered.png", Border: 12), LabelStyle: @RealmRegionButtonHoveredLabelStyle),
+  Pressed: (Background: (TexturePath: "../../Hud/RealmRulerTheme/RealmButtonBlue_Pressed.png", Border: 12), LabelStyle: @RealmRegionButtonPressedLabelStyle),
+  Disabled: (Background: (TexturePath: "../../Hud/RealmRulerTheme/RealmButtonBlue.png", Border: 12, Color: #ffffff(0.58)), LabelStyle: @RealmRegionButtonDisabledLabelStyle)
+);
+
+@RealmRegionSubtleButtonStyle = TextButtonStyle(
+  Default: (Background: (TexturePath: "../../Hud/RealmRulerTheme/RealmButtonSubtle.png", Border: 12), LabelStyle: @RealmRegionButtonLabelStyle),
+  Hovered: (Background: (TexturePath: "../../Hud/RealmRulerTheme/RealmButtonSubtle_Hovered.png", Border: 12), LabelStyle: @RealmRegionButtonHoveredLabelStyle),
+  Pressed: (Background: (TexturePath: "../../Hud/RealmRulerTheme/RealmButtonSubtle_Pressed.png", Border: 12), LabelStyle: @RealmRegionButtonPressedLabelStyle),
+  Disabled: (Background: (TexturePath: "../../Hud/RealmRulerTheme/RealmButtonSubtle.png", Border: 12, Color: #ffffff(0.58)), LabelStyle: @RealmRegionButtonDisabledLabelStyle)
+);
+
+@RealmRegionDangerButtonStyle = TextButtonStyle(
+  Default: (Background: (TexturePath: "../../Hud/RealmRulerTheme/RealmButtonDanger.png", Border: 12), LabelStyle: @RealmRegionButtonLabelStyle),
+  Hovered: (Background: (TexturePath: "../../Hud/RealmRulerTheme/RealmButtonDanger_Hovered.png", Border: 12), LabelStyle: @RealmRegionButtonHoveredLabelStyle),
+  Pressed: (Background: (TexturePath: "../../Hud/RealmRulerTheme/RealmButtonDanger_Pressed.png", Border: 12), LabelStyle: @RealmRegionButtonPressedLabelStyle),
+  Disabled: (Background: (TexturePath: "../../Hud/RealmRulerTheme/RealmButtonDanger.png", Border: 12, Color: #ffffff(0.58)), LabelStyle: @RealmRegionButtonDisabledLabelStyle)
+);
+
+Group #RealmRulerCtfRegionPage {
+  Anchor: (Top: 0, Bottom: 0, Left: 0, Right: 0);
+  LayoutMode: Center;
+
+  Group #Backdrop {
+    Anchor: (Top: 0, Bottom: 0, Left: 0, Right: 0);
+    Background: #02050b(0.74);
+  }
+
+  Group #Window {
+    Anchor: (Width: 916, Height: 700);
+    LayoutMode: Center;
+    Padding: (Horizontal: 14, Vertical: 14);
+    Background: (TexturePath: "../../Hud/RealmRulerTheme/RealmFrame.png", Border: 24);
+
+    Group #Panel {
+      Anchor: (Width: 888, Height: 672);
+      LayoutMode: Top;
+      Padding: (Horizontal: 20, Vertical: 20);
+      Background: (TexturePath: "../../Hud/RealmRulerTheme/RealmInset.png", Border: 18);
+
+      Group #HeaderBand {
+        Anchor: (Width: 848, Height: 152);
+        LayoutMode: Top;
+        Padding: (Horizontal: 18, Vertical: 14);
+        Background: (TexturePath: "../../Hud/RealmRulerTheme/RealmInset.png", Border: 16);
+
+        Group #HeaderTopRow {
+          Anchor: (Width: 812, Height: 40);
+          LayoutMode: Left;
+
+          Group #BackAction {
+            Anchor: (Width: 138, Height: 34);
+            LayoutMode: Center;
+
+            TextButton #BackButton {
+              Anchor: (Width: 138, Height: 34);
+              Padding: (Horizontal: 16, Bottom: 1);
+              Text: "Back";
+              Style: @RealmRegionBackButtonStyle;
+            }
+          }
+
+          Group #HeaderTopSpacer {
+            Anchor: (Left: 10, Width: 500, Height: 40);
+          }
+
+        }
+
+        Group #HeaderPlaque {
+          Anchor: (Top: 16, Width: 700, Height: 60);
+          LayoutMode: Top;
+          Background: (TexturePath: "../../Hud/RealmRulerTheme/RealmTitlePlaque.png", Border: 18);
+
+          Group #TitleLane {
+            Anchor: (Top: 5, Width: 568, Height: 36);
+            LayoutMode: Top;
+
+            Group #TitleTextBand {
+              Anchor: (Top: 2, Width: 548, Height: 32);
+              LayoutMode: Center;
+
+              Label #TitleLabel {
+                Anchor: (Width: 548, Height: 32);
+                Style: (FontSize: 30, Alignment: Center);
+                Text: "Region Builder";
+              }
+            }
+          }
+        }
+
+        Group #SubtitleRow {
+          Anchor: (Top: 12, Width: 644, Height: 22);
+          LayoutMode: Center;
+
+          Group #SubtitleLane {
+            Anchor: (Width: 644, Height: 18);
+            LayoutMode: Top;
+
+            Group #SubtitleTextBand {
+              Anchor: (Top: 1, Width: 632, Height: 16);
+              LayoutMode: Center;
+
+              Label #SubtitleLabel {
+                Anchor: (Width: 632, Height: 16);
+                Style: (FontSize: 15, Alignment: Center, TextColor: #e0ebf4(0.94));
+                Text: "Capture arena bounds from your position and recover the active region cleanly.";
+              }
+            }
+          }
+        }
+      }
+
+      Group #StatusBanner {
+        Anchor: (Top: 14, Width: 848, Height: 40);
+        LayoutMode: Center;
+        Background: (TexturePath: "../../Hud/RealmRulerTheme/RealmStatusRibbon.png", Border: 14);
+
+        Label #StatusLabel {
+          Anchor: (Width: 764, Height: 22);
+          Style: (FontSize: 15, Alignment: Center);
+          Text: "";
+        }
+      }
+
+      Group #RegionInfoCard {
+        Anchor: (Top: 18, Width: 848, Height: 204);
+        LayoutMode: Top;
+        Padding: (Horizontal: 18, Vertical: 16);
+        Background: (TexturePath: "../../Hud/RealmRulerTheme/RealmCardInfo.png", Border: 18);
+
+        Group #InfoPlaque {
+          Anchor: (Width: 236, Height: 34);
+          LayoutMode: Center;
+          Background: (TexturePath: "../../Hud/RealmRulerTheme/RealmMiniPlaque.png", Border: 12);
+
+          Label #InfoTitle {
+            Anchor: (Width: 172, Height: 22);
+            Style: (FontSize: 16, Alignment: Center);
+            Text: "Region Definition";
+          }
+        }
+
+        Group #InfoRow1 {
+          Anchor: (Top: 12, Width: 812, Height: 36);
+          LayoutMode: Left;
+          Background: (TexturePath: "../../Hud/RealmRulerTheme/RealmRow.png", Border: 8);
+
+          Label #WorldLabel {
+            Anchor: (Width: 110, Height: 36);
+            Style: (FontSize: 16, Alignment: Start);
+            Text: "World";
+          }
+
+          Label #WorldValue {
+            Anchor: (Left: 10, Width: 206, Height: 36);
+            Style: (FontSize: 16, Alignment: Start);
+            Text: "<unset>";
+          }
+
+          Label #EnabledLabel {
+            Anchor: (Left: 16, Width: 90, Height: 36);
+            Style: (FontSize: 16, Alignment: Start);
+            Text: "Enabled";
+          }
+
+          Label #EnabledValue {
+            Anchor: (Left: 10, Width: 100, Height: 36);
+            Style: (FontSize: 16, Alignment: Start);
+            Text: "false";
+          }
+
+          Label #ReadyLabel {
+            Anchor: (Left: 16, Width: 70, Height: 36);
+            Style: (FontSize: 16, Alignment: Start);
+            Text: "Ready";
+          }
+
+          Label #ReadyValue {
+            Anchor: (Left: 10, Width: 90, Height: 36);
+            Style: (FontSize: 16, Alignment: Start);
+            Text: "false";
+          }
+        }
+
+        Group #InfoRow2 {
+          Anchor: (Top: 10, Width: 812, Height: 36);
+          LayoutMode: Left;
+          Background: (TexturePath: "../../Hud/RealmRulerTheme/RealmRow.png", Border: 8);
+
+          Label #Pos1Label {
+            Anchor: (Width: 110, Height: 36);
+            Style: (FontSize: 16, Alignment: Start);
+            Text: "Pos1";
+          }
+
+          Label #Pos1Value {
+            Anchor: (Left: 10, Width: 680, Height: 36);
+            Style: (FontSize: 16, Alignment: Start);
+            Text: "<unset>";
+          }
+        }
+
+        Group #InfoRow3 {
+          Anchor: (Top: 10, Width: 812, Height: 36);
+          LayoutMode: Left;
+          Background: (TexturePath: "../../Hud/RealmRulerTheme/RealmRow.png", Border: 8);
+
+          Label #Pos2Label {
+            Anchor: (Width: 110, Height: 36);
+            Style: (FontSize: 16, Alignment: Start);
+            Text: "Pos2";
+          }
+
+          Label #Pos2Value {
+            Anchor: (Left: 10, Width: 680, Height: 36);
+            Style: (FontSize: 16, Alignment: Start);
+            Text: "<unset>";
+          }
+        }
+      }
+
+      Group #ActionsCard {
+        Anchor: (Top: 18, Width: 848, Height: 214);
+        LayoutMode: Top;
+        Padding: (Horizontal: 16, Vertical: 16);
+        Background: (TexturePath: "../../Hud/RealmRulerTheme/RealmCardAction.png", Border: 18);
+
+        Group #ActionsPlaque {
+          Anchor: (Width: 204, Height: 30);
+          LayoutMode: Center;
+          Background: (TexturePath: "../../Hud/RealmRulerTheme/RealmMiniPlaque.png", Border: 12);
+
+          Label #ActionsTitle {
+            Anchor: (Width: 146, Height: 20);
+            Style: (FontSize: 16, Alignment: Center);
+            Text: "Region Actions";
+          }
+        }
+
+        Label #ActionsText {
+          Anchor: (Top: 12, Width: 652, Height: 20);
+          Style: (FontSize: 14, Alignment: Center, TextColor: #dce7f0(0.9));
+          Text: "Create the region first, then stamp corners from your position or clear the active setup.";
+        }
+
+        Group #ActionRowTop {
+          Anchor: (Top: 18, Width: 816, Height: 50);
+          LayoutMode: Left;
+
+          Group #CreateAction {
+            Anchor: (Width: 400, Height: 50);
+            LayoutMode: Center;
+
+            TextButton #CreateButton {
+              Anchor: (Width: 400, Height: 50);
+              Padding: (Horizontal: 20, Bottom: 1);
+              Text: "Create Here";
+              Style: @RealmRegionGoldButtonStyle;
+            }
+          }
+
+          Group #Pos1Action {
+            Anchor: (Left: 16, Width: 400, Height: 50);
+            LayoutMode: Center;
+
+            TextButton #Pos1Button {
+              Anchor: (Width: 400, Height: 50);
+              Padding: (Horizontal: 20, Bottom: 1);
+              Text: "Set Pos1 Here";
+              Style: @RealmRegionBlueButtonStyle;
+            }
+          }
+        }
+
+        Group #ActionRowBottom {
+          Anchor: (Top: 14, Width: 816, Height: 50);
+          LayoutMode: Left;
+
+          Group #Pos2Action {
+            Anchor: (Width: 400, Height: 50);
+            LayoutMode: Center;
+
+            TextButton #Pos2Button {
+              Anchor: (Width: 400, Height: 50);
+              Padding: (Horizontal: 20, Bottom: 1);
+              Text: "Set Pos2 Here";
+              Style: @RealmRegionSubtleButtonStyle;
+            }
+          }
+
+          Group #ClearAction {
+            Anchor: (Left: 16, Width: 400, Height: 50);
+            LayoutMode: Center;
+
+            TextButton #ClearButton {
+              Anchor: (Width: 400, Height: 50);
+              Padding: (Horizontal: 20, Bottom: 1);
+              Text: "Clear Region";
+              Style: @RealmRegionDangerButtonStyle;
+            }
+          }
+        }
+      }
+
+      Group #PageFooter {
+        Anchor: (Top: 16, Width: 848, Height: 36);
+        LayoutMode: Center;
+        Background: (TexturePath: "../../Hud/RealmRulerTheme/RealmFooterBar.png", Border: 12);
+
+        Label #CloseHint {
+          Anchor: (Width: 190, Height: 20);
+          Style: (FontSize: 13, Alignment: Center, TextColor: #cfd9e2(0.88));
+          Text: "Press Esc to close";
+        }
+      }
+    }
+  }
+}

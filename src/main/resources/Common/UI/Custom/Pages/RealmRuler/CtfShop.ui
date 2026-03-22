@@ -1,424 +1,1265 @@
+@RealmShopButtonLabelStyle = LabelStyle(
+  FontSize: 15,
+  TextColor: #dbe7f0,
+  RenderBold: true,
+  HorizontalAlignment: Center,
+  VerticalAlignment: Center,
+  ShrinkTextToFit: true,
+  MinShrinkTextToFitFontSize: 11,
+  LetterSpacing: 1
+);
+
+@RealmShopButtonHoveredLabelStyle = LabelStyle(
+  ...@RealmShopButtonLabelStyle,
+  TextColor: #f3fbff
+);
+
+@RealmShopButtonPressedLabelStyle = LabelStyle(
+  ...@RealmShopButtonLabelStyle,
+  TextColor: #c9d5de
+);
+
+@RealmShopButtonDisabledLabelStyle = LabelStyle(
+  ...@RealmShopButtonLabelStyle,
+  TextColor: #9ea9b3
+);
+
+@RealmShopHomeButtonLabelStyle = LabelStyle(
+  ...@RealmShopButtonLabelStyle,
+  FontSize: 14,
+  MinShrinkTextToFitFontSize: 10
+);
+
+@RealmShopHomeButtonHoveredLabelStyle = LabelStyle(
+  ...@RealmShopHomeButtonLabelStyle,
+  TextColor: #f3fbff
+);
+
+@RealmShopHomeButtonPressedLabelStyle = LabelStyle(
+  ...@RealmShopHomeButtonLabelStyle,
+  TextColor: #c9d5de
+);
+
+@RealmShopHomeButtonDisabledLabelStyle = LabelStyle(
+  ...@RealmShopHomeButtonLabelStyle,
+  TextColor: #9ea9b3
+);
+
+@RealmShopCompactButtonLabelStyle = LabelStyle(
+  FontSize: 12,
+  TextColor: #dbe7f0,
+  RenderBold: true,
+  HorizontalAlignment: Center,
+  VerticalAlignment: Center,
+  ShrinkTextToFit: true,
+  MinShrinkTextToFitFontSize: 9,
+  LetterSpacing: 0
+);
+
+@RealmShopCompactButtonHoveredLabelStyle = LabelStyle(
+  ...@RealmShopCompactButtonLabelStyle,
+  TextColor: #f3fbff
+);
+
+@RealmShopCompactButtonPressedLabelStyle = LabelStyle(
+  ...@RealmShopCompactButtonLabelStyle,
+  TextColor: #c9d5de
+);
+
+@RealmShopCompactButtonDisabledLabelStyle = LabelStyle(
+  ...@RealmShopCompactButtonLabelStyle,
+  TextColor: #9ea9b3
+);
+
+@RealmShopHomeButtonStyle = TextButtonStyle(
+  Default: (Background: (TexturePath: "../../Hud/RealmRulerTheme/RealmButtonSubtle.png", Border: 12), LabelStyle: @RealmShopHomeButtonLabelStyle),
+  Hovered: (Background: (TexturePath: "../../Hud/RealmRulerTheme/RealmButtonSubtle_Hovered.png", Border: 12), LabelStyle: @RealmShopHomeButtonHoveredLabelStyle),
+  Pressed: (Background: (TexturePath: "../../Hud/RealmRulerTheme/RealmButtonSubtle_Pressed.png", Border: 12), LabelStyle: @RealmShopHomeButtonPressedLabelStyle),
+  Disabled: (Background: (TexturePath: "../../Hud/RealmRulerTheme/RealmButtonSubtle.png", Border: 12, Color: #ffffff(0.58)), LabelStyle: @RealmShopHomeButtonDisabledLabelStyle)
+);
+
+@RealmShopCompactSubtleButtonStyle = TextButtonStyle(
+  Default: (Background: (TexturePath: "../../Hud/RealmRulerTheme/RealmButtonSubtle.png", Border: 12), LabelStyle: @RealmShopCompactButtonLabelStyle),
+  Hovered: (Background: (TexturePath: "../../Hud/RealmRulerTheme/RealmButtonSubtle_Hovered.png", Border: 12), LabelStyle: @RealmShopCompactButtonHoveredLabelStyle),
+  Pressed: (Background: (TexturePath: "../../Hud/RealmRulerTheme/RealmButtonSubtle_Pressed.png", Border: 12), LabelStyle: @RealmShopCompactButtonPressedLabelStyle),
+  Disabled: (Background: (TexturePath: "../../Hud/RealmRulerTheme/RealmButtonSubtle.png", Border: 12, Color: #ffffff(0.58)), LabelStyle: @RealmShopCompactButtonDisabledLabelStyle)
+);
+
+@RealmShopCompactGoldButtonStyle = TextButtonStyle(
+  Default: (Background: (TexturePath: "../../Hud/RealmRulerTheme/RealmButton.png", Border: 12), LabelStyle: @RealmShopCompactButtonLabelStyle),
+  Hovered: (Background: (TexturePath: "../../Hud/RealmRulerTheme/RealmButton_Hovered.png", Border: 12), LabelStyle: @RealmShopCompactButtonHoveredLabelStyle),
+  Pressed: (Background: (TexturePath: "../../Hud/RealmRulerTheme/RealmButton_Pressed.png", Border: 12), LabelStyle: @RealmShopCompactButtonPressedLabelStyle),
+  Disabled: (Background: (TexturePath: "../../Hud/RealmRulerTheme/RealmButton.png", Border: 12, Color: #ffffff(0.58)), LabelStyle: @RealmShopCompactButtonDisabledLabelStyle)
+);
+
 Group #RealmRulerCtfShopPage {
   Anchor: (Top: 0, Bottom: 0, Left: 0, Right: 0);
   LayoutMode: Center;
 
   Group #Backdrop {
     Anchor: (Top: 0, Bottom: 0, Left: 0, Right: 0);
-    Background: #000000(0.35);
+    Background: #02050b(0.74);
   }
 
   Group #ShopWindow {
-    Anchor: (Width: 720, Height: 980);
-    LayoutMode: Top;
-    Padding: (Horizontal: 16, Vertical: 16);
-    Background: #0b0f18(0.95);
+    Anchor: (Width: 1092, Height: 844);
+    LayoutMode: Center;
+    Padding: (Horizontal: 14, Vertical: 14);
+    Background: (TexturePath: "../../Hud/RealmRulerTheme/RealmFrame.png", Border: 24);
 
-    Label #TitleLabel {
-      Anchor: (Height: 32);
-      Style: (FontSize: 24, Alignment: Center);
-      Text: "CTF Shop";
-    }
-
-    Label #PointsLabel {
-      Anchor: (Top: 8, Height: 24);
-      Style: (FontSize: 16, Alignment: Center);
-      Text: "CTF Points: 0";
-    }
-
-    Group #Entries {
-      Anchor: (Top: 14, Width: 688, Height: 830);
+    Group #ShopPanel {
+      Anchor: (Width: 1064, Height: 816);
       LayoutMode: Top;
+      Padding: (Horizontal: 20, Vertical: 20);
+      Background: (TexturePath: "../../Hud/RealmRulerTheme/RealmInset.png", Border: 18);
 
-      // NOTE: Entries are fixed (Entry0..Entry15). Realm Ruler hides unused ones via #EntryX.Visible.
-      Group #Entry0 {
-        Anchor: (Height: 44);
-        Padding: (Horizontal: 12, Vertical: 10);
-        LayoutMode: Left;
-        Background: #000000(0.22);
+      Group #TitleBand {
+        Anchor: (Width: 1024, Height: 158);
+        LayoutMode: Top;
+        Padding: (Horizontal: 18, Vertical: 14);
+        Background: (TexturePath: "../../Hud/RealmRulerTheme/RealmInset.png", Border: 16);
 
-        Label #Entry0Name {
-          Anchor: (Width: 420, Height: 24);
-          Style: (FontSize: 16, Alignment: Start);
-          Text: "Item Name";
+        Group #HeaderTopRow {
+          Anchor: (Width: 988, Height: 40);
+          LayoutMode: Left;
+
+          Group #HomeAction {
+            Anchor: (Width: 138, Height: 34);
+            LayoutMode: Center;
+
+            TextButton #HomeButton {
+              Anchor: (Width: 138, Height: 34);
+              Padding: (Horizontal: 16, Bottom: 1);
+              Text: "Home";
+              Style: @RealmShopHomeButtonStyle;
+            }
+          }
+
+          Group #HeaderTopSpacer {
+            Anchor: (Left: 10, Width: 606, Height: 40);
+          }
+
+        Group #PointsBadge {
+          Anchor: (Left: 10, Width: 224, Height: 40);
+          LayoutMode: Top;
+          Background: (TexturePath: "../../Hud/RealmRulerTheme/RealmPointsBadge.png", Border: 18);
+
+          Group #PointsLane {
+            Anchor: (Top: 8, Width: 182, Height: 20);
+            LayoutMode: Top;
+
+            Group #PointsTextBand {
+              Anchor: (Top: 1, Width: 170, Height: 18);
+              LayoutMode: Center;
+
+              Label #PointsLabel {
+                Anchor: (Width: 170, Height: 18);
+                Style: (FontSize: 17, Alignment: Center);
+                Text: "Points: 0";
+              }
+            }
+          }
+        }
         }
 
-        Label #Entry0Cost {
-          Anchor: (Left: 10, Width: 80, Height: 24);
-          Style: (FontSize: 16, Alignment: Center);
-          Text: "0";
+        Group #HeaderPlaque {
+          Anchor: (Top: 16, Width: 760, Height: 60);
+          LayoutMode: Top;
+          Background: (TexturePath: "../../Hud/RealmRulerTheme/RealmTitlePlaque.png", Border: 18);
+
+          Group #TitleLane {
+            Anchor: (Top: 5, Width: 640, Height: 36);
+            LayoutMode: Top;
+
+            Group #TitleTextBand {
+              Anchor: (Top: 2, Width: 620, Height: 32);
+              LayoutMode: Center;
+
+              Label #TitleLabel {
+                Anchor: (Width: 620, Height: 32);
+                Style: (FontSize: 30, Alignment: Center);
+                Text: "Shop";
+              }
+            }
+          }
         }
 
-        TextButton #Entry0BuyButton {
-          Anchor: (Left: 10, Width: 120, Height: 28);
-          Text: "Buy";
-        }
-      }
+        Group #SubtitleRow {
+          Anchor: (Top: 12, Width: 720, Height: 22);
+          LayoutMode: Center;
 
-      Group #Entry1 {
-        Anchor: (Top: 8, Height: 44);
-        Padding: (Horizontal: 12, Vertical: 10);
-        LayoutMode: Left;
-        Background: #000000(0.22);
+          Group #SubtitleLane {
+            Anchor: (Width: 720, Height: 18);
+            LayoutMode: Top;
 
-        Label #Entry1Name {
-          Anchor: (Width: 420, Height: 24);
-          Style: (FontSize: 16, Alignment: Start);
-          Text: "Item Name";
-        }
+            Group #SubtitleTextBand {
+              Anchor: (Top: 1, Width: 708, Height: 16);
+              LayoutMode: Center;
 
-        Label #Entry1Cost {
-          Anchor: (Left: 10, Width: 80, Height: 24);
-          Style: (FontSize: 16, Alignment: Center);
-          Text: "0";
-        }
-
-        TextButton #Entry1BuyButton {
-          Anchor: (Left: 10, Width: 120, Height: 28);
-          Text: "Buy";
-        }
-      }
-
-      Group #Entry2 {
-        Anchor: (Top: 8, Height: 44);
-        Padding: (Horizontal: 12, Vertical: 10);
-        LayoutMode: Left;
-        Background: #000000(0.22);
-
-        Label #Entry2Name {
-          Anchor: (Width: 420, Height: 24);
-          Style: (FontSize: 16, Alignment: Start);
-          Text: "Item Name";
-        }
-
-        Label #Entry2Cost {
-          Anchor: (Left: 10, Width: 80, Height: 24);
-          Style: (FontSize: 16, Alignment: Center);
-          Text: "0";
-        }
-
-        TextButton #Entry2BuyButton {
-          Anchor: (Left: 10, Width: 120, Height: 28);
-          Text: "Buy";
-        }
-      }
-
-      Group #Entry3 {
-        Anchor: (Top: 8, Height: 44);
-        Padding: (Horizontal: 12, Vertical: 10);
-        LayoutMode: Left;
-        Background: #000000(0.22);
-
-        Label #Entry3Name {
-          Anchor: (Width: 420, Height: 24);
-          Style: (FontSize: 16, Alignment: Start);
-          Text: "Item Name";
-        }
-
-        Label #Entry3Cost {
-          Anchor: (Left: 10, Width: 80, Height: 24);
-          Style: (FontSize: 16, Alignment: Center);
-          Text: "0";
-        }
-
-        TextButton #Entry3BuyButton {
-          Anchor: (Left: 10, Width: 120, Height: 28);
-          Text: "Buy";
+              Label #SubtitleLabel {
+                Anchor: (Width: 708, Height: 16);
+                Style: (FontSize: 15, Alignment: Center, TextColor: #e0ebf4(0.94));
+                Text: "Compare costs quickly and buy from the live two-column catalog.";
+              }
+            }
+          }
         }
       }
 
-      Group #Entry4 {
-        Anchor: (Top: 8, Height: 44);
-        Padding: (Horizontal: 12, Vertical: 10);
-        LayoutMode: Left;
-        Background: #000000(0.22);
+      Group #StatusBanner {
+        Anchor: (Top: 14, Width: 1024, Height: 40);
+        LayoutMode: Center;
+        Background: (TexturePath: "../../Hud/RealmRulerTheme/RealmStatusRibbon.png", Border: 14);
 
-        Label #Entry4Name {
-          Anchor: (Width: 420, Height: 24);
-          Style: (FontSize: 16, Alignment: Start);
-          Text: "Item Name";
-        }
-
-        Label #Entry4Cost {
-          Anchor: (Left: 10, Width: 80, Height: 24);
-          Style: (FontSize: 16, Alignment: Center);
-          Text: "0";
-        }
-
-        TextButton #Entry4BuyButton {
-          Anchor: (Left: 10, Width: 120, Height: 28);
-          Text: "Buy";
+        Label #StatusLabel {
+          Anchor: (Width: 896, Height: 20);
+          Style: (FontSize: 15, Alignment: Center);
+          Text: "";
         }
       }
 
-      Group #Entry5 {
-        Anchor: (Top: 8, Height: 44);
-        Padding: (Horizontal: 12, Vertical: 10);
+      Group #BodyRow {
+        Anchor: (Top: 18, Width: 1024, Height: 546);
         LayoutMode: Left;
-        Background: #000000(0.22);
 
-        Label #Entry5Name {
-          Anchor: (Width: 420, Height: 24);
-          Style: (FontSize: 16, Alignment: Start);
-          Text: "Item Name";
+        Group #CatalogCard {
+          Anchor: (Width: 726, Height: 546);
+          LayoutMode: Top;
+          Padding: (Horizontal: 20, Vertical: 18);
+          Background: (TexturePath: "../../Hud/RealmRulerTheme/RealmCardInfo.png", Border: 18);
+
+          Group #CatalogPlaque {
+            Anchor: (Width: 192, Height: 34);
+            LayoutMode: Center;
+            Background: (TexturePath: "../../Hud/RealmRulerTheme/RealmMiniPlaque.png", Border: 12);
+
+            Label #CatalogTitle {
+              Anchor: (Width: 120, Height: 22);
+              Style: (FontSize: 16, Alignment: Center);
+              Text: "Catalog";
+            }
+          }
+
+          Label #CatalogSubtitle {
+            Anchor: (Top: 12, Width: 620, Height: 20);
+            Style: (FontSize: 15, Alignment: Center, TextColor: #dce7f0(0.9));
+            Text: "Browse dense rows with clearer costs and cleaner actions.";
+          }
+
+          Group #CatalogGrid {
+            Anchor: (Top: 18, Width: 686, Height: 420);
+            LayoutMode: Left;
+
+            Group #CatalogLeftColumn {
+              Anchor: (Width: 336, Height: 420);
+              LayoutMode: Top;
+
+              Group #Entry0 {
+                Anchor: (Width: 336, Height: 48);
+                LayoutMode: Left;
+                Padding: (Horizontal: 8, Vertical: 8);
+                Background: (TexturePath: "../../Hud/RealmRulerTheme/RealmRow.png", Border: 8);
+
+                Group #Entry0SelectedAccent {
+                  Anchor: (Width: 12, Height: 40);
+                  Background: #4fc5ff(0.98);
+                }
+
+                Label #Entry0Name {
+                  Anchor: (Left: 10, Width: 132, Height: 32);
+                  Style: (FontSize: 14, Alignment: Start);
+                  Text: "Item Name";
+                }
+
+                Group #Entry0CostBadge {
+                  Anchor: (Left: 6, Width: 50, Height: 40);
+                  LayoutMode: Center;
+                  Background: (TexturePath: "../../Hud/RealmRulerTheme/RealmPointsBadge.png", Border: 14);
+
+                  Label #Entry0Cost {
+                    Anchor: (Width: 36, Height: 22);
+                    Style: (FontSize: 15, Alignment: Center);
+                    Text: "0";
+                  }
+                }
+
+                Group #Entry0ViewAction {
+                  Anchor: (Left: 8, Width: 56, Height: 40);
+                  LayoutMode: Center;
+
+                  TextButton #Entry0ViewButton {
+                    Anchor: (Width: 56, Height: 40);
+                    Padding: (Horizontal: 8, Bottom: 1);
+                    Text: "View";
+                    Style: @RealmShopCompactSubtleButtonStyle;
+                  }
+                }
+
+                Group #Entry0BuyAction {
+                  Anchor: (Left: 8, Width: 56, Height: 40);
+                  LayoutMode: Center;
+
+                  TextButton #Entry0BuyButton {
+                    Anchor: (Width: 56, Height: 40);
+                    Padding: (Horizontal: 8, Bottom: 1);
+                    Text: "Buy";
+                    Style: @RealmShopCompactGoldButtonStyle;
+                  }
+                }
+              }
+
+              Group #Entry1 {
+                Anchor: (Top: 4, Width: 332, Height: 46);
+                LayoutMode: Left;
+                Padding: (Horizontal: 8, Vertical: 8);
+                Background: (TexturePath: "../../Hud/RealmRulerTheme/RealmRow.png", Border: 8);
+
+                Group #Entry1SelectedAccent {
+                  Anchor: (Width: 12, Height: 40);
+                  Background: #4fc5ff(0.98);
+                }
+
+                Label #Entry1Name {
+                  Anchor: (Left: 10, Width: 132, Height: 32);
+                  Style: (FontSize: 14, Alignment: Start);
+                  Text: "Item Name";
+                }
+
+                Group #Entry1CostBadge {
+                  Anchor: (Left: 6, Width: 50, Height: 40);
+                  LayoutMode: Center;
+                  Background: (TexturePath: "../../Hud/RealmRulerTheme/RealmPointsBadge.png", Border: 14);
+
+                  Label #Entry1Cost {
+                    Anchor: (Width: 36, Height: 22);
+                    Style: (FontSize: 15, Alignment: Center);
+                    Text: "0";
+                  }
+                }
+
+                Group #Entry1ViewAction {
+                  Anchor: (Left: 8, Width: 56, Height: 40);
+                  LayoutMode: Center;
+
+                  TextButton #Entry1ViewButton {
+                    Anchor: (Width: 56, Height: 40);
+                    Padding: (Horizontal: 8, Bottom: 1);
+                    Text: "View";
+                    Style: @RealmShopCompactSubtleButtonStyle;
+                  }
+                }
+
+                Group #Entry1BuyAction {
+                  Anchor: (Left: 8, Width: 56, Height: 40);
+                  LayoutMode: Center;
+
+                  TextButton #Entry1BuyButton {
+                    Anchor: (Width: 56, Height: 40);
+                    Padding: (Horizontal: 8, Bottom: 1);
+                    Text: "Buy";
+                    Style: @RealmShopCompactGoldButtonStyle;
+                  }
+                }
+              }
+
+              Group #Entry2 {
+                Anchor: (Top: 4, Width: 332, Height: 46);
+                LayoutMode: Left;
+                Padding: (Horizontal: 8, Vertical: 8);
+                Background: (TexturePath: "../../Hud/RealmRulerTheme/RealmRow.png", Border: 8);
+
+                Group #Entry2SelectedAccent {
+                  Anchor: (Width: 12, Height: 40);
+                  Background: #4fc5ff(0.98);
+                }
+
+                Label #Entry2Name {
+                  Anchor: (Left: 10, Width: 132, Height: 32);
+                  Style: (FontSize: 14, Alignment: Start);
+                  Text: "Item Name";
+                }
+
+                Group #Entry2CostBadge {
+                  Anchor: (Left: 6, Width: 50, Height: 40);
+                  LayoutMode: Center;
+                  Background: (TexturePath: "../../Hud/RealmRulerTheme/RealmPointsBadge.png", Border: 14);
+
+                  Label #Entry2Cost {
+                    Anchor: (Width: 36, Height: 22);
+                    Style: (FontSize: 15, Alignment: Center);
+                    Text: "0";
+                  }
+                }
+
+                Group #Entry2ViewAction {
+                  Anchor: (Left: 8, Width: 56, Height: 40);
+                  LayoutMode: Center;
+
+                  TextButton #Entry2ViewButton {
+                    Anchor: (Width: 56, Height: 40);
+                    Padding: (Horizontal: 8, Bottom: 1);
+                    Text: "View";
+                    Style: @RealmShopCompactSubtleButtonStyle;
+                  }
+                }
+
+                Group #Entry2BuyAction {
+                  Anchor: (Left: 8, Width: 56, Height: 40);
+                  LayoutMode: Center;
+
+                  TextButton #Entry2BuyButton {
+                    Anchor: (Width: 56, Height: 40);
+                    Padding: (Horizontal: 8, Bottom: 1);
+                    Text: "Buy";
+                    Style: @RealmShopCompactGoldButtonStyle;
+                  }
+                }
+              }
+
+              Group #Entry3 {
+                Anchor: (Top: 4, Width: 332, Height: 46);
+                LayoutMode: Left;
+                Padding: (Horizontal: 8, Vertical: 8);
+                Background: (TexturePath: "../../Hud/RealmRulerTheme/RealmRow.png", Border: 8);
+
+                Group #Entry3SelectedAccent {
+                  Anchor: (Width: 12, Height: 40);
+                  Background: #4fc5ff(0.98);
+                }
+
+                Label #Entry3Name {
+                  Anchor: (Left: 10, Width: 132, Height: 32);
+                  Style: (FontSize: 14, Alignment: Start);
+                  Text: "Item Name";
+                }
+
+                Group #Entry3CostBadge {
+                  Anchor: (Left: 6, Width: 50, Height: 40);
+                  LayoutMode: Center;
+                  Background: (TexturePath: "../../Hud/RealmRulerTheme/RealmPointsBadge.png", Border: 14);
+
+                  Label #Entry3Cost {
+                    Anchor: (Width: 36, Height: 22);
+                    Style: (FontSize: 15, Alignment: Center);
+                    Text: "0";
+                  }
+                }
+
+                Group #Entry3ViewAction {
+                  Anchor: (Left: 8, Width: 56, Height: 40);
+                  LayoutMode: Center;
+
+                  TextButton #Entry3ViewButton {
+                    Anchor: (Width: 56, Height: 40);
+                    Padding: (Horizontal: 8, Bottom: 1);
+                    Text: "View";
+                    Style: @RealmShopCompactSubtleButtonStyle;
+                  }
+                }
+
+                Group #Entry3BuyAction {
+                  Anchor: (Left: 8, Width: 56, Height: 40);
+                  LayoutMode: Center;
+
+                  TextButton #Entry3BuyButton {
+                    Anchor: (Width: 56, Height: 40);
+                    Padding: (Horizontal: 8, Bottom: 1);
+                    Text: "Buy";
+                    Style: @RealmShopCompactGoldButtonStyle;
+                  }
+                }
+              }
+
+              Group #Entry4 {
+                Anchor: (Top: 4, Width: 332, Height: 46);
+                LayoutMode: Left;
+                Padding: (Horizontal: 8, Vertical: 8);
+                Background: (TexturePath: "../../Hud/RealmRulerTheme/RealmRow.png", Border: 8);
+
+                Group #Entry4SelectedAccent {
+                  Anchor: (Width: 12, Height: 40);
+                  Background: #4fc5ff(0.98);
+                }
+
+                Label #Entry4Name {
+                  Anchor: (Left: 10, Width: 132, Height: 32);
+                  Style: (FontSize: 14, Alignment: Start);
+                  Text: "Item Name";
+                }
+
+                Group #Entry4CostBadge {
+                  Anchor: (Left: 6, Width: 50, Height: 40);
+                  LayoutMode: Center;
+                  Background: (TexturePath: "../../Hud/RealmRulerTheme/RealmPointsBadge.png", Border: 14);
+
+                  Label #Entry4Cost {
+                    Anchor: (Width: 36, Height: 22);
+                    Style: (FontSize: 15, Alignment: Center);
+                    Text: "0";
+                  }
+                }
+
+                Group #Entry4ViewAction {
+                  Anchor: (Left: 8, Width: 56, Height: 40);
+                  LayoutMode: Center;
+
+                  TextButton #Entry4ViewButton {
+                    Anchor: (Width: 56, Height: 40);
+                    Padding: (Horizontal: 8, Bottom: 1);
+                    Text: "View";
+                    Style: @RealmShopCompactSubtleButtonStyle;
+                  }
+                }
+
+                Group #Entry4BuyAction {
+                  Anchor: (Left: 8, Width: 56, Height: 40);
+                  LayoutMode: Center;
+
+                  TextButton #Entry4BuyButton {
+                    Anchor: (Width: 56, Height: 40);
+                    Padding: (Horizontal: 8, Bottom: 1);
+                    Text: "Buy";
+                    Style: @RealmShopCompactGoldButtonStyle;
+                  }
+                }
+              }
+
+              Group #Entry5 {
+                Anchor: (Top: 4, Width: 332, Height: 46);
+                LayoutMode: Left;
+                Padding: (Horizontal: 8, Vertical: 8);
+                Background: (TexturePath: "../../Hud/RealmRulerTheme/RealmRow.png", Border: 8);
+
+                Group #Entry5SelectedAccent {
+                  Anchor: (Width: 12, Height: 40);
+                  Background: #4fc5ff(0.98);
+                }
+
+                Label #Entry5Name {
+                  Anchor: (Left: 10, Width: 132, Height: 32);
+                  Style: (FontSize: 14, Alignment: Start);
+                  Text: "Item Name";
+                }
+
+                Group #Entry5CostBadge {
+                  Anchor: (Left: 6, Width: 50, Height: 40);
+                  LayoutMode: Center;
+                  Background: (TexturePath: "../../Hud/RealmRulerTheme/RealmPointsBadge.png", Border: 14);
+
+                  Label #Entry5Cost {
+                    Anchor: (Width: 36, Height: 22);
+                    Style: (FontSize: 15, Alignment: Center);
+                    Text: "0";
+                  }
+                }
+
+                Group #Entry5ViewAction {
+                  Anchor: (Left: 8, Width: 56, Height: 40);
+                  LayoutMode: Center;
+
+                  TextButton #Entry5ViewButton {
+                    Anchor: (Width: 56, Height: 40);
+                    Padding: (Horizontal: 8, Bottom: 1);
+                    Text: "View";
+                    Style: @RealmShopCompactSubtleButtonStyle;
+                  }
+                }
+
+                Group #Entry5BuyAction {
+                  Anchor: (Left: 8, Width: 56, Height: 40);
+                  LayoutMode: Center;
+
+                  TextButton #Entry5BuyButton {
+                    Anchor: (Width: 56, Height: 40);
+                    Padding: (Horizontal: 8, Bottom: 1);
+                    Text: "Buy";
+                    Style: @RealmShopCompactGoldButtonStyle;
+                  }
+                }
+              }
+
+              Group #Entry6 {
+                Anchor: (Top: 4, Width: 332, Height: 46);
+                LayoutMode: Left;
+                Padding: (Horizontal: 8, Vertical: 8);
+                Background: (TexturePath: "../../Hud/RealmRulerTheme/RealmRow.png", Border: 8);
+
+                Group #Entry6SelectedAccent {
+                  Anchor: (Width: 12, Height: 40);
+                  Background: #4fc5ff(0.98);
+                }
+
+                Label #Entry6Name {
+                  Anchor: (Left: 10, Width: 132, Height: 32);
+                  Style: (FontSize: 14, Alignment: Start);
+                  Text: "Item Name";
+                }
+
+                Group #Entry6CostBadge {
+                  Anchor: (Left: 6, Width: 50, Height: 40);
+                  LayoutMode: Center;
+                  Background: (TexturePath: "../../Hud/RealmRulerTheme/RealmPointsBadge.png", Border: 14);
+
+                  Label #Entry6Cost {
+                    Anchor: (Width: 36, Height: 22);
+                    Style: (FontSize: 15, Alignment: Center);
+                    Text: "0";
+                  }
+                }
+
+                Group #Entry6ViewAction {
+                  Anchor: (Left: 8, Width: 56, Height: 40);
+                  LayoutMode: Center;
+
+                  TextButton #Entry6ViewButton {
+                    Anchor: (Width: 56, Height: 40);
+                    Padding: (Horizontal: 8, Bottom: 1);
+                    Text: "View";
+                    Style: @RealmShopCompactSubtleButtonStyle;
+                  }
+                }
+
+                Group #Entry6BuyAction {
+                  Anchor: (Left: 8, Width: 56, Height: 40);
+                  LayoutMode: Center;
+
+                  TextButton #Entry6BuyButton {
+                    Anchor: (Width: 56, Height: 40);
+                    Padding: (Horizontal: 8, Bottom: 1);
+                    Text: "Buy";
+                    Style: @RealmShopCompactGoldButtonStyle;
+                  }
+                }
+              }
+
+              Group #Entry7 {
+                Anchor: (Top: 4, Width: 332, Height: 46);
+                LayoutMode: Left;
+                Padding: (Horizontal: 8, Vertical: 8);
+                Background: (TexturePath: "../../Hud/RealmRulerTheme/RealmRow.png", Border: 8);
+
+                Group #Entry7SelectedAccent {
+                  Anchor: (Width: 12, Height: 40);
+                  Background: #4fc5ff(0.98);
+                }
+
+                Label #Entry7Name {
+                  Anchor: (Left: 10, Width: 132, Height: 32);
+                  Style: (FontSize: 14, Alignment: Start);
+                  Text: "Item Name";
+                }
+
+                Group #Entry7CostBadge {
+                  Anchor: (Left: 6, Width: 50, Height: 40);
+                  LayoutMode: Center;
+                  Background: (TexturePath: "../../Hud/RealmRulerTheme/RealmPointsBadge.png", Border: 14);
+
+                  Label #Entry7Cost {
+                    Anchor: (Width: 36, Height: 22);
+                    Style: (FontSize: 15, Alignment: Center);
+                    Text: "0";
+                  }
+                }
+
+                Group #Entry7ViewAction {
+                  Anchor: (Left: 8, Width: 56, Height: 40);
+                  LayoutMode: Center;
+
+                  TextButton #Entry7ViewButton {
+                    Anchor: (Width: 56, Height: 40);
+                    Padding: (Horizontal: 8, Bottom: 1);
+                    Text: "View";
+                    Style: @RealmShopCompactSubtleButtonStyle;
+                  }
+                }
+
+                Group #Entry7BuyAction {
+                  Anchor: (Left: 8, Width: 56, Height: 40);
+                  LayoutMode: Center;
+
+                  TextButton #Entry7BuyButton {
+                    Anchor: (Width: 56, Height: 40);
+                    Padding: (Horizontal: 8, Bottom: 1);
+                    Text: "Buy";
+                    Style: @RealmShopCompactGoldButtonStyle;
+                  }
+                }
+              }
+            }
+
+            Group #CatalogRightColumn {
+              Anchor: (Left: 14, Width: 336, Height: 420);
+              LayoutMode: Top;
+
+              Group #Entry8 {
+                Anchor: (Width: 336, Height: 48);
+                LayoutMode: Left;
+                Padding: (Horizontal: 8, Vertical: 8);
+                Background: (TexturePath: "../../Hud/RealmRulerTheme/RealmRow.png", Border: 8);
+
+                Group #Entry8SelectedAccent {
+                  Anchor: (Width: 12, Height: 40);
+                  Background: #4fc5ff(0.98);
+                }
+
+                Label #Entry8Name {
+                  Anchor: (Left: 10, Width: 132, Height: 32);
+                  Style: (FontSize: 14, Alignment: Start);
+                  Text: "Item Name";
+                }
+
+                Group #Entry8CostBadge {
+                  Anchor: (Left: 6, Width: 50, Height: 40);
+                  LayoutMode: Center;
+                  Background: (TexturePath: "../../Hud/RealmRulerTheme/RealmPointsBadge.png", Border: 14);
+
+                  Label #Entry8Cost {
+                    Anchor: (Width: 36, Height: 22);
+                    Style: (FontSize: 15, Alignment: Center);
+                    Text: "0";
+                  }
+                }
+
+                Group #Entry8ViewAction {
+                  Anchor: (Left: 8, Width: 56, Height: 40);
+                  LayoutMode: Center;
+
+                  TextButton #Entry8ViewButton {
+                    Anchor: (Width: 56, Height: 40);
+                    Padding: (Horizontal: 8, Bottom: 1);
+                    Text: "View";
+                    Style: @RealmShopCompactSubtleButtonStyle;
+                  }
+                }
+
+                Group #Entry8BuyAction {
+                  Anchor: (Left: 8, Width: 56, Height: 40);
+                  LayoutMode: Center;
+
+                  TextButton #Entry8BuyButton {
+                    Anchor: (Width: 56, Height: 40);
+                    Padding: (Horizontal: 8, Bottom: 1);
+                    Text: "Buy";
+                    Style: @RealmShopCompactGoldButtonStyle;
+                  }
+                }
+              }
+
+              Group #Entry9 {
+                Anchor: (Top: 4, Width: 332, Height: 46);
+                LayoutMode: Left;
+                Padding: (Horizontal: 8, Vertical: 8);
+                Background: (TexturePath: "../../Hud/RealmRulerTheme/RealmRow.png", Border: 8);
+
+                Group #Entry9SelectedAccent {
+                  Anchor: (Width: 12, Height: 40);
+                  Background: #4fc5ff(0.98);
+                }
+
+                Label #Entry9Name {
+                  Anchor: (Left: 10, Width: 132, Height: 32);
+                  Style: (FontSize: 14, Alignment: Start);
+                  Text: "Item Name";
+                }
+
+                Group #Entry9CostBadge {
+                  Anchor: (Left: 6, Width: 50, Height: 40);
+                  LayoutMode: Center;
+                  Background: (TexturePath: "../../Hud/RealmRulerTheme/RealmPointsBadge.png", Border: 14);
+
+                  Label #Entry9Cost {
+                    Anchor: (Width: 36, Height: 22);
+                    Style: (FontSize: 15, Alignment: Center);
+                    Text: "0";
+                  }
+                }
+
+                Group #Entry9ViewAction {
+                  Anchor: (Left: 8, Width: 56, Height: 40);
+                  LayoutMode: Center;
+
+                  TextButton #Entry9ViewButton {
+                    Anchor: (Width: 56, Height: 40);
+                    Padding: (Horizontal: 8, Bottom: 1);
+                    Text: "View";
+                    Style: @RealmShopCompactSubtleButtonStyle;
+                  }
+                }
+
+                Group #Entry9BuyAction {
+                  Anchor: (Left: 8, Width: 56, Height: 40);
+                  LayoutMode: Center;
+
+                  TextButton #Entry9BuyButton {
+                    Anchor: (Width: 56, Height: 40);
+                    Padding: (Horizontal: 8, Bottom: 1);
+                    Text: "Buy";
+                    Style: @RealmShopCompactGoldButtonStyle;
+                  }
+                }
+              }
+
+              Group #Entry10 {
+                Anchor: (Top: 4, Width: 332, Height: 46);
+                LayoutMode: Left;
+                Padding: (Horizontal: 8, Vertical: 8);
+                Background: (TexturePath: "../../Hud/RealmRulerTheme/RealmRow.png", Border: 8);
+
+                Group #Entry10SelectedAccent {
+                  Anchor: (Width: 12, Height: 40);
+                  Background: #4fc5ff(0.98);
+                }
+
+                Label #Entry10Name {
+                  Anchor: (Left: 10, Width: 132, Height: 32);
+                  Style: (FontSize: 14, Alignment: Start);
+                  Text: "Item Name";
+                }
+
+                Group #Entry10CostBadge {
+                  Anchor: (Left: 6, Width: 50, Height: 40);
+                  LayoutMode: Center;
+                  Background: (TexturePath: "../../Hud/RealmRulerTheme/RealmPointsBadge.png", Border: 14);
+
+                  Label #Entry10Cost {
+                    Anchor: (Width: 36, Height: 22);
+                    Style: (FontSize: 15, Alignment: Center);
+                    Text: "0";
+                  }
+                }
+
+                Group #Entry10ViewAction {
+                  Anchor: (Left: 8, Width: 56, Height: 40);
+                  LayoutMode: Center;
+
+                  TextButton #Entry10ViewButton {
+                    Anchor: (Width: 56, Height: 40);
+                    Padding: (Horizontal: 8, Bottom: 1);
+                    Text: "View";
+                    Style: @RealmShopCompactSubtleButtonStyle;
+                  }
+                }
+
+                Group #Entry10BuyAction {
+                  Anchor: (Left: 8, Width: 56, Height: 40);
+                  LayoutMode: Center;
+
+                  TextButton #Entry10BuyButton {
+                    Anchor: (Width: 56, Height: 40);
+                    Padding: (Horizontal: 8, Bottom: 1);
+                    Text: "Buy";
+                    Style: @RealmShopCompactGoldButtonStyle;
+                  }
+                }
+              }
+
+              Group #Entry11 {
+                Anchor: (Top: 4, Width: 332, Height: 46);
+                LayoutMode: Left;
+                Padding: (Horizontal: 8, Vertical: 8);
+                Background: (TexturePath: "../../Hud/RealmRulerTheme/RealmRow.png", Border: 8);
+
+                Group #Entry11SelectedAccent {
+                  Anchor: (Width: 12, Height: 40);
+                  Background: #4fc5ff(0.98);
+                }
+
+                Label #Entry11Name {
+                  Anchor: (Left: 10, Width: 132, Height: 32);
+                  Style: (FontSize: 14, Alignment: Start);
+                  Text: "Item Name";
+                }
+
+                Group #Entry11CostBadge {
+                  Anchor: (Left: 6, Width: 50, Height: 40);
+                  LayoutMode: Center;
+                  Background: (TexturePath: "../../Hud/RealmRulerTheme/RealmPointsBadge.png", Border: 14);
+
+                  Label #Entry11Cost {
+                    Anchor: (Width: 36, Height: 22);
+                    Style: (FontSize: 15, Alignment: Center);
+                    Text: "0";
+                  }
+                }
+
+                Group #Entry11ViewAction {
+                  Anchor: (Left: 8, Width: 56, Height: 40);
+                  LayoutMode: Center;
+
+                  TextButton #Entry11ViewButton {
+                    Anchor: (Width: 56, Height: 40);
+                    Padding: (Horizontal: 8, Bottom: 1);
+                    Text: "View";
+                    Style: @RealmShopCompactSubtleButtonStyle;
+                  }
+                }
+
+                Group #Entry11BuyAction {
+                  Anchor: (Left: 8, Width: 56, Height: 40);
+                  LayoutMode: Center;
+
+                  TextButton #Entry11BuyButton {
+                    Anchor: (Width: 56, Height: 40);
+                    Padding: (Horizontal: 8, Bottom: 1);
+                    Text: "Buy";
+                    Style: @RealmShopCompactGoldButtonStyle;
+                  }
+                }
+              }
+
+              Group #Entry12 {
+                Anchor: (Top: 4, Width: 332, Height: 46);
+                LayoutMode: Left;
+                Padding: (Horizontal: 8, Vertical: 8);
+                Background: (TexturePath: "../../Hud/RealmRulerTheme/RealmRow.png", Border: 8);
+
+                Group #Entry12SelectedAccent {
+                  Anchor: (Width: 12, Height: 40);
+                  Background: #4fc5ff(0.98);
+                }
+
+                Label #Entry12Name {
+                  Anchor: (Left: 10, Width: 132, Height: 32);
+                  Style: (FontSize: 14, Alignment: Start);
+                  Text: "Item Name";
+                }
+
+                Group #Entry12CostBadge {
+                  Anchor: (Left: 6, Width: 50, Height: 40);
+                  LayoutMode: Center;
+                  Background: (TexturePath: "../../Hud/RealmRulerTheme/RealmPointsBadge.png", Border: 14);
+
+                  Label #Entry12Cost {
+                    Anchor: (Width: 36, Height: 22);
+                    Style: (FontSize: 15, Alignment: Center);
+                    Text: "0";
+                  }
+                }
+
+                Group #Entry12ViewAction {
+                  Anchor: (Left: 8, Width: 56, Height: 40);
+                  LayoutMode: Center;
+
+                  TextButton #Entry12ViewButton {
+                    Anchor: (Width: 56, Height: 40);
+                    Padding: (Horizontal: 8, Bottom: 1);
+                    Text: "View";
+                    Style: @RealmShopCompactSubtleButtonStyle;
+                  }
+                }
+
+                Group #Entry12BuyAction {
+                  Anchor: (Left: 8, Width: 56, Height: 40);
+                  LayoutMode: Center;
+
+                  TextButton #Entry12BuyButton {
+                    Anchor: (Width: 56, Height: 40);
+                    Padding: (Horizontal: 8, Bottom: 1);
+                    Text: "Buy";
+                    Style: @RealmShopCompactGoldButtonStyle;
+                  }
+                }
+              }
+
+              Group #Entry13 {
+                Anchor: (Top: 4, Width: 332, Height: 46);
+                LayoutMode: Left;
+                Padding: (Horizontal: 8, Vertical: 8);
+                Background: (TexturePath: "../../Hud/RealmRulerTheme/RealmRow.png", Border: 8);
+
+                Group #Entry13SelectedAccent {
+                  Anchor: (Width: 12, Height: 40);
+                  Background: #4fc5ff(0.98);
+                }
+
+                Label #Entry13Name {
+                  Anchor: (Left: 10, Width: 132, Height: 32);
+                  Style: (FontSize: 14, Alignment: Start);
+                  Text: "Item Name";
+                }
+
+                Group #Entry13CostBadge {
+                  Anchor: (Left: 6, Width: 50, Height: 40);
+                  LayoutMode: Center;
+                  Background: (TexturePath: "../../Hud/RealmRulerTheme/RealmPointsBadge.png", Border: 14);
+
+                  Label #Entry13Cost {
+                    Anchor: (Width: 36, Height: 22);
+                    Style: (FontSize: 15, Alignment: Center);
+                    Text: "0";
+                  }
+                }
+
+                Group #Entry13ViewAction {
+                  Anchor: (Left: 8, Width: 56, Height: 40);
+                  LayoutMode: Center;
+
+                  TextButton #Entry13ViewButton {
+                    Anchor: (Width: 56, Height: 40);
+                    Padding: (Horizontal: 8, Bottom: 1);
+                    Text: "View";
+                    Style: @RealmShopCompactSubtleButtonStyle;
+                  }
+                }
+
+                Group #Entry13BuyAction {
+                  Anchor: (Left: 8, Width: 56, Height: 40);
+                  LayoutMode: Center;
+
+                  TextButton #Entry13BuyButton {
+                    Anchor: (Width: 56, Height: 40);
+                    Padding: (Horizontal: 8, Bottom: 1);
+                    Text: "Buy";
+                    Style: @RealmShopCompactGoldButtonStyle;
+                  }
+                }
+              }
+
+              Group #Entry14 {
+                Anchor: (Top: 4, Width: 332, Height: 46);
+                LayoutMode: Left;
+                Padding: (Horizontal: 8, Vertical: 8);
+                Background: (TexturePath: "../../Hud/RealmRulerTheme/RealmRow.png", Border: 8);
+
+                Group #Entry14SelectedAccent {
+                  Anchor: (Width: 12, Height: 40);
+                  Background: #4fc5ff(0.98);
+                }
+
+                Label #Entry14Name {
+                  Anchor: (Left: 10, Width: 132, Height: 32);
+                  Style: (FontSize: 14, Alignment: Start);
+                  Text: "Item Name";
+                }
+
+                Group #Entry14CostBadge {
+                  Anchor: (Left: 6, Width: 50, Height: 40);
+                  LayoutMode: Center;
+                  Background: (TexturePath: "../../Hud/RealmRulerTheme/RealmPointsBadge.png", Border: 14);
+
+                  Label #Entry14Cost {
+                    Anchor: (Width: 36, Height: 22);
+                    Style: (FontSize: 15, Alignment: Center);
+                    Text: "0";
+                  }
+                }
+
+                Group #Entry14ViewAction {
+                  Anchor: (Left: 8, Width: 56, Height: 40);
+                  LayoutMode: Center;
+
+                  TextButton #Entry14ViewButton {
+                    Anchor: (Width: 56, Height: 40);
+                    Padding: (Horizontal: 8, Bottom: 1);
+                    Text: "View";
+                    Style: @RealmShopCompactSubtleButtonStyle;
+                  }
+                }
+
+                Group #Entry14BuyAction {
+                  Anchor: (Left: 8, Width: 56, Height: 40);
+                  LayoutMode: Center;
+
+                  TextButton #Entry14BuyButton {
+                    Anchor: (Width: 56, Height: 40);
+                    Padding: (Horizontal: 8, Bottom: 1);
+                    Text: "Buy";
+                    Style: @RealmShopCompactGoldButtonStyle;
+                  }
+                }
+              }
+
+              Group #Entry15 {
+                Anchor: (Top: 4, Width: 332, Height: 46);
+                LayoutMode: Left;
+                Padding: (Horizontal: 8, Vertical: 8);
+                Background: (TexturePath: "../../Hud/RealmRulerTheme/RealmRow.png", Border: 8);
+
+                Group #Entry15SelectedAccent {
+                  Anchor: (Width: 12, Height: 40);
+                  Background: #4fc5ff(0.98);
+                }
+
+                Label #Entry15Name {
+                  Anchor: (Left: 10, Width: 132, Height: 32);
+                  Style: (FontSize: 14, Alignment: Start);
+                  Text: "Item Name";
+                }
+
+                Group #Entry15CostBadge {
+                  Anchor: (Left: 6, Width: 50, Height: 40);
+                  LayoutMode: Center;
+                  Background: (TexturePath: "../../Hud/RealmRulerTheme/RealmPointsBadge.png", Border: 14);
+
+                  Label #Entry15Cost {
+                    Anchor: (Width: 36, Height: 22);
+                    Style: (FontSize: 15, Alignment: Center);
+                    Text: "0";
+                  }
+                }
+
+                Group #Entry15ViewAction {
+                  Anchor: (Left: 8, Width: 56, Height: 40);
+                  LayoutMode: Center;
+
+                  TextButton #Entry15ViewButton {
+                    Anchor: (Width: 56, Height: 40);
+                    Padding: (Horizontal: 8, Bottom: 1);
+                    Text: "View";
+                    Style: @RealmShopCompactSubtleButtonStyle;
+                  }
+                }
+
+                Group #Entry15BuyAction {
+                  Anchor: (Left: 8, Width: 56, Height: 40);
+                  LayoutMode: Center;
+
+                  TextButton #Entry15BuyButton {
+                    Anchor: (Width: 56, Height: 40);
+                    Padding: (Horizontal: 8, Bottom: 1);
+                    Text: "Buy";
+                    Style: @RealmShopCompactGoldButtonStyle;
+                  }
+                }
+              }
+            }
+          }
         }
 
-        Label #Entry5Cost {
-          Anchor: (Left: 10, Width: 80, Height: 24);
-          Style: (FontSize: 16, Alignment: Center);
-          Text: "0";
-        }
+        Group #DetailsCard {
+          Anchor: (Left: 16, Width: 282, Height: 546);
+          LayoutMode: Top;
+          Padding: (Horizontal: 18, Vertical: 18);
+          Background: (TexturePath: "../../Hud/RealmRulerTheme/RealmCardAction.png", Border: 18);
 
-        TextButton #Entry5BuyButton {
-          Anchor: (Left: 10, Width: 120, Height: 28);
-          Text: "Buy";
+          Group #DetailsPlaque {
+            Anchor: (Width: 214, Height: 34);
+            LayoutMode: Center;
+            Background: (TexturePath: "../../Hud/RealmRulerTheme/RealmMiniPlaque.png", Border: 12);
+
+            Label #DetailsTitle {
+              Anchor: (Width: 152, Height: 22);
+              Style: (FontSize: 16, Alignment: Center);
+              Text: "Item Details";
+            }
+          }
+
+          Label #DetailNameValue {
+            Anchor: (Top: 14, Height: 32);
+            Style: (FontSize: 22, Alignment: Center);
+            Text: "No item selected";
+          }
+
+          Group #DetailRow1 {
+            Anchor: (Top: 16, Width: 246, Height: 36);
+            LayoutMode: Left;
+            Background: (TexturePath: "../../Hud/RealmRulerTheme/RealmRow.png", Border: 8);
+
+            Label #DetailIdLabel {
+              Anchor: (Width: 82, Height: 36);
+              Style: (FontSize: 15, Alignment: Start);
+              Text: "Item Id";
+            }
+
+            Label #DetailIdValue {
+              Anchor: (Left: 10, Width: 144, Height: 36);
+              Style: (FontSize: 14, Alignment: Start);
+              Text: "<none>";
+            }
+          }
+
+          Group #DetailRow2 {
+            Anchor: (Top: 10, Width: 246, Height: 36);
+            LayoutMode: Left;
+            Background: (TexturePath: "../../Hud/RealmRulerTheme/RealmRow.png", Border: 8);
+
+            Label #DetailCostLabel {
+              Anchor: (Width: 82, Height: 36);
+              Style: (FontSize: 15, Alignment: Start);
+              Text: "Cost";
+            }
+
+            Label #DetailCostValue {
+              Anchor: (Left: 10, Width: 144, Height: 36);
+              Style: (FontSize: 14, Alignment: Start);
+              Text: "0";
+            }
+          }
+
+          Group #DetailRow3 {
+            Anchor: (Top: 10, Width: 246, Height: 36);
+            LayoutMode: Left;
+            Background: (TexturePath: "../../Hud/RealmRulerTheme/RealmRow.png", Border: 8);
+
+            Label #DetailAvailabilityLabel {
+              Anchor: (Width: 82, Height: 36);
+              Style: (FontSize: 15, Alignment: Start);
+              Text: "Available";
+            }
+
+            Label #DetailAvailabilityValue {
+              Anchor: (Left: 10, Width: 144, Height: 36);
+              Style: (FontSize: 14, Alignment: Start);
+              Text: "<none>";
+            }
+          }
+
+          Group #DetailRow4 {
+            Anchor: (Top: 10, Width: 246, Height: 36);
+            LayoutMode: Left;
+            Background: (TexturePath: "../../Hud/RealmRulerTheme/RealmRow.png", Border: 8);
+
+            Label #DetailTeamRuleLabel {
+              Anchor: (Width: 82, Height: 36);
+              Style: (FontSize: 15, Alignment: Start);
+              Text: "Team Rule";
+            }
+
+            Label #DetailTeamRuleValue {
+              Anchor: (Left: 10, Width: 144, Height: 36);
+              Style: (FontSize: 14, Alignment: Start);
+              Text: "<none>";
+            }
+          }
+
+          Group #RewardsCard {
+            Anchor: (Top: 18, Width: 246, Height: 198);
+            LayoutMode: Top;
+            Padding: (Horizontal: 16, Vertical: 16);
+            Background: (TexturePath: "../../Hud/RealmRulerTheme/RealmFooterBar.png", Border: 12);
+
+            Group #RewardsPlaque {
+              Anchor: (Width: 184, Height: 30);
+              LayoutMode: Center;
+              Background: (TexturePath: "../../Hud/RealmRulerTheme/RealmMiniPlaque.png", Border: 12);
+
+              Label #RewardsTitle {
+                Anchor: (Width: 126, Height: 20);
+                Style: (FontSize: 15, Alignment: Center);
+                Text: "Rewards";
+              }
+            }
+
+            Label #DetailRewardsValue {
+              Anchor: (Top: 14, Height: 122);
+              Style: (FontSize: 14, Alignment: Center);
+              Text: "<none>";
+            }
+          }
         }
       }
 
-      Group #Entry6 {
-        Anchor: (Top: 8, Height: 44);
-        Padding: (Horizontal: 12, Vertical: 10);
-        LayoutMode: Left;
-        Background: #000000(0.22);
+      Group #PageFooter {
+        Anchor: (Top: 16, Width: 1024, Height: 36);
+        LayoutMode: Center;
+        Background: (TexturePath: "../../Hud/RealmRulerTheme/RealmFooterBar.png", Border: 12);
 
-        Label #Entry6Name {
-          Anchor: (Width: 420, Height: 24);
-          Style: (FontSize: 16, Alignment: Start);
-          Text: "Item Name";
-        }
-
-        Label #Entry6Cost {
-          Anchor: (Left: 10, Width: 80, Height: 24);
-          Style: (FontSize: 16, Alignment: Center);
-          Text: "0";
-        }
-
-        TextButton #Entry6BuyButton {
-          Anchor: (Left: 10, Width: 120, Height: 28);
-          Text: "Buy";
+        Label #CloseHint {
+          Anchor: (Width: 190, Height: 20);
+          Style: (FontSize: 13, Alignment: Center, TextColor: #cfd9e2(0.88));
+          Text: "Press Esc to close";
         }
       }
-
-      Group #Entry7 {
-        Anchor: (Top: 8, Height: 44);
-        Padding: (Horizontal: 12, Vertical: 10);
-        LayoutMode: Left;
-        Background: #000000(0.22);
-
-        Label #Entry7Name {
-          Anchor: (Width: 420, Height: 24);
-          Style: (FontSize: 16, Alignment: Start);
-          Text: "Item Name";
-        }
-
-        Label #Entry7Cost {
-          Anchor: (Left: 10, Width: 80, Height: 24);
-          Style: (FontSize: 16, Alignment: Center);
-          Text: "0";
-        }
-
-        TextButton #Entry7BuyButton {
-          Anchor: (Left: 10, Width: 120, Height: 28);
-          Text: "Buy";
-        }
-      }
-
-      Group #Entry8 {
-        Anchor: (Top: 8, Height: 44);
-        Padding: (Horizontal: 12, Vertical: 10);
-        LayoutMode: Left;
-        Background: #000000(0.22);
-
-        Label #Entry8Name {
-          Anchor: (Width: 420, Height: 24);
-          Style: (FontSize: 16, Alignment: Start);
-          Text: "Item Name";
-        }
-
-        Label #Entry8Cost {
-          Anchor: (Left: 10, Width: 80, Height: 24);
-          Style: (FontSize: 16, Alignment: Center);
-          Text: "0";
-        }
-
-        TextButton #Entry8BuyButton {
-          Anchor: (Left: 10, Width: 120, Height: 28);
-          Text: "Buy";
-        }
-      }
-
-      Group #Entry9 {
-        Anchor: (Top: 8, Height: 44);
-        Padding: (Horizontal: 12, Vertical: 10);
-        LayoutMode: Left;
-        Background: #000000(0.22);
-
-        Label #Entry9Name {
-          Anchor: (Width: 420, Height: 24);
-          Style: (FontSize: 16, Alignment: Start);
-          Text: "Item Name";
-        }
-
-        Label #Entry9Cost {
-          Anchor: (Left: 10, Width: 80, Height: 24);
-          Style: (FontSize: 16, Alignment: Center);
-          Text: "0";
-        }
-
-        TextButton #Entry9BuyButton {
-          Anchor: (Left: 10, Width: 120, Height: 28);
-          Text: "Buy";
-        }
-      }
-
-      Group #Entry10 {
-        Anchor: (Top: 8, Height: 44);
-        Padding: (Horizontal: 12, Vertical: 10);
-        LayoutMode: Left;
-        Background: #000000(0.22);
-
-        Label #Entry10Name {
-          Anchor: (Width: 420, Height: 24);
-          Style: (FontSize: 16, Alignment: Start);
-          Text: "Item Name";
-        }
-
-        Label #Entry10Cost {
-          Anchor: (Left: 10, Width: 80, Height: 24);
-          Style: (FontSize: 16, Alignment: Center);
-          Text: "0";
-        }
-
-        TextButton #Entry10BuyButton {
-          Anchor: (Left: 10, Width: 120, Height: 28);
-          Text: "Buy";
-        }
-      }
-
-      Group #Entry11 {
-        Anchor: (Top: 8, Height: 44);
-        Padding: (Horizontal: 12, Vertical: 10);
-        LayoutMode: Left;
-        Background: #000000(0.22);
-
-        Label #Entry11Name {
-          Anchor: (Width: 420, Height: 24);
-          Style: (FontSize: 16, Alignment: Start);
-          Text: "Item Name";
-        }
-
-        Label #Entry11Cost {
-          Anchor: (Left: 10, Width: 80, Height: 24);
-          Style: (FontSize: 16, Alignment: Center);
-          Text: "0";
-        }
-
-        TextButton #Entry11BuyButton {
-          Anchor: (Left: 10, Width: 120, Height: 28);
-          Text: "Buy";
-        }
-      }
-
-      Group #Entry12 {
-        Anchor: (Top: 8, Height: 44);
-        Padding: (Horizontal: 12, Vertical: 10);
-        LayoutMode: Left;
-        Background: #000000(0.22);
-
-        Label #Entry12Name {
-          Anchor: (Width: 420, Height: 24);
-          Style: (FontSize: 16, Alignment: Start);
-          Text: "Item Name";
-        }
-
-        Label #Entry12Cost {
-          Anchor: (Left: 10, Width: 80, Height: 24);
-          Style: (FontSize: 16, Alignment: Center);
-          Text: "0";
-        }
-
-        TextButton #Entry12BuyButton {
-          Anchor: (Left: 10, Width: 120, Height: 28);
-          Text: "Buy";
-        }
-      }
-
-      Group #Entry13 {
-        Anchor: (Top: 8, Height: 44);
-        Padding: (Horizontal: 12, Vertical: 10);
-        LayoutMode: Left;
-        Background: #000000(0.22);
-
-        Label #Entry13Name {
-          Anchor: (Width: 420, Height: 24);
-          Style: (FontSize: 16, Alignment: Start);
-          Text: "Item Name";
-        }
-
-        Label #Entry13Cost {
-          Anchor: (Left: 10, Width: 80, Height: 24);
-          Style: (FontSize: 16, Alignment: Center);
-          Text: "0";
-        }
-
-        TextButton #Entry13BuyButton {
-          Anchor: (Left: 10, Width: 120, Height: 28);
-          Text: "Buy";
-        }
-      }
-
-      Group #Entry14 {
-        Anchor: (Top: 8, Height: 44);
-        Padding: (Horizontal: 12, Vertical: 10);
-        LayoutMode: Left;
-        Background: #000000(0.22);
-
-        Label #Entry14Name {
-          Anchor: (Width: 420, Height: 24);
-          Style: (FontSize: 16, Alignment: Start);
-          Text: "Item Name";
-        }
-
-        Label #Entry14Cost {
-          Anchor: (Left: 10, Width: 80, Height: 24);
-          Style: (FontSize: 16, Alignment: Center);
-          Text: "0";
-        }
-
-        TextButton #Entry14BuyButton {
-          Anchor: (Left: 10, Width: 120, Height: 28);
-          Text: "Buy";
-        }
-      }
-
-      Group #Entry15 {
-        Anchor: (Top: 8, Height: 44);
-        Padding: (Horizontal: 12, Vertical: 10);
-        LayoutMode: Left;
-        Background: #000000(0.22);
-
-        Label #Entry15Name {
-          Anchor: (Width: 420, Height: 24);
-          Style: (FontSize: 16, Alignment: Start);
-          Text: "Item Name";
-        }
-
-        Label #Entry15Cost {
-          Anchor: (Left: 10, Width: 80, Height: 24);
-          Style: (FontSize: 16, Alignment: Center);
-          Text: "0";
-        }
-
-        TextButton #Entry15BuyButton {
-          Anchor: (Left: 10, Width: 120, Height: 28);
-          Text: "Buy";
-        }
-      }
-    }
-
-    Label #CloseHint {
-      Anchor: (Top: 14, Height: 20);
-      Style: (FontSize: 14, Alignment: Center);
-      Text: "Press Esc to close";
     }
   }
 }
