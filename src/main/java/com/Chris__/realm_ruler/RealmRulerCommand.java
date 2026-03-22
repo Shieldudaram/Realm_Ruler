@@ -1,5 +1,6 @@
 package com.Chris__.realm_ruler;
 
+import com.Chris__.realm_ruler.ctf.CtfWorkflowFacade;
 import com.Chris__.realm_ruler.integration.SimpleClaimsCtfBridge;
 import com.Chris__.realm_ruler.match.CtfArmorLoadoutService;
 import com.Chris__.realm_ruler.match.CtfBalloonSpawnService;
@@ -64,6 +65,7 @@ public final class RealmRulerCommand extends CommandBase {
     private final CtfPointsRepository pointsRepository;
     private final CtfShopService shopService;
     private final CtfShopUiService shopUiService;
+    private final CtfWorkflowFacade ctfWorkflow;
     private final CtfBalloonSpawnService balloonSpawnService;
     private final CtfRegionRepository regionRepository;
     private final CtfArmorLoadoutService armorLoadoutService;
@@ -78,6 +80,7 @@ public final class RealmRulerCommand extends CommandBase {
                              CtfPointsRepository pointsRepository,
                              CtfShopService shopService,
                              CtfShopUiService shopUiService,
+                             CtfWorkflowFacade ctfWorkflow,
                              CtfBalloonSpawnService balloonSpawnService,
                              CtfRegionRepository regionRepository,
                              CtfArmorLoadoutService armorLoadoutService,
@@ -95,6 +98,7 @@ public final class RealmRulerCommand extends CommandBase {
         this.pointsRepository = pointsRepository;
         this.shopService = shopService;
         this.shopUiService = shopUiService;
+        this.ctfWorkflow = ctfWorkflow;
         this.balloonSpawnService = balloonSpawnService;
         this.regionRepository = regionRepository;
         this.armorLoadoutService = armorLoadoutService;
@@ -119,30 +123,16 @@ public final class RealmRulerCommand extends CommandBase {
             }
             String action = args[2];
 
-            if (matchService == null) {
+            if (ctfWorkflow == null) {
                 ctx.sendMessage(MSG_NOT_READY);
                 return;
             }
 
             if ("join".equalsIgnoreCase(action)) {
                 Player senderPlayer = ctx.senderAs(Player.class);
-                String uuid = (ctx.sender() == null || ctx.sender().getUuid() == null) ? null : ctx.sender().getUuid().toString();
-                if (uuid == null || uuid.isBlank()) {
+                String uuid = senderUuid(ctx);
+                if (uuid == null || senderPlayer == null) {
                     ctx.sendMessage(MSG_PLAYERS_ONLY);
-                    return;
-                }
-                if (senderPlayer == null) {
-                    ctx.sendMessage(MSG_PLAYERS_ONLY);
-                    return;
-                }
-
-                if (containsObjectiveFlag(senderPlayer)) {
-                    ctx.sendMessage(Message.raw("[RealmRuler] You cannot join CTF while carrying objective flags. Put them away first."));
-                    return;
-                }
-
-                if (!matchService.isRunning() && armorLoadoutService != null && !armorLoadoutService.canJoinWithCurrentArmor(uuid, senderPlayer)) {
-                    ctx.sendMessage(Message.raw("[RealmRuler] Remove your current armor before joining CTF."));
                     return;
                 }
 
@@ -155,67 +145,7 @@ public final class RealmRulerCommand extends CommandBase {
                         return;
                     }
                 }
-
-                CtfMatchService.Team previous = matchService.lobbyTeamFor(uuid);
-                CtfMatchService.JoinLobbyResult jr = matchService.joinLobby(uuid, requested);
-
-                if (jr.status() == CtfMatchService.JoinStatus.NOT_READY) {
-                    ctx.sendMessage(MSG_NOT_READY);
-                    return;
-                }
-
-                if (jr.status() == CtfMatchService.JoinStatus.MATCH_RUNNING) {
-                    String teamName = safeTeamName(jr);
-                    if (!"<unknown>".equals(teamName)) {
-                        // Best-effort: ensure their temporary team access exists (useful on reconnect).
-                        if (simpleClaims != null) {
-                            simpleClaims.setTeam(uuid, teamName);
-                        }
-
-                        // Teleport them back to their team spawn on reconnect
-                        if (simpleClaims != null && targetingService != null) {
-                            var spawn = simpleClaims.getTeamSpawn(teamName);
-                            if (spawn != null) {
-                                SpawnTeleportUtil.queueTeamSpawnTeleport(targetingService, uuid, spawn.world(), spawn.x(), spawn.y(), spawn.z(), SPAWN_JITTER_RADIUS_BLOCKS);
-                            } else {
-                                ctx.sendMessage(Message.raw("[RealmRuler] Team spawn not set for: " + teamName + ". Ask an admin to run: /sc " + teamName.toLowerCase(java.util.Locale.ROOT) + " spawn"));
-                            }
-                        }
-                    }
-                    ctx.sendMessage(Message.raw("[RealmRuler] CaptureTheFlag match already running (remaining: " + formatSeconds(matchService.getRemainingSeconds()) + "). Team: " + teamName));
-                    return;
-                }
-
-                if ((jr.status() == CtfMatchService.JoinStatus.JOINED
-                        || jr.status() == CtfMatchService.JoinStatus.ALREADY_WAITING)
-                        && armorLoadoutService != null
-                        && senderPlayer != null
-                        && jr.team() != null) {
-                    CtfArmorLoadoutService.EquipResult equipResult = armorLoadoutService.equipTeamArmor(uuid, senderPlayer, jr.team());
-                    if (!equipResult.success()) {
-                        if (jr.status() == CtfMatchService.JoinStatus.JOINED) {
-                            matchService.leaveLobby(uuid);
-                        } else if (previous != null) {
-                            matchService.joinLobby(uuid, previous);
-                        } else {
-                            matchService.leaveLobby(uuid);
-                        }
-                        ctx.sendMessage(Message.raw("[RealmRuler] " + equipResult.message()));
-                        return;
-                    }
-                }
-
-                if (jr.status() == CtfMatchService.JoinStatus.ALREADY_WAITING) {
-                    boolean changed = (requested != null && previous != null && requested != previous);
-                    if (changed) {
-                        ctx.sendMessage(Message.raw("[RealmRuler] Switched to team: " + safeTeamName(jr) + " (waiting: " + jr.waitingCount() + ")"));
-                    } else {
-                        ctx.sendMessage(Message.raw("[RealmRuler] You're already waiting in the CaptureTheFlag lobby. Team: " + safeTeamName(jr) + " (waiting: " + jr.waitingCount() + ")"));
-                    }
-                    return;
-                }
-
-                ctx.sendMessage(Message.raw("[RealmRuler] Joined CaptureTheFlag lobby. Team: " + safeTeamName(jr) + " (waiting: " + jr.waitingCount() + ")"));
+                sendActionResult(ctx, ctfWorkflow.joinLobby(senderPlayer, uuid, requested));
                 return;
             }
 
@@ -231,29 +161,17 @@ public final class RealmRulerCommand extends CommandBase {
 
             if ("leave".equalsIgnoreCase(action)) {
                 Player senderPlayer = ctx.senderAs(Player.class);
-                String uuid = (ctx.sender() == null || ctx.sender().getUuid() == null) ? null : ctx.sender().getUuid().toString();
-                if (uuid == null || uuid.isBlank()) {
+                String uuid = senderUuid(ctx);
+                if (uuid == null || senderPlayer == null) {
                     ctx.sendMessage(MSG_PLAYERS_ONLY);
                     return;
                 }
-
-                if (matchService.isRunning()) {
-                    ctx.sendMessage(Message.raw("[RealmRuler] Can't leave the lobby while a match is running."));
-                    return;
-                }
-
-                boolean removed = matchService.leaveLobby(uuid);
-                if (removed && armorLoadoutService != null && senderPlayer != null) {
-                    armorLoadoutService.restoreForParticipant(uuid, senderPlayer);
-                }
-                ctx.sendMessage(removed
-                        ? Message.raw("[RealmRuler] Left CaptureTheFlag lobby.")
-                        : Message.raw("[RealmRuler] You're not in the CaptureTheFlag lobby."));
+                sendActionResult(ctx, ctfWorkflow.leaveLobby(senderPlayer, uuid));
                 return;
             }
 
             if ("start".equalsIgnoreCase(action)) {
-                int minutes = 8;
+                int minutes = CtfWorkflowFacade.DEFAULT_MATCH_MINUTES;
                 if (args.length >= 4) {
                     try {
                         minutes = Integer.parseInt(args[3].trim());
@@ -267,106 +185,22 @@ public final class RealmRulerCommand extends CommandBase {
                     ctx.sendMessage(MSG_USAGE);
                     return;
                 }
-
-                long secondsLong = minutes * 60L;
-                int seconds = (secondsLong > Integer.MAX_VALUE) ? Integer.MAX_VALUE : (int) secondsLong;
-
-                Map<String, CtfMatchService.Team> lobby = matchService.getLobbyWaitingTeamsSnapshot();
-                Set<CtfMatchService.Team> activeTeams = new HashSet<>(lobby.values());
-                activeTeams.remove(null);
-
-                if (flagStateService != null) {
-                    Map<CtfMatchService.Team, String> missingReasons = flagStateService.missingHomeTeamReasons(activeTeams);
-                    if (!missingReasons.isEmpty()) {
-                        List<String> detail = new ArrayList<>();
-                        for (Map.Entry<CtfMatchService.Team, String> entry : missingReasons.entrySet()) {
-                            CtfMatchService.Team team = entry.getKey();
-                            if (team == null) continue;
-                            String reason = (entry.getValue() == null || entry.getValue().isBlank())
-                                    ? "unknown reason"
-                                    : entry.getValue();
-                            detail.add(team.displayName() + " (" + reason + ")");
-                        }
-                        ctx.sendMessage(Message.raw("[RealmRuler] Missing valid home stands for: " + String.join(", ", detail)
-                                + ". Interact with each team's stand in its own claimed chunk or register with /rr ctf stand add <team> <world> <x> <y> <z>."));
-                        return;
-                    }
-                }
-
-                // Preflight: ensure spawns exist for active lobby teams before starting.
-                if (simpleClaims != null && simpleClaims.isAvailable()) {
-                    List<String> missing = new ArrayList<>();
-                    for (CtfMatchService.Team team : activeTeams) {
-                        if (team == null) continue;
-                        if (simpleClaims.getTeamSpawn(team.displayName()) == null) {
-                            missing.add(team.displayName());
-                        }
-                    }
-
-                    if (!missing.isEmpty()) {
-                        ctx.sendMessage(Message.raw("[RealmRuler] Missing spawns for: " + String.join(", ", missing) +
-                                ". Set with: /sc red spawn, /sc blue spawn, /sc yellow spawn, /sc white spawn"));
-                        return;
-                    }
-                }
-
-                CtfMatchService.StartResult res = matchService.startCaptureTheFlag(seconds);
-                if (res == CtfMatchService.StartResult.STARTED) {
-                    if (flagStateService != null) {
-                        flagStateService.resetForNewMatch();
-                    }
-
-                    if (simpleClaims != null) {
-                        Map<String, String> teamNameByUuid = new HashMap<>();
-                        for (Map.Entry<String, CtfMatchService.Team> e : matchService.getActiveMatchTeams().entrySet()) {
-                            if (e.getKey() == null || e.getValue() == null) continue;
-                            teamNameByUuid.put(e.getKey(), e.getValue().displayName());
-                        }
-                        simpleClaims.ensureParties();
-                        simpleClaims.applyTeams(teamNameByUuid);
-
-                        // Teleport players to their team spawns (jittered within the spawn chunk).
-                        if (targetingService != null) {
-                            for (Map.Entry<String, CtfMatchService.Team> e : matchService.getActiveMatchTeams().entrySet()) {
-                                if (e.getKey() == null || e.getValue() == null) continue;
-                                var spawn = simpleClaims.getTeamSpawn(e.getValue().displayName());
-                                if (spawn == null) continue; // should be prevented by preflight
-                                SpawnTeleportUtil.queueTeamSpawnTeleport(targetingService, e.getKey(), spawn.world(), spawn.x(), spawn.y(), spawn.z(), SPAWN_JITTER_RADIUS_BLOCKS);
-                            }
-                        }
-                    }
-                    ctx.sendMessage(Message.raw("[RealmRuler] Started CaptureTheFlag match timer: " + formatSeconds(seconds)));
-                    return;
-                }
-
-                if (res == CtfMatchService.StartResult.ALREADY_RUNNING) {
-                    ctx.sendMessage(Message.raw("[RealmRuler] CaptureTheFlag match already running (remaining: " + formatSeconds(matchService.getRemainingSeconds()) + ")"));
-                    return;
-                }
-
-                ctx.sendMessage(MSG_NOT_READY);
+                sendActionResult(ctx, ctfWorkflow.startMatch(minutes));
                 return;
             }
 
             if ("stop".equalsIgnoreCase(action)) {
-                if (!matchService.isRunning()) {
-                    ctx.sendMessage(Message.raw("[RealmRuler] No CaptureTheFlag match is running."));
-                    return;
-                }
-
-                matchService.stopCaptureTheFlag();
-                ctx.sendMessage(Message.raw("[RealmRuler] Stopping CaptureTheFlag match..."));
+                sendActionResult(ctx, ctfWorkflow.stopMatch());
                 return;
             }
 
             if ("points".equalsIgnoreCase(action)) {
-                String uuid = (ctx.sender() == null || ctx.sender().getUuid() == null) ? null : ctx.sender().getUuid().toString();
+                String uuid = senderUuid(ctx);
                 if (uuid == null || uuid.isBlank()) {
                     ctx.sendMessage(MSG_PLAYERS_ONLY);
                     return;
                 }
-                int points = (pointsRepository == null) ? 0 : pointsRepository.getPoints(uuid);
-                ctx.sendMessage(Message.raw("[RealmRuler] CTF points: " + points));
+                sendActionResult(ctx, ctfWorkflow.pointsStatus(uuid));
                 return;
             }
 
@@ -393,7 +227,7 @@ public final class RealmRulerCommand extends CommandBase {
     }
 
     private void handleShopCommand(CommandContext ctx, String[] args) {
-        if (shopService == null) {
+        if (ctfWorkflow == null) {
             ctx.sendMessage(MSG_NOT_READY);
             return;
         }
@@ -424,8 +258,7 @@ public final class RealmRulerCommand extends CommandBase {
         }
 
         if ("list".equals(shopAction)) {
-            shopService.reloadCatalog();
-            List<CtfShopService.ShopItemView> items = shopService.listEnabledItems();
+            List<CtfShopService.ShopItemView> items = ctfWorkflow.listEnabledShopItems();
             if (items.isEmpty()) {
                 ctx.sendMessage(Message.raw("[RealmRuler] No CTF shop items are configured."));
                 return;
@@ -445,30 +278,17 @@ public final class RealmRulerCommand extends CommandBase {
                 ctx.sendMessage(Message.raw("[RealmRuler] Usage: /rr ctf shop info <id>"));
                 return;
             }
-            shopService.reloadCatalog();
-            CtfShopService.ShopItemView item = shopService.describeItem(args[4]);
+            CtfShopService.ShopItemView item = ctfWorkflow.describeShopItem(args[4]);
             if (item == null) {
                 ctx.sendMessage(Message.raw("[RealmRuler] Shop item not found: " + args[4]));
                 return;
             }
 
-            StringBuilder rewards = new StringBuilder();
-            List<CtfShopService.RewardSpec> rewardSpecs = item.rewards();
-            if (rewardSpecs != null && !rewardSpecs.isEmpty()) {
-                for (int index = 0; index < rewardSpecs.size(); index++) {
-                    CtfShopService.RewardSpec reward = rewardSpecs.get(index);
-                    if (reward == null || reward.itemId() == null || reward.itemId().isBlank()) continue;
-                    if (rewards.length() > 0) rewards.append(", ");
-                    rewards.append(reward.itemId()).append(" x").append(Math.max(1, reward.amount()));
-                }
-            }
-            if (rewards.length() == 0) rewards.append("<none>");
-
             ctx.sendMessage(Message.raw("[RealmRuler] Shop item '" + item.id() + "': "
                     + item.name() + " | cost=" + item.cost() + " | availability=" + safeField(item.availability(), "any")
                     + " | teamRule=" + safeField(item.teamRule(), "any")
                     + " | team=" + safeField(item.team(), "any")
-                    + " | rewards=" + rewards));
+                    + " | rewards=" + CtfWorkflowFacade.formatRewards(item)));
             return;
         }
 
@@ -485,12 +305,7 @@ public final class RealmRulerCommand extends CommandBase {
                 return;
             }
 
-            shopService.reloadCatalog();
-            CtfShopService.PurchaseResult result = shopService.purchase(senderPlayer, uuid, args[4]);
-            ctx.sendMessage(Message.raw("[RealmRuler] " + result.message()));
-            if (result.success() && result.remainingPoints() >= 0) {
-                ctx.sendMessage(Message.raw("[RealmRuler] Remaining CTF points: " + result.remainingPoints()));
-            }
+            sendActionResult(ctx, ctfWorkflow.purchaseShopItem(senderPlayer, uuid, args[4]));
             return;
         }
 
@@ -498,12 +313,8 @@ public final class RealmRulerCommand extends CommandBase {
     }
 
     private void handleBalloonsCommand(CommandContext ctx, String[] args) {
-        if (balloonSpawnService == null || regionRepository == null) {
+        if (ctfWorkflow == null) {
             ctx.sendMessage(MSG_NOT_READY);
-            return;
-        }
-        if (ctx.sender() == null || !ctx.sender().hasPermission("realmruler.ctf.region.manage")) {
-            ctx.sendMessage(MSG_NO_REGION_PERMISSION);
             return;
         }
 
@@ -514,28 +325,7 @@ public final class RealmRulerCommand extends CommandBase {
 
         String balloonsAction = args[3];
         if ("status".equalsIgnoreCase(balloonsAction)) {
-            CtfBalloonSpawnService.StatusSnapshot status = balloonSpawnService.statusSnapshot();
-            String remaining = (status.secondsUntilNextSpawn() < 0) ? "<none>" : String.valueOf(status.secondsUntilNextSpawn()) + "s";
-            ctx.sendMessage(Message.raw("[RealmRuler] Balloons: running=" + status.matchRunning()
-                    + ", regionConfigured=" + status.regionConfigured()
-                    + ", regionReady=" + status.regionReady()
-                    + ", regionWorld=" + safeField(status.regionWorldName(), "<unset>")
-                    + ", worldResolved=" + status.regionWorldResolved()
-                    + ", active=" + status.activeCount() + "/" + status.maxActive()
-                    + ", nextSpawn=" + remaining
-                    + ", roleReady=" + status.balloonRoleResolvable()
-                    + ", directApiReady=" + status.directApiReady()
-                    + ", fallbackReady=" + status.fallbackReady()
-                    + ", fallbackTemplate=" + safeField(status.selectedFallbackTemplate(), "<unresolved>")
-                    + ", fallbackCooldown=" + status.fallbackCooldownRemainingSeconds() + "s"));
-            if (status.lastFallbackError() != null && !status.lastFallbackError().isBlank()) {
-                ctx.sendMessage(Message.raw("[RealmRuler] Balloon fallback lastError="
-                        + status.lastFallbackError()
-                        + ", lastTemplate=" + safeField(status.lastFallbackAttemptTemplate(), "<unknown>")));
-            }
-            if (status.blockingReason() != null && !status.blockingReason().isBlank()) {
-                ctx.sendMessage(Message.raw("[RealmRuler] Balloon blocker: " + status.blockingReason()));
-            }
+            sendActionResult(ctx, ctfWorkflow.balloonStatus(ctx.sender() != null && ctx.sender().hasPermission(CtfWorkflowFacade.REGION_PERMISSION)));
             return;
         }
 
@@ -550,11 +340,14 @@ public final class RealmRulerCommand extends CommandBase {
                 count = Math.min(parsed, 50);
             }
 
-            CtfBalloonSpawnService.SpawnNowResult result = balloonSpawnService.spawnNow(count, senderUuid(ctx));
-            ctx.sendMessage(Message.raw("[RealmRuler] Balloon spawn result: requested=" + result.requestedCount()
-                    + ", spawned=" + result.spawnedCount()
-                    + ", active=" + result.activeCountAfter()
-                    + ", reason=" + safeField(result.message(), "ok")));
+            sendActionResult(
+                    ctx,
+                    ctfWorkflow.spawnBalloons(
+                            ctx.sender() != null && ctx.sender().hasPermission(CtfWorkflowFacade.REGION_PERMISSION),
+                            senderUuid(ctx),
+                            count
+                    )
+            );
             return;
         }
 
@@ -562,11 +355,7 @@ public final class RealmRulerCommand extends CommandBase {
     }
 
     private static String formatShopTags(CtfShopService.ShopItemView item) {
-        if (item == null) return "";
-        String availability = safeField(item.availability(), "any");
-        String teamRule = safeField(item.teamRule(), "any");
-        String team = safeField(item.team(), "any");
-        return " [" + availability + ", " + teamRule + (team.isBlank() || "any".equalsIgnoreCase(team) ? "" : (":" + team)) + "]";
+        return CtfWorkflowFacade.formatShopTags(item);
     }
 
     private static String safeField(String value, String fallback) {
@@ -574,18 +363,23 @@ public final class RealmRulerCommand extends CommandBase {
         return value;
     }
 
+    private static void sendActionResult(CommandContext ctx, CtfWorkflowFacade.ActionResult result) {
+        if (ctx == null || result == null) return;
+        String message = result.message();
+        if (message != null && !message.isBlank()) {
+            ctx.sendMessage(Message.raw("[RealmRuler] " + message));
+        }
+        String detail = result.detailMessage();
+        if (detail != null && !detail.isBlank()) {
+            ctx.sendMessage(Message.raw("[RealmRuler] " + detail));
+        }
+    }
+
     private static String[] splitArgs(String input) {
         if (input == null) return new String[0];
         String s = input.trim();
         if (s.startsWith("/")) s = s.substring(1).trim();
         return s.isEmpty() ? new String[0] : s.split("\\s+");
-    }
-
-    private static String formatSeconds(int totalSeconds) {
-        int t = Math.max(0, totalSeconds);
-        int m = t / 60;
-        int s = t % 60;
-        return String.format("%02d:%02d", m, s);
     }
 
     private static boolean isCtf(String s) {
@@ -596,11 +390,6 @@ public final class RealmRulerCommand extends CommandBase {
     private static boolean isNpc(String s) {
         if (s == null) return false;
         return "npc".equalsIgnoreCase(s) || "npcs".equalsIgnoreCase(s);
-    }
-
-    private static String safeTeamName(CtfMatchService.JoinLobbyResult jr) {
-        if (jr == null || jr.team() == null) return "<unknown>";
-        return jr.team().displayName();
     }
 
     private void handleNpcCommand(CommandContext ctx, String[] args) {
@@ -897,12 +686,13 @@ public final class RealmRulerCommand extends CommandBase {
     }
 
     private void handleStandCommand(CommandContext ctx, String[] args) {
-        if (standRegistry == null) {
+        if (ctfWorkflow == null) {
             ctx.sendMessage(MSG_NOT_READY);
             return;
         }
 
-        if (ctx.sender() == null || !ctx.sender().hasPermission("realmruler.ctf.stand.manage")) {
+        boolean hasPermission = ctx.sender() != null && ctx.sender().hasPermission(CtfWorkflowFacade.STAND_PERMISSION);
+        if (!hasPermission) {
             ctx.sendMessage(MSG_NO_STAND_PERMISSION);
             return;
         }
@@ -926,7 +716,7 @@ public final class RealmRulerCommand extends CommandBase {
                 return;
             }
 
-            List<CtfStandRegistryRepository.StandLocation> stands = standRegistry.getOrderedStands(team);
+            List<CtfStandRegistryRepository.StandLocation> stands = ctfWorkflow.listStands(team);
             if (stands.isEmpty()) {
                 ctx.sendMessage(Message.raw("[RealmRuler] No registered stands for " + team.displayName() + "."));
                 return;
@@ -972,60 +762,27 @@ public final class RealmRulerCommand extends CommandBase {
             return;
         }
 
-        World world = Universe.get().getWorld(worldName);
-        if (world == null) {
-            ctx.sendMessage(Message.raw("[RealmRuler] World not found: " + worldName));
-            return;
-        }
-
-        if (simpleClaims != null && simpleClaims.isAvailable()) {
-            int chunkX = ChunkUtil.chunkCoordinate(x);
-            int chunkZ = ChunkUtil.chunkCoordinate(z);
-            String ownerTeamRaw = simpleClaims.getTeamForChunk(worldName, chunkX, chunkZ);
-            CtfMatchService.Team ownerTeamParsed = CtfMatchService.parseTeamLoose(ownerTeamRaw);
-            if (ownerTeamParsed != team) {
-                String parsedName = (ownerTeamParsed == null) ? "<null>" : ownerTeamParsed.displayName();
-                String rawName = (ownerTeamRaw == null || ownerTeamRaw.isBlank()) ? "<null>" : ownerTeamRaw;
-                ctx.sendMessage(Message.raw("[RealmRuler] Stand location must be inside " + team.displayName()
-                        + " team-claimed chunks. world=" + worldName
-                        + " chunk=" + chunkX + "," + chunkZ
-                        + " ownerRaw=" + rawName
-                        + " ownerParsed=" + parsedName
-                        + " expected=" + team.displayName()));
-                return;
-            }
-        }
-
-        CtfStandRegistryRepository.StandLocation stand = new CtfStandRegistryRepository.StandLocation(worldName, x, y, z);
         if ("add".equalsIgnoreCase(standAction)) {
-            boolean added = standRegistry.addStand(team, stand);
-            ctx.sendMessage(added
-                    ? Message.raw("[RealmRuler] Added stand for " + team.displayName() + ": " + worldName + " " + x + " " + y + " " + z)
-                    : Message.raw("[RealmRuler] Stand already registered for " + team.displayName() + "."));
+            sendActionResult(ctx, ctfWorkflow.addStand(hasPermission, team, worldName, x, y, z));
             return;
         }
 
         if ("remove".equalsIgnoreCase(standAction)) {
-            boolean removed = standRegistry.removeStand(team, stand);
-            ctx.sendMessage(removed
-                    ? Message.raw("[RealmRuler] Removed stand for " + team.displayName() + ": " + worldName + " " + x + " " + y + " " + z)
-                    : Message.raw("[RealmRuler] Stand not found for " + team.displayName() + "."));
+            sendActionResult(ctx, ctfWorkflow.removeStand(hasPermission, team, worldName, x, y, z));
             return;
         }
 
-        boolean primarySet = standRegistry.setPrimaryStand(team, stand);
-        ctx.sendMessage(primarySet
-                ? Message.raw("[RealmRuler] Updated primary stand for " + team.displayName() + ".")
-                : Message.raw("[RealmRuler] Stand not found; add it first before setting primary."));
+        sendActionResult(ctx, ctfWorkflow.setPrimaryStand(hasPermission, team, worldName, x, y, z));
     }
 
     private void handleRegionCommand(CommandContext ctx, String[] args) {
-        if (regionRepository == null || targetingService == null) {
+        if (ctfWorkflow == null) {
             ctx.sendMessage(MSG_NOT_READY);
             return;
         }
 
-        if (ctx.sender() == null || !ctx.sender().hasPermission("realmruler.ctf.region.manage")) {
+        boolean hasPermission = ctx.sender() != null && ctx.sender().hasPermission(CtfWorkflowFacade.REGION_PERMISSION);
+        if (!hasPermission) {
             ctx.sendMessage(MSG_NO_REGION_PERMISSION);
             return;
         }
@@ -1041,79 +798,31 @@ public final class RealmRulerCommand extends CommandBase {
                 ctx.sendMessage(MSG_USAGE);
                 return;
             }
-
-            World world = Universe.get().getWorld(args[4]);
-            if (world == null) {
-                ctx.sendMessage(Message.raw("[RealmRuler] World not found: " + args[4]));
-                return;
-            }
-
-            regionRepository.create(world.getName());
-            ctx.sendMessage(Message.raw("[RealmRuler] CTF region created for world '" + world.getName() + "'. Use /rr ctf region pos1 and pos2."));
+            sendActionResult(ctx, ctfWorkflow.createRegion(hasPermission, args[4]));
             return;
         }
 
         if ("clear".equalsIgnoreCase(regionAction)) {
-            boolean cleared = regionRepository.clear();
-            ctx.sendMessage(cleared
-                    ? Message.raw("[RealmRuler] Cleared CTF region.")
-                    : Message.raw("[RealmRuler] No CTF region was configured."));
+            sendActionResult(ctx, ctfWorkflow.clearRegion(hasPermission));
             return;
         }
 
         if ("info".equalsIgnoreCase(regionAction)) {
-            CtfRegionRepository.RegionDefinition region = regionRepository.get();
-            if (region == null) {
+            CtfWorkflowFacade.RegionSnapshot snapshot = ctfWorkflow.snapshotRegion(hasPermission);
+            if ("<unset>".equals(snapshot.worldName())) {
                 ctx.sendMessage(Message.raw("[RealmRuler] No CTF region configured."));
                 return;
             }
-
-            String pos1 = (region.pos1() == null)
-                    ? "<unset>"
-                    : region.pos1().x() + " " + region.pos1().y() + " " + region.pos1().z();
-            String pos2 = (region.pos2() == null)
-                    ? "<unset>"
-                    : region.pos2().x() + " " + region.pos2().y() + " " + region.pos2().z();
-            ctx.sendMessage(Message.raw("[RealmRuler] CTF region: world=" + region.worldName()
-                    + ", enabled=" + region.enabled()
-                    + ", pos1=" + pos1
-                    + ", pos2=" + pos2
-                    + ", ready=" + region.hasBounds()));
+            ctx.sendMessage(Message.raw("[RealmRuler] CTF region: world=" + snapshot.worldName()
+                    + ", enabled=" + snapshot.enabled()
+                    + ", pos1=" + snapshot.pos1()
+                    + ", pos2=" + snapshot.pos2()
+                    + ", ready=" + snapshot.ready()));
             return;
         }
 
         if ("pos1".equalsIgnoreCase(regionAction) || "pos2".equalsIgnoreCase(regionAction)) {
-            CtfRegionRepository.RegionDefinition region = regionRepository.get();
-            if (region == null) {
-                ctx.sendMessage(Message.raw("[RealmRuler] Create the region first: /rr ctf region create <world>"));
-                return;
-            }
-
-            TargetingService.PlayerLocationSnapshot snapshot = snapshotForSender(ctx);
-            if (snapshot == null || !snapshot.isValid()) {
-                ctx.sendMessage(Message.raw("[RealmRuler] Could not resolve your current position. Try moving and run again."));
-                return;
-            }
-            if (!region.worldName().equals(snapshot.worldName())) {
-                ctx.sendMessage(Message.raw("[RealmRuler] You must be in region world: " + region.worldName()));
-                return;
-            }
-
-            CtfRegionRepository.BlockPos pos = new CtfRegionRepository.BlockPos(
-                    (int) Math.floor(snapshot.x()),
-                    (int) Math.floor(snapshot.y()),
-                    (int) Math.floor(snapshot.z())
-            );
-            boolean updated = "pos1".equalsIgnoreCase(regionAction)
-                    ? regionRepository.setPos1(pos)
-                    : regionRepository.setPos2(pos);
-            if (!updated) {
-                ctx.sendMessage(Message.raw("[RealmRuler] Failed to set region " + regionAction.toLowerCase() + "."));
-                return;
-            }
-
-            ctx.sendMessage(Message.raw("[RealmRuler] Set CTF region " + regionAction.toLowerCase() + " to "
-                    + pos.x() + " " + pos.y() + " " + pos.z()));
+            sendActionResult(ctx, ctfWorkflow.setRegionPosHere(hasPermission, senderUuid(ctx), "pos1".equalsIgnoreCase(regionAction)));
             return;
         }
 

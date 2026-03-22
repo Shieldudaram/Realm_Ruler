@@ -95,7 +95,7 @@ Group #RealmRulerCtfAdminPage {
       Background: (TexturePath: "../../Hud/RealmRulerTheme/RealmInset.png", Border: 18);
 
       Group #HeaderBand {
-        Anchor: (Width: 888, Height: 152);
+        Anchor: (Width: 888, Height: 180);
         LayoutMode: Top;
         Padding: (Horizontal: 18, Vertical: 14);
         Background: (TexturePath: "../../Hud/RealmRulerTheme/RealmInset.png", Border: 16);
@@ -117,48 +117,57 @@ Group #RealmRulerCtfAdminPage {
           }
 
           Group #HeaderTopSpacer {
-            Anchor: (Left: 10, Width: 546, Height: 40);
+            Anchor: (Left: 10, Width: 704, Height: 40);
           }
 
         }
 
         Group #HeaderPlaque {
-          Anchor: (Top: 16, Width: 664, Height: 60);
+          Anchor: (Top: 12, Width: 760, Height: 60);
           LayoutMode: Top;
           Background: (TexturePath: "../../Hud/RealmRulerTheme/RealmTitlePlaque.png", Border: 18);
 
           Group #TitleLane {
-            Anchor: (Top: 5, Width: 540, Height: 36);
+            Anchor: (Top: 5, Width: 620, Height: 36);
             LayoutMode: Top;
 
             Group #TitleTextBand {
-              Anchor: (Top: 2, Width: 520, Height: 32);
+              Anchor: (Top: 2, Width: 600, Height: 32);
               LayoutMode: Center;
 
               Label #TitleLabel {
-                Anchor: (Width: 520, Height: 32);
-                Style: (FontSize: 30, Alignment: Center);
+                Anchor: (Width: 600, Height: 32);
+                Style: (FontSize: 30, Alignment: Center, RenderBold: true, TextColor: #f7f1e3, ShrinkTextToFit: true, MinShrinkTextToFitFontSize: 24);
                 Text: "Admin Tools";
               }
             }
           }
         }
 
+        Group #PointsBadgeRow {
+          Anchor: (Top: 4, Width: 760, Height: 24);
+          LayoutMode: Center;
+
+          Group #PointsSpacer {
+            Anchor: (Width: 244, Height: 24);
+          }
+        }
+
         Group #SubtitleRow {
-          Anchor: (Top: 12, Width: 560, Height: 22);
+          Anchor: (Top: 8, Width: 720, Height: 22);
           LayoutMode: Center;
 
           Group #SubtitleLane {
-            Anchor: (Width: 560, Height: 18);
+            Anchor: (Width: 720, Height: 18);
             LayoutMode: Top;
 
             Group #SubtitleTextBand {
-              Anchor: (Top: 1, Width: 548, Height: 16);
+              Anchor: (Top: 1, Width: 708, Height: 16);
               LayoutMode: Center;
 
               Label #SubtitleLabel {
-                Anchor: (Width: 548, Height: 16);
-                Style: (FontSize: 15, Alignment: Center, TextColor: #e0ebf4(0.94));
+                Anchor: (Width: 708, Height: 16);
+                Style: (FontSize: 15, Alignment: Center, TextColor: #e0ebf4(0.94), ShrinkTextToFit: true, MinShrinkTextToFitFontSize: 13);
                 Text: "Staff setup, validation, and recovery tools.";
               }
             }
@@ -292,14 +301,19 @@ Group #RealmRulerCtfAdminPage {
       }
 
       Group #PageFooter {
-        Anchor: (Top: 16, Width: 888, Height: 36);
+        Anchor: (Top: 16, Width: 888, Height: 48);
         LayoutMode: Center;
-        Background: (TexturePath: "../../Hud/RealmRulerTheme/RealmFooterBar.png", Border: 12);
 
-        Label #CloseHint {
-          Anchor: (Width: 190, Height: 20);
-          Style: (FontSize: 13, Alignment: Center, TextColor: #cfd9e2(0.88));
-          Text: "Press Esc to close";
+        Group #FooterPill {
+          Anchor: (Width: 446, Height: 46);
+          LayoutMode: Center;
+          Background: (TexturePath: "../../Hud/RealmRulerTheme/RealmMainFooterPill.png", Border: 16);
+
+          Label #CloseHint {
+            Anchor: (Width: 278, Height: 24);
+            Style: (FontSize: 18, Alignment: Center, RenderBold: true, TextColor: #e7eff5);
+            Text: "Press Esc to close";
+          }
         }
       }
     }

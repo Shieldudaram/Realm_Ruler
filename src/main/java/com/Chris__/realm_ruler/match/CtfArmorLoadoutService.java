@@ -99,7 +99,7 @@ public final class CtfArmorLoadoutService {
         synchronized (lock) {
             if (!snapshotByUuid.containsKey(uuid)) {
                 if (!isArmorContainerEmpty(armor)) {
-                    return new EquipResult(false, "Remove your current armor before joining CTF.");
+                    return new EquipResult(false, "Remove your current armor before joining Capture The Flag.");
                 }
                 snapshotByUuid.put(uuid, new ArmorSnapshot(snapshotArmor(armor)));
             }
@@ -118,7 +118,7 @@ public final class CtfArmorLoadoutService {
         }
 
         player.sendInventory();
-        return new EquipResult(true, "Equipped " + team.displayName() + " CTF armor.");
+        return new EquipResult(true, "Equipped " + team.displayName() + " Capture The Flag armor.");
     }
 
     public void restoreForParticipant(String uuid, Player player) {

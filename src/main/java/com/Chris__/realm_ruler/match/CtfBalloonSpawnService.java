@@ -823,13 +823,13 @@ public final class CtfBalloonSpawnService {
                                          boolean roleResolvable,
                                          int activeCount,
                                          long fallbackCooldownRemainingSeconds) {
-        if (matchService == null) return "CTF match service is unavailable.";
-        if (!matchService.isRunning()) return "CTF match is not running.";
-        if (regionRepository == null) return "CTF region repository is unavailable.";
-        if (region == null) return "CTF region is not configured.";
-        if (!region.enabled()) return "CTF region is disabled.";
-        if (!region.hasBounds()) return "CTF region bounds are not set.";
-        if (resolvedRegionWorld == null) return "CTF region world is unavailable: " + region.worldName();
+        if (matchService == null) return "Capture The Flag match service is unavailable.";
+        if (!matchService.isRunning()) return "Capture The Flag match is not running.";
+        if (regionRepository == null) return "Capture The Flag region repository is unavailable.";
+        if (region == null) return "Capture The Flag region is not configured.";
+        if (!region.enabled()) return "Capture The Flag region is disabled.";
+        if (!region.hasBounds()) return "Capture The Flag region bounds are not set.";
+        if (resolvedRegionWorld == null) return "Capture The Flag region world is unavailable: " + region.worldName();
         if (!roleResolvable) return "Balloon NPC role is unavailable: " + BALLOON_ROLE_ID;
         if (!directApiReady && fallbackReady && fallbackCooldownRemainingSeconds > 0L) {
             return "Balloon command fallback cooling down (" + fallbackCooldownRemainingSeconds + "s).";

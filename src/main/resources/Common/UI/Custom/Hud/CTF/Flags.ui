@@ -1,79 +1,94 @@
 Group #CtfFlagsHud {
-  Anchor: (Top: 20, Right: 20, Width: 260, Height: 152);
+  Anchor: (Top: 18, Right: 18, Width: 352, Height: 224);
   LayoutMode: Top;
 
   Group #FlagsPanel {
-    Background: #000000(0.2);
-    Anchor: (Width: 260, Height: 152);
-    Padding: (Horizontal: 12, Vertical: 10);
+    Background: (TexturePath: "../RealmRulerTheme/RealmCardAction.png", Border: 18);
+    Anchor: (Width: 352, Height: 224);
+    Padding: (Horizontal: 18, Vertical: 14);
     LayoutMode: Top;
 
-    Label #FlagsTitle {
-      Anchor: (Height: 20);
-      Style: (FontSize: 16, Alignment: Center);
-      Text: "Flags";
+    Group #FlagsPlaque {
+      Anchor: (Width: 132, Height: 30);
+      LayoutMode: Center;
+      Background: (TexturePath: "../RealmRulerTheme/RealmMiniPlaque.png", Border: 12);
+
+      Label #FlagsTitle {
+        Anchor: (Width: 86, Height: 20);
+        Style: (FontSize: 15, Alignment: Center);
+        Text: "Flags";
+      }
+    }
+
+    Group #FlagsAccent {
+      Anchor: (Top: 12, Width: 316, Height: 4);
+      Background: (TexturePath: "../RealmRulerTheme/RealmDivider.png", Border: 4);
     }
 
     Group #RedRow {
-      Anchor: (Top: 8, Height: 24);
+      Anchor: (Top: 14, Width: 316, Height: 34);
       LayoutMode: Left;
+      Background: (TexturePath: "../RealmRulerTheme/RealmRow.png", Border: 8);
 
       Label #RedFlagStatus {
-        Anchor: (Width: 220, Height: 24);
-        Style: (FontSize: 14, Alignment: Start);
+        Anchor: (Width: 270, Height: 34);
+        Style: (FontSize: 15, Alignment: Start);
         Text: "";
       }
 
       Group #RedFlagIcon {
-        Anchor: (Left: 8, Width: 16, Height: 16);
+        Anchor: (Left: 12, Width: 22, Height: 22);
         Background: #d32f2f(1.0);
       }
     }
 
     Group #BlueRow {
-      Anchor: (Height: 24);
+      Anchor: (Top: 10, Width: 316, Height: 34);
       LayoutMode: Left;
+      Background: (TexturePath: "../RealmRulerTheme/RealmRow.png", Border: 8);
 
       Label #BlueFlagStatus {
-        Anchor: (Width: 220, Height: 24);
-        Style: (FontSize: 14, Alignment: Start);
+        Anchor: (Width: 270, Height: 34);
+        Style: (FontSize: 15, Alignment: Start);
         Text: "";
       }
 
       Group #BlueFlagIcon {
-        Anchor: (Left: 8, Width: 16, Height: 16);
+        Anchor: (Left: 12, Width: 22, Height: 22);
         Background: #1976d2(1.0);
       }
     }
 
     Group #YellowRow {
-      Anchor: (Height: 24);
+      Anchor: (Top: 10, Width: 316, Height: 34);
       LayoutMode: Left;
+      Background: (TexturePath: "../RealmRulerTheme/RealmRow.png", Border: 8);
 
       Label #YellowFlagStatus {
-        Anchor: (Width: 220, Height: 24);
-        Style: (FontSize: 14, Alignment: Start);
+        Anchor: (Width: 270, Height: 34);
+        Style: (FontSize: 15, Alignment: Start);
         Text: "";
       }
 
       Group #YellowFlagIcon {
-        Anchor: (Left: 8, Width: 16, Height: 16);
+        Anchor: (Left: 12, Width: 22, Height: 22);
         Background: #fbc02d(1.0);
       }
     }
 
     Group #WhiteRow {
-      Anchor: (Height: 24);
+      Anchor: (Top: 10, Width: 316, Height: 34);
       LayoutMode: Left;
+      Background: (TexturePath: "../RealmRulerTheme/RealmRow.png", Border: 8);
 
       Label #WhiteFlagStatus {
-        Anchor: (Width: 220, Height: 24);
-        Style: (FontSize: 14, Alignment: Start);
+        Anchor: (Width: 270, Height: 34);
+        Style: (FontSize: 15, Alignment: Start);
         Text: "";
       }
 
       Group #WhiteFlagIcon {
-        Anchor: (Left: 8, Width: 16, Height: 16);
+        Anchor: (Left: 12, Width: 22, Height: 22);
         Background: #eeeeee(1.0);
       }
     }

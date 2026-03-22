@@ -81,7 +81,7 @@ public final class CtfShopService {
             return new PurchaseResult(false, "Player not available.", null, -1);
         }
         if (pointsRepository == null || shopConfigRepository == null || itemStackFactory == null) {
-            return new PurchaseResult(false, "CTF shop is not ready yet.", null, -1);
+            return new PurchaseResult(false, "Capture The Flag shop is not ready yet.", null, -1);
         }
 
         CtfShopConfig.ShopItem item = findEnabledItemById(itemId);
@@ -92,7 +92,7 @@ public final class CtfShopService {
         int cost = Math.max(0, item.cost);
         int points = pointsRepository.getPoints(uuid);
         if (points < cost) {
-            return new PurchaseResult(false, "Not enough CTF points. (" + points + "/" + cost + ")", toView(item), points);
+            return new PurchaseResult(false, "Not enough points. (" + points + "/" + cost + ")", toView(item), points);
         }
 
         boolean matchRunning = matchService != null && matchService.isRunning();
@@ -128,7 +128,7 @@ public final class CtfShopService {
 
         if (!pointsRepository.spendPoints(uuid, cost)) {
             int remaining = pointsRepository.getPoints(uuid);
-            return new PurchaseResult(false, "Not enough CTF points. (" + remaining + "/" + cost + ")", toView(item), remaining);
+            return new PurchaseResult(false, "Not enough points. (" + remaining + "/" + cost + ")", toView(item), remaining);
         }
 
         try {
@@ -177,7 +177,7 @@ public final class CtfShopService {
         switch (availability) {
             case "match_only" -> {
                 if (!matchRunning || playerTeam == null) {
-                    return "This item is only available to active CTF participants during a match.";
+                    return "This item is only available to active Capture The Flag participants during a match.";
                 }
             }
             case "outside_match_only" -> {

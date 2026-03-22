@@ -5,6 +5,10 @@ plugins {
 
 import org.gradle.internal.os.OperatingSystem
 
+repositories {
+    mavenCentral()
+}
+
 // -----------------------------------------------------------------------------
 // Portable configuration helpers
 // -----------------------------------------------------------------------------
@@ -111,6 +115,14 @@ dependencies {
     // Compile against any jars you drop in /libs (ex: PlayerInteractLib jar),
     // but don't bundle them unless you explicitly want to.
     compileOnly fileTree(dir: 'libs', include: ['*.jar'])
+
+    testImplementation files("${hytaleHome}/install/${patchline}/package/game/latest/Server/HytaleServer.jar")
+    testImplementation 'org.junit.jupiter:junit-jupiter:5.11.4'
+    testRuntimeOnly 'org.junit.platform:junit-platform-launcher:1.11.4'
+}
+
+tasks.named('test') {
+    useJUnitPlatform()
 }
 
 // Create the working directory to run the server if it does not already exist.
@@ -174,7 +186,14 @@ tasks.register('ciCheck') {
                 'src/main/resources/Common/UI/Custom/Hud/Timer/Lobby.ui',
                 'src/main/resources/Common/UI/Custom/Hud/Timer/Timer.ui',
                 'src/main/resources/Common/UI/Custom/Hud/CTF/Flags.ui',
+                'src/main/resources/Common/UI/Custom/Pages/RealmRuler/CtfMain.ui',
+                'src/main/resources/Common/UI/Custom/Pages/RealmRuler/CtfPlay.ui',
+                'src/main/resources/Common/UI/Custom/Pages/RealmRuler/CtfMatch.ui',
                 'src/main/resources/Common/UI/Custom/Pages/RealmRuler/CtfShop.ui',
+                'src/main/resources/Common/UI/Custom/Pages/RealmRuler/CtfAdmin.ui',
+                'src/main/resources/Common/UI/Custom/Pages/RealmRuler/CtfRegion.ui',
+                'src/main/resources/Common/UI/Custom/Pages/RealmRuler/CtfStands.ui',
+                'src/main/resources/Common/UI/Custom/Pages/RealmRuler/CtfBalloons.ui',
                 'src/main/resources/Common/UI/Custom/Pages/RealmRuler/CtfMap.ui'
         ]
         requiredUiDocs.each { relPath ->

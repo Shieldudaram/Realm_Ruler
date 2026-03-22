@@ -2,37 +2,44 @@ Group #TimerHud {
   LayoutMode: Center;
 
   Group #Plaque {
-    // Give the frame a bit more breathing room
-    Anchor: (Top: 16, Width: 380, Height: 104);
+    Anchor: (Top: 14, Width: 456, Height: 158);
     LayoutMode: Center;
-
-    // Slightly less padding so the frame art isn't crushed
-    Padding: (Horizontal: 8, Vertical: 8);
-
-    // Lower the 9-slice border so it doesn't stretch bright edge pixels
-    Background: (TexturePath: "TimerFrame.png", Border: 22);
+    Padding: (Horizontal: 12, Vertical: 10);
+    Background: (TexturePath: "../RealmRulerTheme/RealmFrame.png", Border: 24);
 
     Group #Inset {
-      // Match the plaque size minus padding
-      Anchor: (Width: 364, Height: 88);
+      Anchor: (Width: 432, Height: 138);
       LayoutMode: Top;
+      Padding: (Horizontal: 18, Vertical: 14);
+      Background: (TexturePath: "../RealmRulerTheme/RealmInset.png", Border: 16);
 
-      // Reduce padding to avoid chopping the inset corners
-      Padding: (Horizontal: 12, Vertical: 8);
+      Group #TimerPlaque {
+        Anchor: (Width: 272, Height: 36);
+        LayoutMode: Center;
+        Background: (TexturePath: "../RealmRulerTheme/RealmMiniPlaque.png", Border: 12);
 
-      // Lower border here too
-      Background: (TexturePath: "TimerInset.png", Border: 14);
-
-      Label #TimerTitle {
-        Style: (FontSize: 16, Alignment: Center);
-        Anchor: (Width: 364, Height: 18);
-        Text: "Capture The Flag";
+        Label #TimerTitle {
+          Style: (FontSize: 18, Alignment: Center);
+          Anchor: (Width: 206, Height: 24);
+          Text: "Capture The Flag";
+        }
       }
 
-      Label #TimerLabel {
-        Style: (FontSize: 40, Alignment: Center);
-        Anchor: (Top: 2, Width: 364, Height: 56);
-        Text: "15:00";
+      Group #TimerAccent {
+        Anchor: (Top: 14, Width: 396, Height: 4);
+        Background: (TexturePath: "../RealmRulerTheme/RealmDivider.png", Border: 4);
+      }
+
+      Group #TimerCore {
+        Anchor: (Top: 14, Width: 396, Height: 68);
+        LayoutMode: Center;
+        Background: (TexturePath: "../RealmRulerTheme/RealmTimerMedallion.png", Border: 22);
+
+        Label #TimerLabel {
+          Style: (FontSize: 44, Alignment: Center);
+          Anchor: (Width: 220, Height: 48);
+          Text: "15:00";
+        }
       }
     }
   }

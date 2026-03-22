@@ -1,7 +1,7 @@
 package com.Chris__.realm_ruler.ui.pages.ctf;
 
+import com.Chris__.realm_ruler.ctf.CtfWorkflowFacade;
 import com.Chris__.realm_ruler.match.CtfShopConfigRepository;
-import com.Chris__.realm_ruler.match.CtfShopService;
 import com.hypixel.hytale.component.ArchetypeChunk;
 import com.hypixel.hytale.component.CommandBuffer;
 import com.hypixel.hytale.component.Holder;
@@ -21,18 +21,18 @@ import java.util.function.Supplier;
 public final class CtfShopUiService {
 
     private final CtfShopConfigRepository shopConfigRepository;
-    private final CtfShopService shopService;
+    private final CtfWorkflowFacade workflow;
     private final Supplier<Boolean> uiAvailableSupplier;
     private final HytaleLogger logger;
 
     private final Set<String> pendingOpenByUuid = ConcurrentHashMap.newKeySet();
 
     public CtfShopUiService(CtfShopConfigRepository shopConfigRepository,
-                            CtfShopService shopService,
+                            CtfWorkflowFacade workflow,
                             Supplier<Boolean> uiAvailableSupplier,
                             HytaleLogger logger) {
         this.shopConfigRepository = shopConfigRepository;
-        this.shopService = shopService;
+        this.workflow = workflow;
         this.uiAvailableSupplier = (uiAvailableSupplier == null) ? () -> true : uiAvailableSupplier;
         this.logger = logger;
     }
@@ -68,6 +68,7 @@ public final class CtfShopUiService {
                          ArchetypeChunk<EntityStore> chunk,
                          Store<EntityStore> store,
                          CommandBuffer<EntityStore> commandBuffer) {
+            String uuid = null;
             try {
                 Holder<EntityStore> holder = EntityUtils.toHolder(entityId, chunk);
 
@@ -75,18 +76,18 @@ public final class CtfShopUiService {
                 PlayerRef playerRef = (PlayerRef) holder.getComponent(PlayerRef.getComponentType());
                 if (player == null || playerRef == null || playerRef.getUuid() == null) return;
 
-                String uuid = playerRef.getUuid().toString();
+                uuid = playerRef.getUuid().toString();
                 if (!pendingOpenByUuid.remove(uuid)) return;
 
                 if (!isUiAvailable()) {
                     player.sendMessage(com.hypixel.hytale.server.core.Message.raw(
-                            "[RealmRuler] CTF shop UI is unavailable right now (missing UI assets)."
+                            "[RealmRuler] Capture The Flag shop UI is unavailable right now (missing UI assets)."
                     ));
                     return;
                 }
-                if (shopService == null) {
+                if (workflow == null) {
                     player.sendMessage(com.hypixel.hytale.server.core.Message.raw(
-                            "[RealmRuler] CTF shop is not ready yet."
+                            "[RealmRuler] Capture The Flag shop is not ready yet."
                     ));
                     return;
                 }
@@ -97,17 +98,17 @@ public final class CtfShopUiService {
                 }
 
                 player.getPageManager().openCustomPage(chunk.getReferenceTo(entityId), store,
-                        new CtfShopPage(playerRef, shopService));
+                        new CtfShopPage(playerRef, workflow));
             } catch (Throwable t) {
                 if (logger != null) {
-                    logger.atWarning().withCause(t).log("[RR-CTF] Failed to open CTF shop UI.");
+                    logger.atWarning().withCause(t).log("[RR-CTF] Failed to open CTF shop UI. uuid=%s", String.valueOf(uuid));
                 }
                 try {
                     Holder<EntityStore> holder = EntityUtils.toHolder(entityId, chunk);
                     Player player = (Player) holder.getComponent(Player.getComponentType());
                     if (player != null) {
                         player.sendMessage(com.hypixel.hytale.server.core.Message.raw(
-                                "[RealmRuler] Failed to open CTF shop UI. Use /rr ctf shop list or /rr ctf shop buy <id>."
+                                "[RealmRuler] Failed to open the Capture The Flag shop UI. Use /rr ctf shop list or /rr ctf shop buy <id>."
                         ));
                     }
                 } catch (Throwable ignored) {

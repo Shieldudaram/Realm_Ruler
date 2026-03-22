@@ -1,5 +1,6 @@
 package com.Chris__.realm_ruler;
 
+import com.Chris__.realm_ruler.ctf.CtfWorkflowFacade;
 import com.hypixel.hytale.server.core.entity.entities.Player;
 import com.hypixel.hytale.server.core.entity.ItemUtils;
 import com.hypixel.hytale.server.core.universe.world.World;
@@ -56,6 +57,7 @@ import com.Chris__.realm_ruler.npc.NpcSpawnAdapterCommandBridge;
 import com.Chris__.realm_ruler.npc.NpcSpawnAdapterFallback;
 import com.Chris__.realm_ruler.npc.NpcTestService;
 import com.Chris__.realm_ruler.ui.CtfUiAssetContract;
+import com.Chris__.realm_ruler.ui.pages.ctf.CtfMainUiService;
 import com.Chris__.realm_ruler.ui.pages.ctf.CtfShopUiService;
 import com.hypixel.hytale.math.util.ChunkUtil;
 import com.hypixel.hytale.math.vector.Transform;
@@ -133,6 +135,8 @@ public class Realm_Ruler extends JavaPlugin {
     private CtfMatchEndService ctfMatchEndService;
     private CtfShopConfigRepository ctfShopConfigRepository;
     private CtfShopService ctfShopService;
+    private CtfWorkflowFacade ctfWorkflowFacade;
+    private CtfMainUiService ctfMainUiService;
     private CtfShopUiService ctfShopUiService;
     private CtfRegionRepository ctfRegionRepository;
     private CtfBalloonSpawnService ctfBalloonSpawnService;
@@ -296,17 +300,34 @@ public class Realm_Ruler extends JavaPlugin {
                 LOGGER
         );
         this.ctfArmorLoadoutService = new CtfArmorLoadoutService(this::rrCreateItemStackById, LOGGER);
-        this.ctfShopUiService = new CtfShopUiService(
-                this.ctfShopConfigRepository,
-                this.ctfShopService,
-                this::rrCustomUiAssetsReady,
-                LOGGER
-        );
         this.ctfBalloonSpawnService = new CtfBalloonSpawnService(
                 this.ctfMatchService,
                 this.ctfRegionRepository,
                 this.ctfFlagStateService,
                 this::rrCreateItemStackById,
+                LOGGER
+        );
+        this.ctfWorkflowFacade = new CtfWorkflowFacade(
+                this.ctfMatchService,
+                this.simpleClaimsCtfBridge,
+                this.targetingService,
+                this.ctfFlagStateService,
+                this.ctfStandRegistryRepository,
+                this.ctfPointsRepository,
+                this.ctfShopService,
+                this.ctfBalloonSpawnService,
+                this.ctfRegionRepository,
+                this.ctfArmorLoadoutService
+        );
+        this.ctfMainUiService = new CtfMainUiService(
+                this.ctfWorkflowFacade,
+                this::rrCustomUiAssetsReady,
+                LOGGER
+        );
+        this.ctfShopUiService = new CtfShopUiService(
+                this.ctfShopConfigRepository,
+                this.ctfWorkflowFacade,
+                this::rrCustomUiAssetsReady,
                 LOGGER
         );
         this.npcArenaRepository = new NpcArenaRepository(this.getDataDirectory(), LOGGER);
@@ -372,6 +393,7 @@ public class Realm_Ruler extends JavaPlugin {
                 new ExampleCommand(this.getName(), this.getManifest().getVersion().toString())
 
         );
+        this.getCommandRegistry().registerCommand(new CtfCommand(this.ctfMainUiService));
         this.getCommandRegistry().registerCommand(new RealmRulerCommand(
                 this.ctfMatchService,
                 this.simpleClaimsCtfBridge,
@@ -381,6 +403,7 @@ public class Realm_Ruler extends JavaPlugin {
                 this.ctfPointsRepository,
                 this.ctfShopService,
                 this.ctfShopUiService,
+                this.ctfWorkflowFacade,
                 this.ctfBalloonSpawnService,
                 this.ctfRegionRepository,
                 this.ctfArmorLoadoutService,
@@ -464,6 +487,10 @@ public class Realm_Ruler extends JavaPlugin {
         if (ctfShopUiService != null) {
             this.getEntityStoreRegistry().registerSystem(ctfShopUiService.createSystem());
             LOGGER.atInfo().log("Registered CtfShopUiService system.");
+        }
+        if (ctfMainUiService != null) {
+            this.getEntityStoreRegistry().registerSystem(ctfMainUiService.createSystem());
+            LOGGER.atInfo().log("Registered CtfMainUiService system.");
         }
 
         // ---------------------------------------------------------------------

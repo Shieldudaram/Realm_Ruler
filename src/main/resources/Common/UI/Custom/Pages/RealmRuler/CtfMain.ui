@@ -88,25 +88,27 @@
 );
 
 @RealmMainTitlePlaqueLabelStyle = LabelStyle(
-  FontSize: 46,
+  FontSize: 30,
   TextColor: #f7f1e3,
   RenderBold: true,
   HorizontalAlignment: Center,
   VerticalAlignment: Center,
-  LetterSpacing: 0
+  LetterSpacing: 0,
+  ShrinkTextToFit: true,
+  MinShrinkTextToFitFontSize: 24
 );
 
 @RealmMainSummaryInstructionStyle = LabelStyle(
-  FontSize: 22,
-  TextColor: #edf3f8,
+  FontSize: 15,
+  TextColor: #e0ebf4(0.94),
   HorizontalAlignment: Center,
   VerticalAlignment: Center,
   ShrinkTextToFit: true,
-  MinShrinkTextToFitFontSize: 18
+  MinShrinkTextToFitFontSize: 13
 );
 
 @RealmMainPointsBadgeLabelStyle = LabelStyle(
-  FontSize: 24,
+  FontSize: 20,
   TextColor: #cfba82,
   RenderBold: true,
   HorizontalAlignment: Center,
@@ -172,7 +174,7 @@
 );
 
 @RealmMainFooterLabelStyle = LabelStyle(
-  FontSize: 21,
+  FontSize: 18,
   TextColor: #e7eff5,
   RenderBold: true,
   HorizontalAlignment: Center,
@@ -218,26 +220,39 @@ Group #RealmRulerCtfMainPage {
       Background: (TexturePath: "../../Hud/RealmRulerTheme/RealmInset.png", Border: 18);
 
       Group #HeaderBand {
-        Anchor: (Width: 912, Height: 232);
+        Anchor: (Width: 912, Height: 180);
         LayoutMode: Top;
-        Padding: (Horizontal: 18, Vertical: 12);
-        Background: (TexturePath: "../../Hud/RealmRulerTheme/RealmMainHeaderInset.png", Border: 16);
+        Padding: (Horizontal: 18, Vertical: 14);
+        Background: (TexturePath: "../../Hud/RealmRulerTheme/RealmInset.png", Border: 16);
+
+        Group #HeaderTopRow {
+          Anchor: (Width: 876, Height: 40);
+          LayoutMode: Left;
+
+          Group #HeaderTopSlot {
+            Anchor: (Width: 138, Height: 34);
+          }
+
+          Group #HeaderTopSpacer {
+            Anchor: (Left: 10, Width: 728, Height: 40);
+          }
+        }
 
         Group #HeaderPlaque {
-          Anchor: (Top: 2, Width: 776, Height: 90);
+          Anchor: (Top: 12, Width: 760, Height: 60);
           LayoutMode: Top;
-          Background: (TexturePath: "../../Hud/RealmRulerTheme/RealmMainHeroTitlePlaque.png", Border: 18);
+          Background: (TexturePath: "../../Hud/RealmRulerTheme/RealmTitlePlaque.png", Border: 18);
 
           Group #TitleLane {
-            Anchor: (Top: 10, Width: 676, Height: 52);
+            Anchor: (Top: 5, Width: 620, Height: 36);
             LayoutMode: Top;
 
             Group #TitleTextBand {
-              Anchor: (Top: 4, Width: 664, Height: 42);
+              Anchor: (Top: 2, Width: 600, Height: 32);
               LayoutMode: Center;
 
               Label #TitleLabel {
-                Anchor: (Width: 660, Height: 40);
+                Anchor: (Width: 600, Height: 32);
                 Style: @RealmMainTitlePlaqueLabelStyle;
                 Text: "Capture The Flag";
               }
@@ -246,7 +261,7 @@ Group #RealmRulerCtfMainPage {
         }
 
         Group #PointsBadgeRow {
-          Anchor: (Top: 6, Width: 876, Height: 28);
+          Anchor: (Top: 4, Width: 760, Height: 24);
           LayoutMode: Center;
 
           Label #PointsLabel {
@@ -257,19 +272,19 @@ Group #RealmRulerCtfMainPage {
         }
 
         Group #SubtitleRow {
-          Anchor: (Top: 12, Width: 876, Height: 38);
+          Anchor: (Top: 8, Width: 720, Height: 22);
           LayoutMode: Center;
 
           Group #SubtitleLane {
-            Anchor: (Width: 744, Height: 38);
+            Anchor: (Width: 720, Height: 18);
             LayoutMode: Top;
 
             Group #SubtitleTextBand {
-              Anchor: (Top: 4, Width: 744, Height: 32);
+              Anchor: (Top: 1, Width: 708, Height: 16);
               LayoutMode: Center;
 
               Label #SubtitleLabel {
-                Anchor: (Width: 744, Height: 32);
+                Anchor: (Width: 708, Height: 16);
                 Style: @RealmMainSummaryInstructionStyle;
                 Text: "Review the round state, then open the tool you need next.";
               }
@@ -279,7 +294,7 @@ Group #RealmRulerCtfMainPage {
       }
 
       Group #StatusBanner {
-        Anchor: (Top: 6, Width: 912, Height: 42);
+        Anchor: (Top: 14, Width: 912, Height: 40);
         LayoutMode: Center;
         Background: (TexturePath: "../../Hud/RealmRulerTheme/RealmStatusRibbon.png", Border: 14);
 
@@ -291,7 +306,7 @@ Group #RealmRulerCtfMainPage {
       }
 
       Group #SummaryCard {
-        Anchor: (Top: 24, Width: 912, Height: 272);
+        Anchor: (Top: 18, Width: 912, Height: 272);
         LayoutMode: Top;
         Padding: (Horizontal: 24, Vertical: 20);
         Background: (TexturePath: "../../Hud/RealmRulerTheme/RealmCardInfo.png", Border: 18);
@@ -717,7 +732,7 @@ Group #RealmRulerCtfMainPage {
       }
 
       Group #PageFooter {
-        Anchor: (Top: 12, Width: 912, Height: 48);
+        Anchor: (Top: 16, Width: 912, Height: 48);
         LayoutMode: Center;
 
         Group #FooterPill {

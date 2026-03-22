@@ -1,31 +1,64 @@
 Group #LobbyHud {
   LayoutMode: Left;
-  Anchor: (Top: 20, Height: 110);
+  Anchor: (Top: 18, Height: 192);
 
   Group #LobbyPanel {
-    Background: #000000(0.2);
-    Anchor: (Left: 20);
-    Padding: (Horizontal: 20, Vertical: 10);
+    Background: (TexturePath: "../RealmRulerTheme/RealmCardInfo.png", Border: 18);
+    Anchor: (Left: 18, Width: 452, Height: 192);
+    Padding: (Horizontal: 18, Vertical: 18);
     LayoutMode: Top;
 
-    Label #LobbyTitle {
-      Style: (FontSize: 16, Alignment: Center);
-      Text: "CTF Lobby";
+    Group #LobbyPlaque {
+      Anchor: (Width: 156, Height: 30);
+      LayoutMode: Center;
+      Background: (TexturePath: "../RealmRulerTheme/RealmMiniPlaque.png", Border: 12);
+
+      Label #LobbyTitle {
+        Anchor: (Width: 110, Height: 20);
+        Style: (FontSize: 15, Alignment: Center);
+        Text: "Lobby";
+      }
     }
 
-    Label #LobbyTeamLabel {
-      Style: (FontSize: 16);
-      Text: "Team: ???";
+    Group #LobbyAccent {
+      Anchor: (Top: 14, Width: 416, Height: 4);
+      Background: (TexturePath: "../RealmRulerTheme/RealmDivider.png", Border: 4);
     }
 
-    Label #LobbyWaitingLabel {
-      Style: (FontSize: 16);
-      Text: "Waiting: 0";
+    Group #LobbyTeamRow {
+      Anchor: (Top: 14, Width: 416, Height: 34);
+      LayoutMode: Left;
+      Background: (TexturePath: "../RealmRulerTheme/RealmRow.png", Border: 8);
+
+      Label #LobbyTeamLabel {
+        Anchor: (Left: 12, Width: 388, Height: 34);
+        Style: (FontSize: 16, Alignment: Start);
+        Text: "Team: ???";
+      }
     }
 
-    Label #LobbyTeamsLabel {
-      Style: (FontSize: 14);
-      Text: "Teams: Red:0 Blue:0 Yellow:0 White:0";
+    Group #LobbyWaitingRow {
+      Anchor: (Top: 12, Width: 416, Height: 34);
+      LayoutMode: Left;
+      Background: (TexturePath: "../RealmRulerTheme/RealmRow.png", Border: 8);
+
+      Label #LobbyWaitingLabel {
+        Anchor: (Left: 12, Width: 388, Height: 34);
+        Style: (FontSize: 16, Alignment: Start);
+        Text: "Waiting: 0";
+      }
+    }
+
+    Group #LobbyTeamsRow {
+      Anchor: (Top: 12, Width: 416, Height: 36);
+      LayoutMode: Left;
+      Background: (TexturePath: "../RealmRulerTheme/RealmRow.png", Border: 8);
+
+      Label #LobbyTeamsLabel {
+        Anchor: (Left: 12, Width: 388, Height: 36);
+        Style: (FontSize: 15, Alignment: Start);
+        Text: "Teams: Red:0 Blue:0 Yellow:0 White:0";
+      }
     }
   }
 }

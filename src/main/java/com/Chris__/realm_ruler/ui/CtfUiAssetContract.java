@@ -12,7 +12,14 @@ public final class CtfUiAssetContract {
     public static final String HUD_LOBBY = "Hud/Timer/Lobby.ui";
     public static final String HUD_TIMER = "Hud/Timer/Timer.ui";
     public static final String HUD_FLAGS = "Hud/CTF/Flags.ui";
+    public static final String PAGE_CTF_MAIN = "Pages/RealmRuler/CtfMain.ui";
+    public static final String PAGE_CTF_PLAY = "Pages/RealmRuler/CtfPlay.ui";
+    public static final String PAGE_CTF_MATCH = "Pages/RealmRuler/CtfMatch.ui";
     public static final String PAGE_CTF_SHOP = "Pages/RealmRuler/CtfShop.ui";
+    public static final String PAGE_CTF_ADMIN = "Pages/RealmRuler/CtfAdmin.ui";
+    public static final String PAGE_CTF_REGION = "Pages/RealmRuler/CtfRegion.ui";
+    public static final String PAGE_CTF_STANDS = "Pages/RealmRuler/CtfStands.ui";
+    public static final String PAGE_CTF_BALLOONS = "Pages/RealmRuler/CtfBalloons.ui";
     public static final String PAGE_CTF_MAP = "Pages/RealmRuler/CtfMap.ui";
 
     private static final String UI_ROOT = "Common/UI/Custom/";
@@ -24,7 +31,14 @@ public final class CtfUiAssetContract {
             HUD_LOBBY,
             HUD_TIMER,
             HUD_FLAGS,
+            PAGE_CTF_MAIN,
+            PAGE_CTF_PLAY,
+            PAGE_CTF_MATCH,
             PAGE_CTF_SHOP,
+            PAGE_CTF_ADMIN,
+            PAGE_CTF_REGION,
+            PAGE_CTF_STANDS,
+            PAGE_CTF_BALLOONS,
             PAGE_CTF_MAP
     );
 

@@ -99,6 +99,63 @@
   Disabled: (Background: (TexturePath: "../../Hud/RealmRulerTheme/RealmButtonSubtle.png", Border: 12, Color: #ffffff(0.58)), LabelStyle: @RealmMatchStepperPressedLabelStyle)
 );
 
+@RealmMatchSummaryLabelStyle = LabelStyle(
+  FontSize: 16,
+  TextColor: #c7d3dd,
+  HorizontalAlignment: Start,
+  VerticalAlignment: Center
+);
+
+@RealmMatchSummaryValueStyle = LabelStyle(
+  FontSize: 20,
+  TextColor: #f4f8fc,
+  RenderBold: true,
+  HorizontalAlignment: Start,
+  VerticalAlignment: Center,
+  ShrinkTextToFit: true,
+  MinShrinkTextToFitFontSize: 17
+);
+
+@RealmMatchTeamRedStyle = LabelStyle(
+  FontSize: 19,
+  TextColor: #f4baae,
+  RenderBold: true,
+  HorizontalAlignment: Center,
+  VerticalAlignment: Center,
+  ShrinkTextToFit: true,
+  MinShrinkTextToFitFontSize: 16
+);
+
+@RealmMatchTeamBlueStyle = LabelStyle(
+  FontSize: 19,
+  TextColor: #b4d9f5,
+  RenderBold: true,
+  HorizontalAlignment: Center,
+  VerticalAlignment: Center,
+  ShrinkTextToFit: true,
+  MinShrinkTextToFitFontSize: 16
+);
+
+@RealmMatchTeamYellowStyle = LabelStyle(
+  FontSize: 19,
+  TextColor: #f4e39c,
+  RenderBold: true,
+  HorizontalAlignment: Center,
+  VerticalAlignment: Center,
+  ShrinkTextToFit: true,
+  MinShrinkTextToFitFontSize: 16
+);
+
+@RealmMatchTeamWhiteStyle = LabelStyle(
+  FontSize: 19,
+  TextColor: #f2f7fb,
+  RenderBold: true,
+  HorizontalAlignment: Center,
+  VerticalAlignment: Center,
+  ShrinkTextToFit: true,
+  MinShrinkTextToFitFontSize: 16
+);
+
 Group #RealmRulerCtfMatchPage {
   Anchor: (Top: 0, Bottom: 0, Left: 0, Right: 0);
   LayoutMode: Center;
@@ -121,7 +178,7 @@ Group #RealmRulerCtfMatchPage {
       Background: (TexturePath: "../../Hud/RealmRulerTheme/RealmInset.png", Border: 18);
 
       Group #HeaderBand {
-        Anchor: (Width: 876, Height: 156);
+        Anchor: (Width: 876, Height: 180);
         LayoutMode: Top;
         Padding: (Horizontal: 18, Vertical: 14);
         Background: (TexturePath: "../../Hud/RealmRulerTheme/RealmInset.png", Border: 16);
@@ -143,69 +200,58 @@ Group #RealmRulerCtfMatchPage {
           }
 
           Group #HeaderTopSpacer {
-            Anchor: (Left: 10, Width: 458, Height: 40);
+            Anchor: (Left: 10, Width: 692, Height: 40);
           }
-
-        Group #PointsBadge {
-          Anchor: (Left: 10, Width: 224, Height: 40);
-          LayoutMode: Top;
-          Background: (TexturePath: "../../Hud/RealmRulerTheme/RealmPointsBadge.png", Border: 18);
-
-          Group #PointsLane {
-            Anchor: (Top: 8, Width: 182, Height: 20);
-            LayoutMode: Top;
-
-            Group #PointsTextBand {
-              Anchor: (Top: 1, Width: 170, Height: 18);
-              LayoutMode: Center;
-
-              Label #PointsLabel {
-                Anchor: (Width: 170, Height: 18);
-                Style: (FontSize: 17, Alignment: Center);
-                Text: "Points: 0";
-              }
-            }
-          }
-        }
         }
 
         Group #HeaderPlaque {
-          Anchor: (Top: 16, Width: 680, Height: 60);
+          Anchor: (Top: 12, Width: 760, Height: 60);
           LayoutMode: Top;
           Background: (TexturePath: "../../Hud/RealmRulerTheme/RealmTitlePlaque.png", Border: 18);
 
           Group #TitleLane {
-            Anchor: (Top: 5, Width: 560, Height: 36);
+            Anchor: (Top: 5, Width: 620, Height: 36);
             LayoutMode: Top;
 
             Group #TitleTextBand {
-              Anchor: (Top: 2, Width: 540, Height: 32);
+              Anchor: (Top: 2, Width: 600, Height: 32);
               LayoutMode: Center;
 
               Label #TitleLabel {
-                Anchor: (Width: 540, Height: 32);
-                Style: (FontSize: 30, Alignment: Center);
+                Anchor: (Width: 600, Height: 32);
+                Style: (FontSize: 30, Alignment: Center, RenderBold: true, TextColor: #f7f1e3, ShrinkTextToFit: true, MinShrinkTextToFitFontSize: 24);
                 Text: "Match Details";
               }
             }
           }
         }
 
+        Group #PointsBadgeRow {
+          Anchor: (Top: 4, Width: 760, Height: 24);
+          LayoutMode: Center;
+
+          Label #PointsLabel {
+            Anchor: (Width: 244, Height: 24);
+            Style: (FontSize: 20, Alignment: Center, RenderBold: true, TextColor: #cfba82, LetterSpacing: 0);
+            Text: "Points: 0";
+          }
+        }
+
         Group #SubtitleRow {
-          Anchor: (Top: 12, Width: 676, Height: 22);
+          Anchor: (Top: 8, Width: 720, Height: 22);
           LayoutMode: Center;
 
           Group #SubtitleLane {
-            Anchor: (Width: 676, Height: 18);
+            Anchor: (Width: 720, Height: 18);
             LayoutMode: Top;
 
             Group #SubtitleTextBand {
-              Anchor: (Top: 1, Width: 664, Height: 16);
+              Anchor: (Top: 1, Width: 708, Height: 16);
               LayoutMode: Center;
 
               Label #SubtitleLabel {
-                Anchor: (Width: 664, Height: 16);
-                Style: (FontSize: 15, Alignment: Center, TextColor: #e0ebf4(0.94));
+                Anchor: (Width: 708, Height: 16);
+                Style: (FontSize: 15, Alignment: Center, TextColor: #e0ebf4(0.94), ShrinkTextToFit: true, MinShrinkTextToFitFontSize: 13);
                 Text: "Monitor readiness, set the round length, and repair setup issues quickly.";
               }
             }
@@ -226,116 +272,190 @@ Group #RealmRulerCtfMatchPage {
       }
 
       Group #SummaryCard {
-        Anchor: (Top: 18, Width: 876, Height: 222);
+        Anchor: (Top: 18, Width: 876, Height: 200);
         LayoutMode: Top;
-        Padding: (Horizontal: 20, Vertical: 16);
+        Padding: (Horizontal: 18, Vertical: 18);
         Background: (TexturePath: "../../Hud/RealmRulerTheme/RealmCardInfo.png", Border: 18);
 
-        Group #SummaryPlaque {
-          Anchor: (Width: 188, Height: 30);
-          LayoutMode: Center;
-          Background: (TexturePath: "../../Hud/RealmRulerTheme/RealmMiniPlaque.png", Border: 12);
-
-          Label #SummaryTitle {
-            Anchor: (Width: 138, Height: 20);
-            Style: (FontSize: 16, Alignment: Center);
-            Text: "Snapshot";
-          }
-        }
-
         Group #SummaryRow1 {
-          Anchor: (Top: 12, Width: 836, Height: 40);
-          LayoutMode: Left;
-          Background: (TexturePath: "../../Hud/RealmRulerTheme/RealmRow.png", Border: 8);
+          Anchor: (Width: 840, Height: 36);
+          LayoutMode: Center;
+          Background: (TexturePath: "../../Hud/RealmRulerTheme/RealmMainSummaryRow.png", Border: 8);
 
-          Label #CurrentTeamLabel {
-            Anchor: (Width: 164, Height: 40);
-            Style: (FontSize: 16, Alignment: Start);
-            Text: "Current Team";
-          }
+          Group #SummaryRow1Lane {
+            Anchor: (Width: 788, Height: 24);
+            LayoutMode: Left;
 
-          Label #CurrentTeamValue {
-            Anchor: (Left: 10, Width: 188, Height: 40);
-            Style: (FontSize: 16, Alignment: Start);
-            Text: "None";
-          }
+            Group #SummaryRow1Left {
+              Anchor: (Width: 378, Height: 24);
+              LayoutMode: Left;
 
-          Label #MatchStateLabel {
-            Anchor: (Left: 16, Width: 126, Height: 40);
-            Style: (FontSize: 16, Alignment: Start);
-            Text: "Match State";
-          }
+              Label #CurrentTeamLabel {
+                Anchor: (Width: 118, Height: 24);
+                Style: @RealmMatchSummaryLabelStyle;
+                Text: "Current Team";
+              }
 
-          Label #MatchStateValue {
-            Anchor: (Left: 10, Width: 188, Height: 40);
-            Style: (FontSize: 16, Alignment: Start);
-            Text: "Lobby Open";
+              Label #CurrentTeamValue {
+                Anchor: (Left: 14, Width: 246, Height: 24);
+                Style: @RealmMatchSummaryValueStyle;
+                Text: "None";
+              }
+            }
+
+            Group #SummaryRow1Right {
+              Anchor: (Left: 32, Width: 378, Height: 24);
+              LayoutMode: Left;
+
+              Label #MatchStateLabel {
+                Anchor: (Width: 108, Height: 24);
+                Style: @RealmMatchSummaryLabelStyle;
+                Text: "Match State";
+              }
+
+              Label #MatchStateValue {
+                Anchor: (Left: 14, Width: 256, Height: 24);
+                Style: @RealmMatchSummaryValueStyle;
+                Text: "Lobby Open";
+              }
+            }
           }
         }
 
         Group #SummaryRow2 {
-          Anchor: (Top: 8, Width: 836, Height: 40);
-          LayoutMode: Left;
-          Background: (TexturePath: "../../Hud/RealmRulerTheme/RealmRow.png", Border: 8);
+          Anchor: (Top: 6, Width: 840, Height: 36);
+          LayoutMode: Center;
+          Background: (TexturePath: "../../Hud/RealmRulerTheme/RealmMainSummaryRow.png", Border: 8);
 
-          Label #TimerLabel {
-            Anchor: (Width: 164, Height: 40);
-            Style: (FontSize: 16, Alignment: Start);
-            Text: "Timer";
-          }
+          Group #SummaryRow2Lane {
+            Anchor: (Width: 788, Height: 24);
+            LayoutMode: Left;
 
-          Label #TimerValue {
-            Anchor: (Left: 10, Width: 188, Height: 40);
-            Style: (FontSize: 16, Alignment: Start);
-            Text: "--:--";
-          }
+            Group #SummaryRow2Left {
+              Anchor: (Width: 378, Height: 24);
+              LayoutMode: Left;
 
-          Label #WaitingLabel {
-            Anchor: (Left: 16, Width: 126, Height: 40);
-            Style: (FontSize: 16, Alignment: Start);
-            Text: "Waiting";
-          }
+              Label #TimerLabel {
+                Anchor: (Width: 132, Height: 24);
+                Style: @RealmMatchSummaryLabelStyle;
+                Text: "Timer";
+              }
 
-          Label #WaitingValue {
-            Anchor: (Left: 10, Width: 188, Height: 40);
-            Style: (FontSize: 16, Alignment: Start);
-            Text: "0";
+              Label #TimerValue {
+                Anchor: (Left: 14, Width: 232, Height: 24);
+                Style: @RealmMatchSummaryValueStyle;
+                Text: "--:--";
+              }
+            }
+
+            Group #SummaryRow2Right {
+              Anchor: (Left: 32, Width: 378, Height: 24);
+              LayoutMode: Left;
+
+              Label #WaitingLabel {
+                Anchor: (Width: 108, Height: 24);
+                Style: @RealmMatchSummaryLabelStyle;
+                Text: "Waiting";
+              }
+
+              Label #WaitingValue {
+                Anchor: (Left: 14, Width: 256, Height: 24);
+                Style: @RealmMatchSummaryValueStyle;
+                Text: "0";
+              }
+            }
           }
         }
 
         Group #SummaryRow3 {
-          Anchor: (Top: 8, Width: 836, Height: 40);
-          LayoutMode: Left;
-          Background: (TexturePath: "../../Hud/RealmRulerTheme/RealmRow.png", Border: 8);
+          Anchor: (Top: 6, Width: 840, Height: 36);
+          LayoutMode: Center;
+          Background: (TexturePath: "../../Hud/RealmRulerTheme/RealmMainSummaryRow.png", Border: 8);
 
-          Label #LobbyCountsLabel {
-            Anchor: (Width: 164, Height: 40);
-            Style: (FontSize: 16, Alignment: Start);
-            Text: "Lobby Teams";
-          }
+          Group #SummaryRow3Lane {
+            Anchor: (Width: 788, Height: 24);
+            LayoutMode: Left;
 
-          Label #LobbyCountsValue {
-            Anchor: (Left: 10, Width: 638, Height: 40);
-            Style: (FontSize: 16, Alignment: Start);
-            Text: "Red:0 Blue:0 Yellow:0 White:0";
+            Label #LobbyCountsLabel {
+              Anchor: (Width: 126, Height: 24);
+              Style: @RealmMatchSummaryLabelStyle;
+              Text: "Lobby Teams";
+            }
+
+            Group #LobbyCountsColumns {
+              Anchor: (Left: 18, Width: 644, Height: 24);
+              LayoutMode: Left;
+
+              Label #LobbyRedValue {
+                Anchor: (Width: 154, Height: 24);
+                Style: @RealmMatchTeamRedStyle;
+                Text: "Red 0";
+              }
+
+              Label #LobbyBlueValue {
+                Anchor: (Left: 6, Width: 154, Height: 24);
+                Style: @RealmMatchTeamBlueStyle;
+                Text: "Blue 0";
+              }
+
+              Label #LobbyYellowValue {
+                Anchor: (Left: 6, Width: 154, Height: 24);
+                Style: @RealmMatchTeamYellowStyle;
+                Text: "Yellow 0";
+              }
+
+              Label #LobbyWhiteValue {
+                Anchor: (Left: 6, Width: 154, Height: 24);
+                Style: @RealmMatchTeamWhiteStyle;
+                Text: "White 0";
+              }
+            }
           }
         }
 
         Group #SummaryRow4 {
-          Anchor: (Top: 8, Width: 836, Height: 40);
-          LayoutMode: Left;
-          Background: (TexturePath: "../../Hud/RealmRulerTheme/RealmRow.png", Border: 8);
+          Anchor: (Top: 6, Width: 840, Height: 36);
+          LayoutMode: Center;
+          Background: (TexturePath: "../../Hud/RealmRulerTheme/RealmMainSummaryRow.png", Border: 8);
 
-          Label #ActiveCountsLabel {
-            Anchor: (Width: 164, Height: 40);
-            Style: (FontSize: 16, Alignment: Start);
-            Text: "Active Teams";
-          }
+          Group #SummaryRow4Lane {
+            Anchor: (Width: 788, Height: 24);
+            LayoutMode: Left;
 
-          Label #ActiveCountsValue {
-            Anchor: (Left: 10, Width: 638, Height: 40);
-            Style: (FontSize: 16, Alignment: Start);
-            Text: "Red:0 Blue:0 Yellow:0 White:0";
+            Label #ActiveCountsLabel {
+              Anchor: (Width: 126, Height: 24);
+              Style: @RealmMatchSummaryLabelStyle;
+              Text: "Active Teams";
+            }
+
+            Group #ActiveCountsColumns {
+              Anchor: (Left: 18, Width: 644, Height: 24);
+              LayoutMode: Left;
+
+              Label #ActiveRedValue {
+                Anchor: (Width: 154, Height: 24);
+                Style: @RealmMatchTeamRedStyle;
+                Text: "Red 0";
+              }
+
+              Label #ActiveBlueValue {
+                Anchor: (Left: 6, Width: 154, Height: 24);
+                Style: @RealmMatchTeamBlueStyle;
+                Text: "Blue 0";
+              }
+
+              Label #ActiveYellowValue {
+                Anchor: (Left: 6, Width: 154, Height: 24);
+                Style: @RealmMatchTeamYellowStyle;
+                Text: "Yellow 0";
+              }
+
+              Label #ActiveWhiteValue {
+                Anchor: (Left: 6, Width: 154, Height: 24);
+                Style: @RealmMatchTeamWhiteStyle;
+                Text: "White 0";
+              }
+            }
           }
         }
       }
@@ -493,14 +613,19 @@ Group #RealmRulerCtfMatchPage {
       }
 
       Group #PageFooter {
-        Anchor: (Top: 20, Width: 876, Height: 36);
+        Anchor: (Top: 16, Width: 876, Height: 48);
         LayoutMode: Center;
-        Background: (TexturePath: "../../Hud/RealmRulerTheme/RealmFooterBar.png", Border: 12);
 
-        Label #CloseHint {
-          Anchor: (Width: 190, Height: 20);
-          Style: (FontSize: 13, Alignment: Center, TextColor: #cfd9e2(0.88));
-          Text: "Press Esc to close";
+        Group #FooterPill {
+          Anchor: (Width: 446, Height: 46);
+          LayoutMode: Center;
+          Background: (TexturePath: "../../Hud/RealmRulerTheme/RealmMainFooterPill.png", Border: 16);
+
+          Label #CloseHint {
+            Anchor: (Width: 278, Height: 24);
+            Style: (FontSize: 18, Alignment: Center, RenderBold: true, TextColor: #e7eff5);
+            Text: "Press Esc to close";
+          }
         }
       }
     }
