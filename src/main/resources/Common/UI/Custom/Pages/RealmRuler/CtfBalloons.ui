@@ -141,7 +141,7 @@ Group #RealmRulerCtfBalloonsPage {
         }
 
         Group #HeaderPlaque {
-          Anchor: (Top: 16, Width: 760, Height: 60);
+          Anchor: (Top: 12, Width: 760, Height: 60);
           LayoutMode: Top;
           Background: (TexturePath: "../../Hud/RealmRulerTheme/RealmTitlePlaque.png", Border: 18);
 
